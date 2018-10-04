@@ -13,7 +13,7 @@ module ToElm where
 import Coder (Coder, (=:), handle, match)
 import Data.Aeson.Types (Parser)
 import Data.Bifunctor (bimap)
-import Data.Functor.Invariant (invmap)
+import Data.Functor.Invariant (Invariant(invmap))
 import Data.Vinyl (ElField(Field), Label(Label), Rec((:&), RNil))
 import Data.Vinyl.CoRec (CoRec(CoRec))
 import GHC.Exts (fromList, toList)
@@ -26,6 +26,9 @@ data ToElm a = ToElm
   { coder :: Coder a
   , elmType :: ElmType
   }
+
+instance Invariant ToElm where
+  invmap to from (ToElm coder elmType) = ToElm (invmap to from coder) elmType
 
 class HasElm a where
   hasElm :: ToElm a
