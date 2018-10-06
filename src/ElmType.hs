@@ -12,4 +12,6 @@ data ElmType
   | ElmResult { ok :: ElmType
               , err :: ElmType }
   | ElmRecord (HashMap Text ElmType)
+  | ElmCustomType { name :: Text
+                  , constructors :: HashMap Text [ElmType] }
   deriving (Show)

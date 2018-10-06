@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE PolyKinds #-}
@@ -16,6 +17,7 @@ module HasElm
   ) where
 
 import Coder (Coder, WrappedField(WrappedField), (=:), handle, match)
+import Data.Functor.Invariant (Invariant(invmap))
 import Data.HashMap.Strict (HashMap)
 import Data.Proxy (Proxy(Proxy))
 import Data.Vinyl
@@ -34,6 +36,7 @@ import Data.Vinyl
   , rpureConstrained
   , rpuref
   )
+import Data.Vinyl.CoRec (CoRec, FoldRec)
 import Data.Vinyl.Functor ((:.), Compose(Compose))
 import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
 import ElmType
@@ -112,3 +115,24 @@ toElmField t@(WrappedField toElm) =
 
 mkToElm :: (HasElm a) => proxy a -> ToElm a
 mkToElm _ = hasElm
+
+instance forall s x xs. ( KnownSymbol s
+                        , RecAll (WrappedField Proxy) (x ': xs) HasElmField
+                        , RecApplicative (x ': xs)
+                        , AllFields (x ': xs)
+                        , FoldRec (x ': xs) (x ': xs)
+         ) =>
+         HasElm (Label s, CoRec ElField (x ': xs)) where
+  hasElm =
+    ToElm
+      { coder =
+          invmap (Label, ) snd . Coder.union $ codersRec (Proxy @(x ': xs))
+      , elmType =
+          ElmCustomType (T.pack . symbolVal $ Proxy @s) .
+          rfoldMap toElmConstructor $
+          toElms (Proxy @(x ': xs))
+      }
+
+toElmConstructor :: WrappedField ToElm a -> HashMap T.Text [ElmType]
+toElmConstructor t@(WrappedField toElm) =
+  HashMap.singleton (Coder.getLabel t) [elmType toElm]
