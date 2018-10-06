@@ -13,7 +13,8 @@
 {-# LANGUAGE ConstraintKinds #-}
 
 module Coder
-  ( Coder
+  ( Coder(encode, decode)
+  , WrappedField(WrappedField)
   , primitive
   , handle
   , tuple2

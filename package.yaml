@@ -21,3 +21,7 @@ dependencies:
 
 library:
   source-dirs: src
+
+executables:
+  example:
+    main: Example.hs
