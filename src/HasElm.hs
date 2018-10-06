@@ -17,6 +17,7 @@ module HasElm
   ) where
 
 import Coder (Coder, WrappedField(WrappedField), (=:), handle, match)
+import Data.Functor.Foldable (Fix(Fix))
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.HashMap.Strict (HashMap)
 import Data.Proxy (Proxy(Proxy))
@@ -80,7 +81,7 @@ instance forall xs. ( RecAll (WrappedField Proxy) xs HasElmField
   hasElm =
     ToElm
       { coder = Coder.record $ codersRec (Proxy @xs)
-      , elmType = ElmRecord . rfoldMap toElmField $ toElms (Proxy @xs)
+      , elmType = Fix . ElmRecord . rfoldMap toElmField $ toElms (Proxy @xs)
       }
 
 codersRec ::
@@ -131,6 +132,7 @@ instance forall s x xs. ( KnownSymbol s
           invmap (Label, ) snd . Coder.union . rmap Coder.wrapInIdentity $
           codersRec (Proxy @(x ': xs))
       , elmType =
+          Fix .
           ElmCustomType (T.pack . symbolVal $ Proxy @s) .
           rfoldMap toElmConstructor $
           toElms (Proxy @(x ': xs))

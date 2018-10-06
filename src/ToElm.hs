@@ -14,6 +14,7 @@ module ToElm
   ) where
 
 import Coder (Coder, WrappedField(WrappedField), (=:), handle, match)
+import Data.Functor.Foldable (Fix(Fix))
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.Vinyl (ElField, ElField(Field), Label(Label), Rec((:&), RNil))
 import Data.Vinyl.CoRec (CoRec(CoRec))
@@ -35,19 +36,20 @@ instance Invariant ToElm where
   invmap to from (ToElm coder elmType) = ToElm (invmap to from coder) elmType
 
 int :: ToElm Int
-int = ToElm {coder = Coder.primitive, elmType = ElmInt}
+int = ToElm {coder = Coder.primitive, elmType = Fix ElmInt}
 
 string :: ToElm String
-string = ToElm {coder = Coder.primitive, elmType = ElmString}
+string = ToElm {coder = Coder.primitive, elmType = Fix ElmString}
 
 list :: ToElm a -> ToElm [a]
-list x = ToElm {coder = Coder.many (coder x), elmType = ElmList (elmType x)}
+list x =
+  ToElm {coder = Coder.many (coder x), elmType = Fix $ ElmList (elmType x)}
 
 tuple2 :: ToElm a -> ToElm b -> ToElm (a, b)
 tuple2 first second =
   ToElm
     { coder = Coder.tuple2 (coder first) (coder second)
-    , elmType = ElmTuple2 (elmType first) (elmType second)
+    , elmType = Fix $ ElmTuple2 (elmType first) (elmType second)
     }
 
 either :: forall l r. ToElm l -> ToElm r -> ToElm (Either l r)
@@ -58,7 +60,7 @@ either left right =
         Label @"_left" =: wrapIdentity (coder left) :& Label @"_right" =:
         wrapIdentity (coder right) :&
         RNil
-    , elmType = ElmResult {err = elmType left, ok = elmType right}
+    , elmType = Fix $ ElmResult {err = elmType left, ok = elmType right}
     }
   where
     wrapIdentity :: Coder a -> (Coder :. Identity) a

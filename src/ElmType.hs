@@ -1,17 +1,20 @@
 module ElmType where
 
+import Data.Functor.Foldable (Fix)
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
 
-data ElmType
+type ElmType = Fix ElmTypeF
+
+data ElmTypeF a
   = ElmInt
   | ElmString
-  | ElmList ElmType
-  | ElmTuple2 ElmType
-              ElmType
-  | ElmResult { ok :: ElmType
-              , err :: ElmType }
-  | ElmRecord (HashMap Text ElmType)
+  | ElmList a
+  | ElmTuple2 a
+              a
+  | ElmResult { ok :: a
+              , err :: a }
+  | ElmRecord (HashMap Text a)
   | ElmCustomType { name :: Text
-                  , constructors :: HashMap Text [ElmType] }
+                  , constructors :: HashMap Text [a] }
   deriving (Show)

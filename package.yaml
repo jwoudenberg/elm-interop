@@ -18,6 +18,7 @@ dependencies:
   - vinyl == 0.8.1.1
   - unordered-containers == 0.2.9.0
   - invariant == 0.5.1
+  - recursion-schemes == 5.0.3
 
 library:
   source-dirs: src
