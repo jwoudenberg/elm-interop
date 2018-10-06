@@ -37,7 +37,7 @@ import Data.Vinyl
   , rpuref
   )
 import Data.Vinyl.CoRec (CoRec, FoldRec)
-import Data.Vinyl.Functor ((:.), Compose(Compose))
+import Data.Vinyl.Functor ((:.), Compose(Compose), Identity)
 import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
 import ElmType
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -116,17 +116,20 @@ toElmField t@(WrappedField toElm) =
 mkToElm :: (HasElm a) => proxy a -> ToElm a
 mkToElm _ = hasElm
 
+type SOP f xs = CoRec (WrappedField (Rec f)) xs
+
 instance forall s x xs. ( KnownSymbol s
                         , RecAll (WrappedField Proxy) (x ': xs) HasElmField
                         , RecApplicative (x ': xs)
                         , AllFields (x ': xs)
                         , FoldRec (x ': xs) (x ': xs)
          ) =>
-         HasElm (Label s, CoRec ElField (x ': xs)) where
+         HasElm (Label s, CoRec (WrappedField Identity) (x ': xs)) where
   hasElm =
     ToElm
       { coder =
-          invmap (Label, ) snd . Coder.union $ codersRec (Proxy @(x ': xs))
+          invmap (Label, ) snd . Coder.union . rmap Coder.wrapInIdentity $
+          codersRec (Proxy @(x ': xs))
       , elmType =
           ElmCustomType (T.pack . symbolVal $ Proxy @s) .
           rfoldMap toElmConstructor $

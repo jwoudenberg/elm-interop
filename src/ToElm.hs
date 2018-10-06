@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
@@ -16,6 +17,11 @@ import Coder (Coder, WrappedField(WrappedField), (=:), handle, match)
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.Vinyl (ElField, ElField(Field), Label(Label), Rec((:&), RNil))
 import Data.Vinyl.CoRec (CoRec(CoRec))
+import Data.Vinyl.Functor
+  ( (:.)
+  , Compose(Compose)
+  , Identity(Identity, getIdentity)
+  )
 import ElmType
 
 import qualified Coder
@@ -49,10 +55,16 @@ either left right =
   ToElm
     { coder =
         invmap toEither fromEither . Coder.union $
-        Label @"_left" =: coder left :& Label @"_right" =: coder right :& RNil
+        Label @"_left" =: wrapIdentity (coder left) :& Label @"_right" =:
+        wrapIdentity (coder right) :&
+        RNil
     , elmType = ElmResult {err = elmType left, ok = elmType right}
     }
   where
+    wrapIdentity :: Coder a -> (Coder :. Identity) a
+    wrapIdentity = Compose . invmap Identity getIdentity
     toEither coRec = match coRec $ handle Left :& handle Right :& RNil
-    fromEither (Left l) = CoRec (Field l :: ElField '( "_left", l))
-    fromEither (Right r) = CoRec (Field r :: ElField '( "_right", r))
+    fromEither (Left l) =
+      CoRec (WrappedField (Identity l) :: WrappedField Identity '( "_left", l))
+    fromEither (Right r) =
+      CoRec (WrappedField (Identity r) :: WrappedField Identity '( "_right", r))
