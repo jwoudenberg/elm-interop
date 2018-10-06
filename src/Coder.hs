@@ -114,7 +114,7 @@ tuple2 first second =
   Like `ElField` from `Vinyl`, except that it allows you to specify a wrapping
   functor. Not sure if there's a way to use Vinyl that doesn't require this.
 -}
-data WrappedField f (field :: (Symbol, *)) where
+data WrappedField f (field :: (Symbol, k)) where
   WrappedField :: KnownSymbol s => !(f a) -> WrappedField f '( s, a)
 
 -- |
