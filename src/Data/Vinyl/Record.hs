@@ -1,10 +1,14 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 
 module Data.Vinyl.Record where
 
@@ -16,14 +20,9 @@ module Data.Vinyl.Record where
 -- allow the value types of a `Field` to be wrapped in an interpreting functor.
 -- This module is based of a different `Field` type that does allow this.
 import Data.Proxy (Proxy(Proxy))
-import Data.Vinyl
-  ( AllFields
-  , KnownField
-  , Rec((:&), RNil)
-  , rapply
-  , rpureConstrained
-  )
-import Data.Vinyl.Functor (Lift(Lift))
+import Data.Vinyl (Dict, KnownField, Rec((:&), RNil), rapply)
+import Data.Vinyl.Functor ((:.), Lift(Lift))
+import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
 import qualified Data.Text as T
@@ -69,10 +68,39 @@ instance (KnownSymbol s, RecordApplicative fs) =>
          RecordApplicative ('( s, f) ': fs) where
   rpure f = Field f :& rpure f
 
--- rpure _ = rpureConstrained (Proxy :: Proxy KnownField)
 -- |
 -- Map a function between functors across a 'Record' taking advantage of
 -- knowledge that each element is an 'Field'.
 rmap :: (forall a. f a -> g a) -> Record f fs -> Record g fs
 rmap _ RNil = RNil
 rmap f (Field x :& xs) = Field (f x) :& rmap f xs
+
+-- |
+-- Accessor for the type of a field.
+-- Note that this is the field type unwrapped with its interpretation functor.
+type family FieldType f where
+  FieldType (Field g '( s, t)) = t
+
+-- |
+-- Put a constrain on the inner field type.
+class (c (FieldType f)) =>
+      FieldConstrained c f
+
+
+instance (c t) => FieldConstrained c (Field f '( s, t))
+
+type family AllFieldsConstrained xs c :: Constraint where
+  AllFieldsConstrained '[] c = ()
+  AllFieldsConstrained ('( s, t) ': ts) c = (c t, AllFieldsConstrained ts c)
+
+rpureConstrained ::
+     forall c f proxy ts. (AllFieldsConstrained ts c, RecordApplicative ts)
+  => proxy c
+  -> (forall a. c a =>
+                  f a)
+  -> Record f ts
+rpureConstrained _ f = go (rpure Proxy)
+  where
+    go :: (AllFieldsConstrained ts' c) => Record Proxy ts' -> Record f ts'
+    go RNil = RNil
+    go (Field Proxy :& xs) = Field f :& go xs
