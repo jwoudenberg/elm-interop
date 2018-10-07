@@ -25,6 +25,7 @@ import Data.Vinyl
   ( AllFields
   , Dict(Dict)
   , ElField(Field)
+  , HList
   , KnownField
   , Label(Label)
   , Rec((:&), RNil)
@@ -40,7 +41,9 @@ import Data.Vinyl
 import Data.Vinyl.CoRec (CoRec, FoldRec)
 import Data.Vinyl.Functor ((:.), Compose(Compose), Identity)
 import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
+import ElmSOP ()
 import ElmType
+import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import ToElm (ToElm(ToElm, coder, elmType))
 
@@ -84,11 +87,23 @@ instance forall xs. ( RecAll (WrappedField Proxy) xs HasElmField
       , elmType = Fix . ElmRecord . rfoldMap toElmField $ toElms (Proxy @xs)
       }
 
+codersSOP ::
+     (RecAll (WrappedField Proxy) xs HasElmField, AllFields xs)
+  => Proxy xs
+  -> Rec (WrappedField (Coder :. HList)) xs
+codersSOP p = undefined
+
 codersRec ::
      (RecAll (WrappedField Proxy) xs HasElmField, AllFields xs)
   => Proxy xs
   -> Rec (WrappedField Coder) xs
 codersRec p = rmapf (\(WrappedField x) -> (WrappedField $ coder x)) (toElms p)
+
+toElmSOP ::
+     (RecAll (WrappedField Proxy) xs HasElmField, AllFields xs)
+  => Proxy xs
+  -> Rec (WrappedField (Rec ToElm)) xs
+toElmSOP _ = undefined
 
 toElms ::
      (RecAll (WrappedField Proxy) xs HasElmField, AllFields xs)
@@ -106,6 +121,23 @@ hasElmFieldRec ::
      (RecAll (WrappedField Proxy) xs HasElmField, AllFields xs)
   => Rec (Dict HasElmField :. WrappedField Proxy) xs
 hasElmFieldRec = reifyConstraint (Proxy :: Proxy HasElmField) proxyRec
+
+class InRecApplicative f
+
+instance (RecApplicative xs) => InRecApplicative (f xs)
+
+-- -- | Constraint that all types in a type-level list satisfy a
+-- -- constraint.
+-- type family AllFieldsConstrained c ts :: Constraint where
+--   AllFieldsConstrained c '[] = ()
+--   AllFieldsConstrained c (t ': ts) = (c (Snd t), AllFieldsConstrained c ts)
+proxySOP ::
+     (AllFields xs)
+  => Rec (WrappedField (Dict InRecApplicative :. Rec Proxy)) xs
+proxySOP = rpuref (WrappedField proxyRec')
+
+proxyRec' :: (Dict InRecApplicative :. Rec Proxy) xs
+proxyRec' = undefined
 
 proxyRec :: (AllFields xs) => Rec (WrappedField Proxy) xs
 proxyRec = rpuref (WrappedField Proxy)
@@ -125,19 +157,21 @@ instance forall s x xs. ( KnownSymbol s
                         , AllFields (x ': xs)
                         , FoldRec (x ': xs) (x ': xs)
          ) =>
-         HasElm (Label s, CoRec (WrappedField Identity) (x ': xs)) where
+         HasElm (Label s, CoRec (WrappedField HList) (x ': xs)) where
   hasElm =
     ToElm
       { coder =
-          invmap (Label, ) snd . Coder.union . rmap Coder.wrapInIdentity $
-          codersRec (Proxy @(x ': xs))
+          invmap (Label, ) snd . Coder.union $ codersSOP (Proxy @(x ': xs))
       , elmType =
           Fix .
           ElmCustomType (T.pack . symbolVal $ Proxy @s) .
           rfoldMap toElmConstructor $
-          toElms (Proxy @(x ': xs))
+          toElmSOP (Proxy @(x ': xs))
       }
 
-toElmConstructor :: WrappedField ToElm a -> HashMap T.Text [ElmType]
+toElmConstructor :: WrappedField (Rec ToElm) a -> HashMap T.Text [ElmType]
 toElmConstructor t@(WrappedField toElm) =
-  HashMap.singleton (Coder.getLabel t) [elmType toElm]
+  HashMap.singleton (Coder.getLabel t) (toElmParameter toElm)
+
+toElmParameter :: Rec ToElm a -> [ElmType]
+toElmParameter = rfoldMap (pure . elmType)
