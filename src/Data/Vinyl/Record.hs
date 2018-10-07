@@ -3,6 +3,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Data.Vinyl.Record where
 
@@ -14,7 +16,13 @@ module Data.Vinyl.Record where
 -- allow the value types of a `Field` to be wrapped in an interpreting functor.
 -- This module is based of a different `Field` type that does allow this.
 import Data.Proxy (Proxy(Proxy))
-import Data.Vinyl (AllFields, KnownField, Rec, rapply, rpureConstrained)
+import Data.Vinyl
+  ( AllFields
+  , KnownField
+  , Rec((:&), RNil)
+  , rapply
+  , rpureConstrained
+  )
 import Data.Vinyl.Functor (Lift(Lift))
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
@@ -51,20 +59,20 @@ getLabel _ = T.pack $ symbolVal (Proxy :: Proxy s)
 
 -- |
 -- Construct a 'Record' with 'Field' elements.
-rpure ::
-     AllFields fs
-  => (forall a. KnownField a =>
-                  Field f a)
-  -> Record f fs
-rpure = rpureConstrained (Proxy :: Proxy KnownField)
+class RecordApplicative fs where
+  rpure :: (forall a. f a) -> Record f fs
 
+instance RecordApplicative '[] where
+  rpure _ = RNil
+
+instance (KnownSymbol s, RecordApplicative fs) =>
+         RecordApplicative ('( s, f) ': fs) where
+  rpure f = Field f :& rpure f
+
+-- rpure _ = rpureConstrained (Proxy :: Proxy KnownField)
 -- |
 -- Map a function between functors across a 'Record' taking advantage of
 -- knowledge that each element is an 'Field'.
-rmap ::
-     AllFields fs
-  => (forall a. KnownField a =>
-                  Field f a -> Field g a)
-  -> Record f fs
-  -> Record g fs
-rmap f = rapply $ rpureConstrained (Proxy :: Proxy KnownField) (Lift f)
+rmap :: (forall a. f a -> g a) -> Record f fs -> Record g fs
+rmap _ RNil = RNil
+rmap f (Field x :& xs) = Field (f x) :& rmap f xs

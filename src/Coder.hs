@@ -16,7 +16,6 @@ module Coder
   ( Coder(encode, decode)
   , primitive
   , handle
-  , wrapInIdentity
   , tuple2
   , many
   , record
@@ -39,7 +38,6 @@ import Data.Vinyl
   , rfoldMap
   , rget
   , rmap
-  , rpureConstrained
   , rtraverse
   )
 import Data.Vinyl.CoRec
@@ -58,7 +56,7 @@ import Data.Vinyl.Functor
   , Identity
   , Lift(Lift)
   )
-import Data.Vinyl.Record (Field(Field), (=:), getField, getLabel)
+import Data.Vinyl.Record (Field(Field), Record, (=:), getField, getLabel)
 import Data.Vinyl.TypeLevel (RIndex)
 import GHC.Exts (toList)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -107,11 +105,11 @@ tuple2 first second =
   (Label @"_1" =: first) :& (Label @"_2" =: second) :& RNil
   where
     toRecord (a, b) = (Label @"_1" =: pure a) :& (Label @"_2" =: pure b) :& RNil
-    fromRecord :: Rec (Field Identity) '[ '( "_1", a), '( "_2", b)] -> (a, b)
+    fromRecord :: Record Identity '[ '( "_1", a), '( "_2", b)] -> (a, b)
     fromRecord (x :& y :& RNil) =
       (getIdentity $ getField x, getIdentity $ getField y)
 
-record :: forall xs. Rec (Field Coder) xs -> Coder (Rec (Field Identity) xs)
+record :: forall xs. Record Coder xs -> Coder (Record Identity xs)
 record coders =
   Coder
     { encode = Aeson.object . recordToList . rapply (recordEncoders' coders)
@@ -135,17 +133,14 @@ parseField object coder =
     key = T.pack $ symbolVal (Proxy :: Proxy s)
 
 recordEncoders ::
-     Rec (Field (Coder :. f)) xs -> Rec (Lift (->) (Field f) (Const Pair)) xs
+     Record (Coder :. f) xs -> Rec (Lift (->) (Field f) (Const Pair)) xs
 recordEncoders =
   rmap (\coder -> Lift (\(Field x) -> Const $ runEncoder coder x))
 
 recordEncoders' ::
-     Rec (Field Coder) xs -> Rec (Lift (->) (Field Identity) (Const Pair)) xs
-recordEncoders' = recordEncoders . rmap wrapInIdentity
-
-wrapInIdentity :: Field Coder x -> Field (Coder :. Identity) x
-wrapInIdentity (Field coder) =
-  Field (Compose $ invmap Identity getIdentity coder)
+     Record Coder xs -> Rec (Lift (->) (Field Identity) (Const Pair)) xs
+recordEncoders' =
+  recordEncoders . Record.rmap (Compose . invmap Identity getIdentity)
 
 runEncoder ::
      forall s t f. (KnownSymbol s)
@@ -156,7 +151,7 @@ runEncoder coder x = (getLabel coder, encode (getCompose $ getField coder) x)
 
 union ::
      forall x xs f. (FoldRec (x ': xs) (x ': xs))
-  => Rec (Field (Coder :. f)) (x ': xs)
+  => Record (Coder :. f) (x ': xs)
   -> Coder (CoRec (Field f) (x ': xs))
 union coders =
   Coder
@@ -178,7 +173,7 @@ decodeVariant coders pair@(key, _) =
     errorMsg = "Unexpected variant for sum: " <> T.unpack key
 
 chooseCoder ::
-     Pair -> Rec (Field (Coder :. f)) xs -> Rec (Maybe :. Parser :. Field f) xs
+     Pair -> Record (Coder :. f) xs -> Rec (Maybe :. Parser :. Field f) xs
 chooseCoder pair = rmap (\t@(Field x) -> runDecoder pair t)
 
 runDecoder ::

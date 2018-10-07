@@ -32,13 +32,22 @@ import Data.Vinyl
   , rfoldMap
   , rmap
   , rmapf
-  , rpure
   , rpureConstrained
   , rpuref
   )
 import Data.Vinyl.CoRec (CoRec, FoldRec)
-import Data.Vinyl.Functor ((:.), Compose(Compose), Identity)
-import Data.Vinyl.Record (Field(Field), (=:), getLabel)
+import Data.Vinyl.Functor
+  ( (:.)
+  , Compose(Compose)
+  , Identity(Identity, getIdentity)
+  )
+import Data.Vinyl.Record
+  ( Field(Field)
+  , Record
+  , RecordApplicative
+  , (=:)
+  , getLabel
+  )
 import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
 import ElmType
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -48,6 +57,7 @@ import qualified Coder
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
+import qualified Data.Vinyl.Record as Record
 import qualified ToElm
 
 class HasElm a where
@@ -76,8 +86,9 @@ instance (HasElm a, KnownSymbol s) => HasElmField (Field Proxy '( s, a)) where
 instance forall xs. ( RecAll (Field Proxy) xs HasElmField
                     , RecApplicative xs
                     , AllFields xs
+                    , RecordApplicative xs
          ) =>
-         HasElm (Rec (Field Identity) xs) where
+         HasElm (Record Identity xs) where
   hasElm =
     ToElm
       { coder = Coder.record $ codersRec (Proxy @xs)
@@ -85,15 +96,15 @@ instance forall xs. ( RecAll (Field Proxy) xs HasElmField
       }
 
 codersRec ::
-     (RecAll (Field Proxy) xs HasElmField, AllFields xs)
+     (RecAll (Field Proxy) xs HasElmField, AllFields xs, RecordApplicative xs)
   => Proxy xs
-  -> Rec (Field Coder) xs
-codersRec p = rmapf (\(Field x) -> (Field $ coder x)) (toElms p)
+  -> Record Coder xs
+codersRec p = Record.rmap coder (toElms p)
 
 toElms ::
-     (RecAll (Field Proxy) xs HasElmField, AllFields xs)
+     (RecAll (Field Proxy) xs HasElmField, AllFields xs, RecordApplicative xs)
   => Proxy xs
-  -> Rec (Field ToElm) xs
+  -> Record ToElm xs
 toElms _ = rmapf getToElm hasElmFieldRec
   where
     getToElm ::
@@ -103,12 +114,10 @@ toElms _ = rmapf getToElm hasElmFieldRec
     getToElm (Compose (Dict x)) = Field (hasElmField x)
 
 hasElmFieldRec ::
-     (RecAll (Field Proxy) xs HasElmField, AllFields xs)
+     (RecAll (Field Proxy) xs HasElmField, RecordApplicative xs)
   => Rec (Dict HasElmField :. Field Proxy) xs
-hasElmFieldRec = reifyConstraint (Proxy :: Proxy HasElmField) proxyRec
-
-proxyRec :: (AllFields xs) => Rec (Field Proxy) xs
-proxyRec = rpuref (Field Proxy)
+hasElmFieldRec =
+  reifyConstraint (Proxy :: Proxy HasElmField) (Record.rpure Proxy)
 
 toElmField :: Field ToElm a -> HashMap T.Text ElmType
 toElmField t@(Field toElm) = HashMap.singleton (getLabel t) (elmType toElm)
@@ -121,6 +130,7 @@ type SOP f xs = CoRec (Field (Rec f)) xs
 instance forall s x xs. ( KnownSymbol s
                         , RecAll (Field Proxy) (x ': xs) HasElmField
                         , RecApplicative (x ': xs)
+                        , RecordApplicative (x ': xs)
                         , AllFields (x ': xs)
                         , FoldRec (x ': xs) (x ': xs)
          ) =>
@@ -128,7 +138,7 @@ instance forall s x xs. ( KnownSymbol s
   hasElm =
     ToElm
       { coder =
-          invmap (Label, ) snd . Coder.union . rmap Coder.wrapInIdentity $
+          invmap (Label, ) snd . Coder.union . Record.rmap wrapIdentity $
           codersRec (Proxy @(x ': xs))
       , elmType =
           Fix .
@@ -136,6 +146,8 @@ instance forall s x xs. ( KnownSymbol s
           rfoldMap toElmConstructor $
           toElms (Proxy @(x ': xs))
       }
+    where
+      wrapIdentity = Compose . invmap Identity getIdentity
 
 toElmConstructor :: Field ToElm a -> HashMap T.Text [ElmType]
 toElmConstructor t@(Field toElm) =
