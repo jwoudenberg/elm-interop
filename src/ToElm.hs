@@ -13,19 +13,21 @@ module ToElm
   , ToElm.either
   ) where
 
-import Coder (Coder, WrappedField(WrappedField), (=:), handle, match)
+import Coder (Coder, handle, match)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.Functor.Invariant (Invariant(invmap))
-import Data.Vinyl (ElField, ElField(Field), Label(Label), Rec((:&), RNil))
+import Data.Vinyl (Label(Label), Rec((:&), RNil))
 import Data.Vinyl.CoRec (CoRec(CoRec))
 import Data.Vinyl.Functor
   ( (:.)
   , Compose(Compose)
   , Identity(Identity, getIdentity)
   )
+import Data.Vinyl.Record (Field(Field), (=:))
 import ElmType
 
 import qualified Coder
+import qualified Data.Vinyl
 
 data ToElm a = ToElm
   { coder :: Coder a
@@ -67,6 +69,6 @@ either left right =
     wrapIdentity = Compose . invmap Identity getIdentity
     toEither coRec = match coRec $ handle Left :& handle Right :& RNil
     fromEither (Left l) =
-      CoRec (WrappedField (Identity l) :: WrappedField Identity '( "_left", l))
+      CoRec (Field (Identity l) :: Field Identity '( "_left", l))
     fromEither (Right r) =
-      CoRec (WrappedField (Identity r) :: WrappedField Identity '( "_right", r))
+      CoRec (Field (Identity r) :: Field Identity '( "_right", r))

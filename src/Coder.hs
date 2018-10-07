@@ -14,15 +14,12 @@
 
 module Coder
   ( Coder(encode, decode)
-  , WrappedField(WrappedField)
   , primitive
   , handle
-  , wrapInIdentity
   , tuple2
   , many
   , record
   , union
-  , IsField(getField, getLabel, (=:))
   , match
   ) where
 
@@ -33,9 +30,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid (First(First, getFirst))
 import Data.Proxy (Proxy(Proxy))
 import Data.Vinyl
-  ( ElField
-  , ElField(Field)
-  , Label(Label)
+  ( Label(Label)
   , RElem
   , Rec((:&), RNil)
   , rapply
@@ -43,7 +38,6 @@ import Data.Vinyl
   , rfoldMap
   , rget
   , rmap
-  , rpureConstrained
   , rtraverse
   )
 import Data.Vinyl.CoRec
@@ -62,6 +56,7 @@ import Data.Vinyl.Functor
   , Identity
   , Lift(Lift)
   )
+import Data.Vinyl.Record (Field(Field), Record, (=:), getField, getLabel)
 import Data.Vinyl.TypeLevel (RIndex)
 import GHC.Exts (toList)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -69,6 +64,8 @@ import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
+import qualified Data.Vinyl as Vinyl
+import qualified Data.Vinyl.Record as Record
 
 data Coder a = Coder
   { encode :: a -> Aeson.Value
@@ -107,107 +104,55 @@ tuple2 first second =
   invmap fromRecord toRecord . record $
   (Label @"_1" =: first) :& (Label @"_2" =: second) :& RNil
   where
-    toRecord (a, b) = (Label @"_1" =: a) :& (Label @"_2" =: b) :& RNil
-    fromRecord :: Rec ElField '[ '( "_1", a), '( "_2", b)] -> (a, b)
-    fromRecord (x :& y :& RNil) = (getField x, getField y)
+    toRecord (a, b) = (Label @"_1" =: pure a) :& (Label @"_2" =: pure b) :& RNil
+    fromRecord :: Record Identity '[ '( "_1", a), '( "_2", b)] -> (a, b)
+    fromRecord (x :& y :& RNil) =
+      (getIdentity $ getField x, getIdentity $ getField y)
 
-{-
-  Like `ElField` from `Vinyl`, except that it allows you to specify a wrapping
-  functor. Not sure if there's a way to use Vinyl that doesn't require this.
--}
-data WrappedField f (field :: (Symbol, k)) where
-  WrappedField :: KnownSymbol s => !(f a) -> WrappedField f '( s, a)
-
--- |
--- We use both `ElField` and `WrappedField` in this implementation. To not have
--- to understand the difference outside of the context of this module, we set up
--- some helpers that work with either field type.
-class IsField field where
-  type Stored field (a :: k)
-  (=:) ::
-       (KnownSymbol l)
-    => Label (l :: Symbol)
-    -> Stored field a
-    -> field '( l, a)
-  getField :: field '( l, a) -> Stored field a
-  getLabel :: (KnownSymbol s) => field '( s, a) -> T.Text
-
-instance IsField (WrappedField f) where
-  type Stored (WrappedField f) a = f a
-  _ =: x = WrappedField x
-  getField (WrappedField x) = x
-  getLabel ::
-       forall f s a. (KnownSymbol s)
-    => WrappedField f '( s, a)
-    -> T.Text
-  getLabel _ = T.pack $ symbolVal (Proxy :: Proxy s)
-
-instance IsField ElField where
-  type Stored ElField a = a
-  _ =: x = Field x
-  getField (Field x) = x
-  getLabel ::
-       forall s a. (KnownSymbol s)
-    => ElField '( s, a)
-    -> T.Text
-  getLabel _ = T.pack $ symbolVal (Proxy :: Proxy s)
-
-record :: forall xs. Rec (WrappedField Coder) xs -> Coder (Rec ElField xs)
+record :: forall xs. Record Coder xs -> Coder (Record Identity xs)
 record coders =
   Coder
     { encode = Aeson.object . recordToList . rapply (recordEncoders' coders)
     , decode =
         Aeson.withObject "Record" $ \o ->
-          rtraverse (\(WrappedField x) -> parseField o x) coders
+          rtraverse (\(Field x) -> parseField o x) coders
     }
 
 parseField ::
      forall s t. (KnownSymbol s)
   => Aeson.Object
   -> Coder t
-  -> Parser (ElField '( s, t))
+  -> Parser (Field Identity '( s, t))
 parseField object coder =
   maybe
     (fail ("Expected key not found: " <> T.unpack key))
-    (fmap Field . decode coder)
+    (fmap (Field . pure) . decode coder)
     (HashMap.lookup key object)
   where
     key :: T.Text
     key = T.pack $ symbolVal (Proxy :: Proxy s)
 
 recordEncoders ::
-     Rec (WrappedField (Coder :. f)) xs
-  -> Rec (Lift (->) (WrappedField f) (Const Pair)) xs
+     Record (Coder :. f) xs -> Rec (Lift (->) (Field f) (Const Pair)) xs
 recordEncoders =
-  rmap (\coder -> Lift (\(WrappedField x) -> Const $ runEncoder coder x))
+  rmap (\coder -> Lift (\(Field x) -> Const $ runEncoder coder x))
 
 recordEncoders' ::
-     Rec (WrappedField Coder) xs -> Rec (Lift (->) ElField (Const Pair)) xs
-recordEncoders' = rmap unwrapIdentity . recordEncoders . rmap wrapInIdentity
-  where
-    unwrapIdentity ::
-         Lift (->) (WrappedField Identity) (Const Pair) x
-      -> Lift (->) ElField (Const Pair) x
-    unwrapIdentity (Lift f) = Lift (f . toWrappedField)
-
-wrapInIdentity :: WrappedField Coder x -> WrappedField (Coder :. Identity) x
-wrapInIdentity (WrappedField coder) =
-  WrappedField (Compose $ invmap Identity getIdentity coder)
-
-toWrappedField :: ElField x -> WrappedField Identity x
-toWrappedField (Field x) = WrappedField (Identity x)
+     Record Coder xs -> Rec (Lift (->) (Field Identity) (Const Pair)) xs
+recordEncoders' =
+  recordEncoders . Record.rmap (Compose . invmap Identity getIdentity)
 
 runEncoder ::
      forall s t f. (KnownSymbol s)
-  => WrappedField (Coder :. f) '( s, t)
+  => Field (Coder :. f) '( s, t)
   -> f t
   -> Pair
 runEncoder coder x = (getLabel coder, encode (getCompose $ getField coder) x)
 
 union ::
      forall x xs f. (FoldRec (x ': xs) (x ': xs))
-  => Rec (WrappedField (Coder :. f)) (x ': xs)
-  -> Coder (CoRec (WrappedField f) (x ': xs))
+  => Record (Coder :. f) (x ': xs)
+  -> Coder (CoRec (Field f) (x ': xs))
 union coders =
   Coder
     { encode = encode variant . flip match (recordEncoders coders)
@@ -218,9 +163,9 @@ union coders =
 
 decodeVariant ::
      forall xs f. (FoldRec xs xs)
-  => Rec (WrappedField (Coder :. f)) xs
+  => Rec (Field (Coder :. f)) xs
   -> Pair
-  -> Parser (CoRec (WrappedField f) xs)
+  -> Parser (CoRec (Field f) xs)
 decodeVariant coders pair@(key, _) =
   maybe (fail errorMsg) (coRecTraverse getCompose) . firstField $
   chooseCoder pair coders
@@ -228,20 +173,18 @@ decodeVariant coders pair@(key, _) =
     errorMsg = "Unexpected variant for sum: " <> T.unpack key
 
 chooseCoder ::
-     Pair
-  -> Rec (WrappedField (Coder :. f)) xs
-  -> Rec (Maybe :. Parser :. WrappedField f) xs
-chooseCoder pair = rmap (\t@(WrappedField x) -> runDecoder pair t)
+     Pair -> Record (Coder :. f) xs -> Rec (Maybe :. Parser :. Field f) xs
+chooseCoder pair = rmap (\t@(Field x) -> runDecoder pair t)
 
 runDecoder ::
      forall s t f.
      Pair
-  -> WrappedField (Coder :. f) '( s, t)
-  -> (Maybe :. Parser :. WrappedField f) '( s, t)
-runDecoder (key, value) t@(WrappedField (Compose coder)) =
+  -> Field (Coder :. f) '( s, t)
+  -> (Maybe :. Parser :. Field f) '( s, t)
+runDecoder (key, value) t@(Field (Compose coder)) =
   Compose $
   if label == key
-    then Just . Compose . fmap WrappedField $decode coder value
+    then Just . Compose . fmap Field $decode coder value
     else Nothing
   where
     label = getLabel t
@@ -254,13 +197,10 @@ runDecoder (key, value) t@(WrappedField (Compose coder)) =
 -- Extra bonus of writing our own match is that we can write an API more
 -- similar to `rapply`, allowing us to reuse the `recordEncoders` logic for
 -- records and unions both.
-match ::
-     CoRec (WrappedField f) xs
-  -> Rec (Lift (->) (WrappedField f) (Const b)) xs
-  -> b
+match :: CoRec (Field f) xs -> Rec (Lift (->) (Field f) (Const b)) xs -> b
 match (CoRec x) hs =
   case rget Proxy hs of
     Lift f -> getConst (f x)
 
-handle :: (a -> b) -> Lift (->) (WrappedField Identity) (Const b) '( s, a)
-handle f = Lift (\(WrappedField (Identity x)) -> Const (f x))
+handle :: (a -> b) -> Lift (->) (Field Identity) (Const b) '( s, a)
+handle f = Lift (\(Field (Identity x)) -> Const (f x))

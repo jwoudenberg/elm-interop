@@ -3,15 +3,16 @@
 
 module Example where
 
-import Coder (WrappedField, (=:))
 import Data.Aeson (toJSON)
-import Data.Vinyl (ElField, Label(Label), Rec((:&), RNil))
+import Data.Vinyl (Label(Label), Rec((:&), RNil))
+import Data.Vinyl.Functor (Identity)
+import Data.Vinyl.Record (Field, (=:))
 import Serialized (Serialized(Serialized))
 
-type SomeRec = Rec ElField '[ '( "Foo", Int), '( "Bar", Int)]
+type SomeRec = Rec (Field Identity) '[ '( "Foo", Int), '( "Bar", Int)]
 
 x :: SomeRec
-x = Label @"Foo" =: 42 :& Label @"Bar" =: 12 :& RNil
+x = Label @"Foo" =: pure 42 :& Label @"Bar" =: pure 12 :& RNil
 
 main :: IO ()
 main = print (toJSON (Serialized x))
