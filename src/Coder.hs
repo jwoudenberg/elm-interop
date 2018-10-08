@@ -57,6 +57,7 @@ import Data.Vinyl.Functor
   , Lift(Lift)
   )
 import Data.Vinyl.Record (Field(Field), Record, (=:), getField, getLabel)
+import Data.Vinyl.Sum (Sum)
 import Data.Vinyl.TypeLevel (RIndex)
 import GHC.Exts (toList)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -66,6 +67,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
 import qualified Data.Vinyl.Record as Record
+import qualified Data.Vinyl.Sum as Sum
 
 data Coder a = Coder
   { encode :: a -> Aeson.Value
@@ -152,7 +154,7 @@ runEncoder coder x = (getLabel coder, encode (getCompose $ getField coder) x)
 union ::
      forall x xs f. (FoldRec (x ': xs) (x ': xs))
   => Record (Coder :. f) (x ': xs)
-  -> Coder (CoRec (Field f) (x ': xs))
+  -> Coder (Sum f (x ': xs))
 union coders =
   Coder
     { encode = encode variant . flip match (recordEncoders coders)
@@ -165,7 +167,7 @@ decodeVariant ::
      forall xs f. (FoldRec xs xs)
   => Rec (Field (Coder :. f)) xs
   -> Pair
-  -> Parser (CoRec (Field f) xs)
+  -> Parser (Sum f xs)
 decodeVariant coders pair@(key, _) =
   maybe (fail errorMsg) (coRecTraverse getCompose) . firstField $
   chooseCoder pair coders
@@ -197,7 +199,7 @@ runDecoder (key, value) t@(Field (Compose coder)) =
 -- Extra bonus of writing our own match is that we can write an API more
 -- similar to `rapply`, allowing us to reuse the `recordEncoders` logic for
 -- records and unions both.
-match :: CoRec (Field f) xs -> Rec (Lift (->) (Field f) (Const b)) xs -> b
+match :: Sum f xs -> Rec (Lift (->) (Field f) (Const b)) xs -> b
 match (CoRec x) hs =
   case rget Proxy hs of
     Lift f -> getConst (f x)

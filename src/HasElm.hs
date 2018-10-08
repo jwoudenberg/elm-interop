@@ -49,6 +49,7 @@ import Data.Vinyl.Record
   , getLabel
   , rpureConstrained
   )
+import Data.Vinyl.Sum (Sum)
 import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
 import ElmType
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -59,6 +60,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
 import qualified Data.Vinyl.Record as Record
+import qualified Data.Vinyl.Sum as Sum
 import qualified ToElm
 
 class HasElm a where
@@ -110,7 +112,7 @@ instance forall s x xs. ( KnownSymbol s
                         , AllFields (x ': xs)
                         , FoldRec (x ': xs) (x ': xs)
          ) =>
-         HasElm (Label s, CoRec (Field Identity) (x ': xs)) where
+         HasElm (Label s, Sum Identity (x ': xs)) where
   hasElm =
     ToElm
       { coder =
