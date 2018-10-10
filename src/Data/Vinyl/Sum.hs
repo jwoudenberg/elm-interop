@@ -8,8 +8,8 @@
 module Data.Vinyl.Sum
   ( Sum
   , match
+  , Op(Op)
   -- Re-exports so this module can be used instead of `Data.Vinyl.CoRec`.
-  , Handler(H)
   , matchNil
   ) where
 
@@ -25,8 +25,16 @@ import Data.Vinyl.Record (Field(Field))
 type Sum f = CoRec (Field f)
 
 -- |
+-- Same as `Op` type from the contravariant package.
+-- Bundled here so we don't need to take a dependency on the entire library
+-- for a single type.
+newtype Op a b = Op
+  { getOp :: b -> a
+  }
+
+-- |
 -- Custom version of `match` for our custom `Record` and `Sum` types.
-match :: Sum f xs -> Rec (Handler b :. Field f) xs -> b
+match :: Sum f xs -> Rec (Op b :. Field f) xs -> b
 match (CoRec x) hs =
   case rget Proxy hs of
-    Compose (H f) -> f x
+    Compose (Op f) -> f x

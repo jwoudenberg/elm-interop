@@ -69,4 +69,4 @@ either left right =
       CoRec (Field (Identity l) :: Field Identity '( "_left", l))
     fromEither (Right r) =
       CoRec (Field (Identity r) :: Field Identity '( "_right", r))
-    handle f = Compose (Sum.H (f . getIdentity . getField))
+    handle f = Compose (Sum.Op (f . getIdentity . getField))

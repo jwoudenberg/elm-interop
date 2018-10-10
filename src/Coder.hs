@@ -38,14 +38,7 @@ import Data.Vinyl
   , rmap
   , rtraverse
   )
-import Data.Vinyl.CoRec
-  ( CoRec(CoRec)
-  , FoldRec
-  , Handler(H)
-  , Handlers
-  , coRecTraverse
-  , firstField
-  )
+import Data.Vinyl.CoRec (CoRec(CoRec), FoldRec, coRecTraverse, firstField)
 import Data.Vinyl.Functor
   ( (:.)
   , Compose(Compose, getCompose)
@@ -55,7 +48,7 @@ import Data.Vinyl.Functor
   , Lift(Lift)
   )
 import Data.Vinyl.Record (Field(Field), Record, (=:), getField, getLabel)
-import Data.Vinyl.Sum (Sum)
+import Data.Vinyl.Sum (Op(Op), Sum)
 import Data.Vinyl.TypeLevel (RIndex)
 import GHC.Exts (toList)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -137,10 +130,10 @@ recordEncoders' ::
 recordEncoders' =
   rmap (\coder -> Lift (\(Field x) -> Const $ runEncoder coder (getIdentity x)))
 
-recordEncoders :: Record Coder xs -> Rec (Handler Pair :. Field Identity) xs
+recordEncoders :: Record Coder xs -> Rec (Op Pair :. Field Identity) xs
 recordEncoders =
   rmap
-    (Compose . (\coder -> H (\(Field x) -> runEncoder coder (getIdentity x))))
+    (Compose . (\coder -> Op (\(Field x) -> runEncoder coder (getIdentity x))))
 
 runEncoder ::
      forall s t f. (KnownSymbol s)
