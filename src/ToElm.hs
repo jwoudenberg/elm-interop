@@ -13,7 +13,7 @@ module ToElm
   , ToElm.either
   ) where
 
-import Coder (Coder, handle, match)
+import Coder (Coder)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.Vinyl (Label(Label), Rec((:&), RNil))
@@ -23,11 +23,12 @@ import Data.Vinyl.Functor
   , Compose(Compose)
   , Identity(Identity, getIdentity)
   )
-import Data.Vinyl.Record (Field(Field), (=:))
+import Data.Vinyl.Record (Field(Field), (=:), getField)
 import ElmType
 
 import qualified Coder
 import qualified Data.Vinyl
+import qualified Data.Vinyl.Sum as Sum
 
 data ToElm a = ToElm
   { coder :: Coder a
@@ -59,16 +60,13 @@ either left right =
   ToElm
     { coder =
         invmap toEither fromEither . Coder.union $
-        Label @"_left" =: wrapIdentity (coder left) :& Label @"_right" =:
-        wrapIdentity (coder right) :&
-        RNil
+        Label @"_left" =: coder left :& Label @"_right" =: coder right :& RNil
     , elmType = Fix $ ElmResult {err = elmType left, ok = elmType right}
     }
   where
-    wrapIdentity :: Coder a -> (Coder :. Identity) a
-    wrapIdentity = Compose . invmap Identity getIdentity
-    toEither coRec = match coRec $ handle Left :& handle Right :& RNil
+    toEither coRec = Sum.match coRec $ handle Left :& handle Right :& RNil
     fromEither (Left l) =
       CoRec (Field (Identity l) :: Field Identity '( "_left", l))
     fromEither (Right r) =
       CoRec (Field (Identity r) :: Field Identity '( "_right", r))
+    handle f = Compose (Sum.H (f . getIdentity . getField))

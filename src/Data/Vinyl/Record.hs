@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
@@ -26,6 +27,7 @@ import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
 import qualified Data.Text as T
+import qualified Data.Vinyl as Vinyl
 
 -- |
 -- Like `Field` from `Vinyl`, this signifies a key-value pair. This version
@@ -104,3 +106,5 @@ rpureConstrained _ f = go (rpure Proxy)
     go :: (AllFieldsConstrained ts' c) => Record Proxy ts' -> Record f ts'
     go RNil = RNil
     go (Field Proxy :& xs) = Field f :& go xs
+-- rget :: forall proxy s f xs x. proxy s -> Record f xs -> Field f '( s, x)
+-- rget _ = Vinyl.rget (Proxy @'( s, x))

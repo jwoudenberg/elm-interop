@@ -16,7 +16,7 @@ module HasElm
   ( HasElm(hasElm)
   ) where
 
-import Coder (Coder, handle, match)
+import Coder (Coder)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.HashMap.Strict (HashMap)
@@ -116,16 +116,13 @@ instance forall s x xs. ( KnownSymbol s
   hasElm =
     ToElm
       { coder =
-          invmap (Label, ) snd . Coder.union . Record.rmap wrapIdentity $
-          codersRec (Proxy @(x ': xs))
+          invmap (Label, ) snd . Coder.union $ codersRec (Proxy @(x ': xs))
       , elmType =
           Fix .
           ElmCustomType (T.pack . symbolVal $ Proxy @s) .
           rfoldMap toElmConstructor $
           toElmRec (Proxy @(x ': xs))
       }
-    where
-      wrapIdentity = Compose . invmap Identity getIdentity
 
 toElmConstructor :: Field ToElm a -> HashMap T.Text [ElmType]
 toElmConstructor t@(Field toElm) =
