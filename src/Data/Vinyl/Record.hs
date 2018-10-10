@@ -106,5 +106,3 @@ rpureConstrained _ f = go (rpure Proxy)
     go :: (AllFieldsConstrained ts' c) => Record Proxy ts' -> Record f ts'
     go RNil = RNil
     go (Field Proxy :& xs) = Field f :& go xs
--- rget :: forall proxy s f xs x. proxy s -> Record f xs -> Field f '( s, x)
--- rget _ = Vinyl.rget (Proxy @'( s, x))
