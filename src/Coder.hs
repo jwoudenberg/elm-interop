@@ -105,11 +105,16 @@ tuple2 first second =
 record :: forall xs. Record Coder xs -> Coder (Record Identity xs)
 record coders =
   Coder
-    { encode = Aeson.object . recordToList . rapply (recordEncoders' coders)
+    { encode = Aeson.object . recordToList . rapply (recordEncoders coders)
     , decode =
         Aeson.withObject "Record" $ \o ->
           rtraverse (\(Field x) -> parseField o x) coders
     }
+
+recordEncoders ::
+     Record Coder xs -> Rec (Lift (->) (Field Identity) (Const Pair)) xs
+recordEncoders =
+  rmap (\coder -> Lift (\(Field x) -> Const $ runEncoder coder (getIdentity x)))
 
 parseField ::
      forall s t. (KnownSymbol s)
@@ -125,16 +130,6 @@ parseField object coder =
     key :: T.Text
     key = T.pack $ symbolVal (Proxy :: Proxy s)
 
-recordEncoders' ::
-     Record Coder xs -> Rec (Lift (->) (Field Identity) (Const Pair)) xs
-recordEncoders' =
-  rmap (\coder -> Lift (\(Field x) -> Const $ runEncoder coder (getIdentity x)))
-
-recordEncoders :: Record Coder xs -> Rec (Op Pair :. Field Identity) xs
-recordEncoders =
-  rmap
-    (Compose . (\coder -> Op (\(Field x) -> runEncoder coder (getIdentity x))))
-
 runEncoder ::
      forall s t f. (KnownSymbol s)
   => Field Coder '( s, t)
@@ -148,11 +143,16 @@ union ::
   -> Coder (Sum Identity (x ': xs))
 union coders =
   Coder
-    { encode = encode variant . flip Sum.match (recordEncoders coders)
+    { encode = encode variant . flip Sum.match (unionEncoders coders)
     , decode = (=<<) (decodeVariant coders) . decode variant
     }
   where
     variant = tuple2 primitive primitive
+
+unionEncoders :: Record Coder ys -> Rec (Op Pair :. Field Identity) ys
+unionEncoders =
+  rmap
+    (Compose . (\coder -> Op (\(Field x) -> runEncoder coder (getIdentity x))))
 
 decodeVariant ::
      forall xs f. (FoldRec xs xs)
