@@ -78,7 +78,7 @@ instance (HasElm a, HasElm b) => HasElm (a, b) where
 instance (HasElm l, HasElm r) => HasElm (Either l r) where
   hasElm = ToElm.either hasElm hasElm
 
-instance forall xs. ( AllFieldsConstrained xs HasElm
+instance forall xs. ( AllFieldsConstrained HasElm xs
                     , RecApplicative xs
                     , AllFields xs
                     , RecordApplicative xs
@@ -91,13 +91,13 @@ instance forall xs. ( AllFieldsConstrained xs HasElm
       }
 
 codersRec ::
-     (AllFieldsConstrained xs HasElm, AllFields xs, RecordApplicative xs)
+     (AllFieldsConstrained HasElm xs, AllFields xs, RecordApplicative xs)
   => Proxy xs
   -> Record Coder xs
 codersRec p = Record.rmap coder (toElmRec p)
 
 toElmRec ::
-     (AllFieldsConstrained xs HasElm, RecordApplicative xs)
+     (AllFieldsConstrained HasElm xs, RecordApplicative xs)
   => Proxy xs
   -> Record ToElm xs
 toElmRec _ = rpureConstrained (Proxy @HasElm) hasElm
@@ -106,7 +106,7 @@ fieldElmType :: Field ToElm a -> HashMap T.Text ElmType
 fieldElmType t@(Field toElm) = HashMap.singleton (getLabel t) (elmType toElm)
 
 instance forall s x xs. ( KnownSymbol s
-                        , AllFieldsConstrained (x ': xs) HasElm
+                        , AllFieldsConstrained HasElm (x ': xs)
                         , RecApplicative (x ': xs)
                         , RecordApplicative (x ': xs)
                         , AllFields (x ': xs)

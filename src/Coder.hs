@@ -57,6 +57,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
+import qualified Data.Vinyl.POP
 import qualified Data.Vinyl.Record as Record
 import qualified Data.Vinyl.Sum as Sum
 
