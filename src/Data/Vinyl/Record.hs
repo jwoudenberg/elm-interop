@@ -11,7 +11,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
-module Data.Vinyl.Record where
+module Data.Vinyl.Record
+  ( Record
+  , Field(Field)
+  , (=:)
+  , getField
+  , getLabel
+  , rpureConstrained
+  , rmap
+  , FieldConstrained
+  , AllFieldsConstrained
+  , RecordApplicative
+  ) where
 
 -- |
 -- An alternative version of the `Data.Vinyl.Derived` module, for representing
