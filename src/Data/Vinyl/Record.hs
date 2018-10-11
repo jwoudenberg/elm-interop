@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
@@ -10,7 +11,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
-module Data.Vinyl.Record where
+module Data.Vinyl.Record
+  ( Record
+  , Field(Field)
+  , (=:)
+  , getField
+  , getLabel
+  , rpureConstrained
+  , rmap
+  , FieldConstrained
+  , AllFieldsConstrained
+  , RecordApplicative
+  ) where
 
 -- |
 -- An alternative version of the `Data.Vinyl.Derived` module, for representing
@@ -26,6 +38,7 @@ import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
 import qualified Data.Text as T
+import qualified Data.Vinyl as Vinyl
 
 -- |
 -- Like `Field` from `Vinyl`, this signifies a key-value pair. This version

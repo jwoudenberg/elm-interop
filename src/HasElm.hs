@@ -16,7 +16,7 @@ module HasElm
   ( HasElm(hasElm)
   ) where
 
-import Coder (Coder, handle, match)
+import Coder (Coder)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.Functor.Invariant (Invariant(invmap))
 import Data.HashMap.Strict (HashMap)
@@ -49,6 +49,7 @@ import Data.Vinyl.Record
   , getLabel
   , rpureConstrained
   )
+import Data.Vinyl.Sum (Sum)
 import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
 import ElmType
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -59,6 +60,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
 import qualified Data.Vinyl.Record as Record
+import qualified Data.Vinyl.Sum as Sum
 import qualified ToElm
 
 class HasElm a where
@@ -110,20 +112,17 @@ instance forall s x xs. ( KnownSymbol s
                         , AllFields (x ': xs)
                         , FoldRec (x ': xs) (x ': xs)
          ) =>
-         HasElm (Label s, CoRec (Field Identity) (x ': xs)) where
+         HasElm (Label s, Sum Identity (x ': xs)) where
   hasElm =
     ToElm
       { coder =
-          invmap (Label, ) snd . Coder.union . Record.rmap wrapIdentity $
-          codersRec (Proxy @(x ': xs))
+          invmap (Label, ) snd . Coder.union $ codersRec (Proxy @(x ': xs))
       , elmType =
           Fix .
           ElmCustomType (T.pack . symbolVal $ Proxy @s) .
           rfoldMap toElmConstructor $
           toElmRec (Proxy @(x ': xs))
       }
-    where
-      wrapIdentity = Compose . invmap Identity getIdentity
 
 toElmConstructor :: Field ToElm a -> HashMap T.Text [ElmType]
 toElmConstructor t@(Field toElm) =

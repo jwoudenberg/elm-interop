@@ -15,12 +15,10 @@
 module Coder
   ( Coder(encode, decode)
   , primitive
-  , handle
   , tuple2
   , many
   , record
   , union
-  , match
   ) where
 
 import Data.Aeson ((.:))
@@ -40,14 +38,7 @@ import Data.Vinyl
   , rmap
   , rtraverse
   )
-import Data.Vinyl.CoRec
-  ( CoRec(CoRec)
-  , FoldRec
-  , Handler(H)
-  , Handlers
-  , coRecTraverse
-  , firstField
-  )
+import Data.Vinyl.CoRec (CoRec(CoRec), FoldRec, coRecTraverse, firstField)
 import Data.Vinyl.Functor
   ( (:.)
   , Compose(Compose, getCompose)
@@ -57,6 +48,7 @@ import Data.Vinyl.Functor
   , Lift(Lift)
   )
 import Data.Vinyl.Record (Field(Field), Record, (=:), getField, getLabel)
+import Data.Vinyl.Sum (Op(Op), Sum)
 import Data.Vinyl.TypeLevel (RIndex)
 import GHC.Exts (toList)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
@@ -66,6 +58,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
 import qualified Data.Vinyl.Record as Record
+import qualified Data.Vinyl.Sum as Sum
 
 data Coder a = Coder
   { encode :: a -> Aeson.Value
@@ -112,11 +105,16 @@ tuple2 first second =
 record :: forall xs. Record Coder xs -> Coder (Record Identity xs)
 record coders =
   Coder
-    { encode = Aeson.object . recordToList . rapply (recordEncoders' coders)
+    { encode = Aeson.object . recordToList . rapply (recordEncoders coders)
     , decode =
         Aeson.withObject "Record" $ \o ->
           rtraverse (\(Field x) -> parseField o x) coders
     }
+
+recordEncoders ::
+     Record Coder xs -> Rec (Lift (->) (Field Identity) (Const Pair)) xs
+recordEncoders =
+  rmap (\coder -> Lift (\(Field x) -> Const $ runEncoder coder (getIdentity x)))
 
 parseField ::
      forall s t. (KnownSymbol s)
@@ -132,40 +130,35 @@ parseField object coder =
     key :: T.Text
     key = T.pack $ symbolVal (Proxy :: Proxy s)
 
-recordEncoders ::
-     Record (Coder :. f) xs -> Rec (Lift (->) (Field f) (Const Pair)) xs
-recordEncoders =
-  rmap (\coder -> Lift (\(Field x) -> Const $ runEncoder coder x))
-
-recordEncoders' ::
-     Record Coder xs -> Rec (Lift (->) (Field Identity) (Const Pair)) xs
-recordEncoders' =
-  recordEncoders . Record.rmap (Compose . invmap Identity getIdentity)
-
 runEncoder ::
      forall s t f. (KnownSymbol s)
-  => Field (Coder :. f) '( s, t)
-  -> f t
+  => Field Coder '( s, t)
+  -> t
   -> Pair
-runEncoder coder x = (getLabel coder, encode (getCompose $ getField coder) x)
+runEncoder coder x = (getLabel coder, encode (getField coder) x)
 
 union ::
      forall x xs f. (FoldRec (x ': xs) (x ': xs))
-  => Record (Coder :. f) (x ': xs)
-  -> Coder (CoRec (Field f) (x ': xs))
+  => Record Coder (x ': xs)
+  -> Coder (Sum Identity (x ': xs))
 union coders =
   Coder
-    { encode = encode variant . flip match (recordEncoders coders)
+    { encode = encode variant . flip Sum.match (unionEncoders coders)
     , decode = (=<<) (decodeVariant coders) . decode variant
     }
   where
     variant = tuple2 primitive primitive
 
+unionEncoders :: Record Coder ys -> Rec (Op Pair :. Field Identity) ys
+unionEncoders =
+  rmap
+    (Compose . (\coder -> Op (\(Field x) -> runEncoder coder (getIdentity x))))
+
 decodeVariant ::
      forall xs f. (FoldRec xs xs)
-  => Rec (Field (Coder :. f)) xs
+  => Rec (Field Coder) xs
   -> Pair
-  -> Parser (CoRec (Field f) xs)
+  -> Parser (Sum Identity xs)
 decodeVariant coders pair@(key, _) =
   maybe (fail errorMsg) (coRecTraverse getCompose) . firstField $
   chooseCoder pair coders
@@ -173,34 +166,18 @@ decodeVariant coders pair@(key, _) =
     errorMsg = "Unexpected variant for sum: " <> T.unpack key
 
 chooseCoder ::
-     Pair -> Record (Coder :. f) xs -> Rec (Maybe :. Parser :. Field f) xs
+     Pair -> Record Coder xs -> Rec (Maybe :. Parser :. Field Identity) xs
 chooseCoder pair = rmap (\t@(Field x) -> runDecoder pair t)
 
 runDecoder ::
      forall s t f.
      Pair
-  -> Field (Coder :. f) '( s, t)
-  -> (Maybe :. Parser :. Field f) '( s, t)
-runDecoder (key, value) t@(Field (Compose coder)) =
+  -> Field Coder '( s, t)
+  -> (Maybe :. Parser :. Field Identity) '( s, t)
+runDecoder (key, value) t@(Field coder) =
   Compose $
   if label == key
-    then Just . Compose . fmap Field $decode coder value
+    then Just . Compose . fmap (Field . Identity) $decode coder value
     else Nothing
   where
     label = getLabel t
-
--- |
--- Custom version of `match`, based on the one in `Data.Vinyl.CoRec`.
--- The library version of `match` only works with a `CoRec Identity`, and so
--- couldn't be used here.
---
--- Extra bonus of writing our own match is that we can write an API more
--- similar to `rapply`, allowing us to reuse the `recordEncoders` logic for
--- records and unions both.
-match :: CoRec (Field f) xs -> Rec (Lift (->) (Field f) (Const b)) xs -> b
-match (CoRec x) hs =
-  case rget Proxy hs of
-    Lift f -> getConst (f x)
-
-handle :: (a -> b) -> Lift (->) (Field Identity) (Const b) '( s, a)
-handle f = Lift (\(Field (Identity x)) -> Const (f x))
