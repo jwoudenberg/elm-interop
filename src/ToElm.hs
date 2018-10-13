@@ -1,11 +1,11 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
 
 module ToElm
   ( ToElm(coder, elmType)
@@ -25,11 +25,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.Proxy (Proxy(Proxy))
 import Data.Vinyl (Label(Label), Rec((:&), RNil), rfoldMap, rmap)
 import Data.Vinyl.CoRec (CoRec(CoRec), FoldRec)
-import Data.Vinyl.Functor
-  ( (:.)
-  , Compose(Compose)
-  , Identity(Identity, getIdentity)
-  )
+import Data.Vinyl.Functor (Compose(Compose), Identity(Identity, getIdentity))
 import Data.Vinyl.POP (POP)
 import Data.Vinyl.Record (Field(Field), Record, (=:), getField, getLabel)
 import Data.Vinyl.SOP (SOP)
@@ -39,7 +35,6 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import qualified Coder
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
-import qualified Data.Vinyl
 import qualified Data.Vinyl.Record as Record
 import qualified Data.Vinyl.Sum as Sum
 
@@ -49,7 +44,7 @@ data ToElm a = ToElm
   }
 
 instance Invariant ToElm where
-  invmap to from (ToElm coder elmType) = ToElm (invmap to from coder) elmType
+  invmap to from ToElm {coder, elmType} = ToElm (invmap to from coder) elmType
 
 int :: ToElm Int
 int = ToElm {coder = Coder.primitive, elmType = Fix ElmInt}
@@ -74,7 +69,7 @@ either :: forall l r. ToElm l -> ToElm r -> ToElm (Either l r)
 either left right =
   ToElm
     { coder =
-        invmap toEither fromEither . Coder.union $
+        invmap toEither fromEither . Coder.customType $
         Label @"_left" =: (coder left :& RNil) :& Label @"_right" =:
         (coder right :& RNil) :&
         RNil
@@ -112,7 +107,8 @@ custom ::
 custom (l, constructors) =
   ToElm
     { coder =
-        invmap (l, ) snd . Coder.union . Record.rmap (rmap coder) $ constructors
+        invmap (l, ) snd . Coder.customType . Record.rmap (rmap coder) $
+        constructors
     , elmType =
         Fix .
         ElmCustomType (T.pack . symbolVal $ Proxy @s) .

@@ -1,7 +1,3 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -15,9 +11,9 @@ module Data.Vinyl.Sum
 
 import Data.Proxy (Proxy(Proxy))
 import Data.Vinyl (Rec, rget)
-import Data.Vinyl.CoRec (CoRec(CoRec), Handler(H), matchNil)
+import Data.Vinyl.CoRec (CoRec(CoRec), matchNil)
 import Data.Vinyl.Functor ((:.), Compose(Compose))
-import Data.Vinyl.Record (Field(Field))
+import Data.Vinyl.Record (Field)
 
 -- |
 -- The counterpart of Vinyls `FieldRec`, but for `CoRec`s. Contains the same
@@ -28,9 +24,8 @@ type Sum f = CoRec (Field f)
 -- Same as `Op` type from the contravariant package.
 -- Bundled here so we don't need to take a dependency on the entire library
 -- for a single type.
-newtype Op a b = Op
-  { getOp :: b -> a
-  }
+newtype Op a b =
+  Op (b -> a)
 
 -- |
 -- Custom version of `match` for our custom `Record` and `Sum` types.

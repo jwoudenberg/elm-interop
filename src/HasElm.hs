@@ -1,69 +1,31 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module HasElm
   ( HasElm(hasElm)
   ) where
 
-import Coder (Coder)
-import Data.Functor.Foldable (Fix(Fix))
-import Data.Functor.Invariant (Invariant(invmap))
-import Data.HashMap.Strict (HashMap)
 import Data.Proxy (Proxy(Proxy))
-import Data.Vinyl
-  ( AllFields
-  , Dict(Dict)
-  , KnownField
-  , Label(Label)
-  , Rec((:&), RNil)
-  , RecApplicative
-  , rfoldMap
-  , rmap
-  , rmapf
-  , rpuref
-  )
-import Data.Vinyl.CoRec (CoRec, FoldRec)
-import Data.Vinyl.Functor
-  ( (:.)
-  , Compose(Compose)
-  , Identity(Identity, getIdentity)
-  )
+import Data.Vinyl (Label(Label), RecApplicative)
+import Data.Vinyl.CoRec (FoldRec)
+import Data.Vinyl.Functor (Identity)
 import Data.Vinyl.POP (AllFieldsAllConstrained, POP)
 import Data.Vinyl.Record
   ( AllFieldsConstrained
-  , Field(Field)
-  , FieldConstrained
   , Record
   , RecordApplicative
-  , (=:)
-  , getLabel
   , rpureConstrained
   )
 import Data.Vinyl.SOP (SOP)
-import Data.Vinyl.Sum (Sum)
-import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
-import ElmType
-import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import GHC.TypeLits (KnownSymbol)
 import ToElm (ToElm)
 
-import qualified Coder
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as T
-import qualified Data.Vinyl as Vinyl
 import qualified Data.Vinyl.POP as POP
-import qualified Data.Vinyl.Record as Record
-import qualified Data.Vinyl.Sum as Sum
 import qualified ToElm
 
 class HasElm a where
