@@ -39,6 +39,7 @@ import Data.Vinyl.Functor
   , Compose(Compose)
   , Identity(Identity, getIdentity)
   )
+import Data.Vinyl.POP (AllFieldsAllConstrained, POP)
 import Data.Vinyl.Record
   ( AllFieldsConstrained
   , Field(Field)
@@ -49,6 +50,7 @@ import Data.Vinyl.Record
   , getLabel
   , rpureConstrained
   )
+import Data.Vinyl.SOP (SOP)
 import Data.Vinyl.Sum (Sum)
 import Data.Vinyl.TypeLevel (AllConstrained, Fst, RecAll, Snd)
 import ElmType
@@ -59,6 +61,7 @@ import qualified Coder
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
+import qualified Data.Vinyl.POP as POP
 import qualified Data.Vinyl.Record as Record
 import qualified Data.Vinyl.Sum as Sum
 import qualified ToElm
@@ -105,25 +108,45 @@ toElmRec _ = rpureConstrained (Proxy @HasElm) hasElm
 fieldElmType :: Field ToElm a -> HashMap T.Text ElmType
 fieldElmType t@(Field toElm) = HashMap.singleton (getLabel t) (elmType toElm)
 
-instance forall s x xs. ( KnownSymbol s
-                        , AllFieldsConstrained HasElm (x ': xs)
-                        , RecApplicative (x ': xs)
-                        , RecordApplicative (x ': xs)
-                        , AllFields (x ': xs)
-                        , FoldRec (x ': xs) (x ': xs)
+instance forall s xs xss. ( KnownSymbol s
+                          , AllFieldsAllConstrained HasElm (xs ': xss)
+                          , AllFieldsConstrained RecApplicative (xs ': xss)
+                          , RecApplicative (xs ': xss)
+                          , RecordApplicative (xs ': xss)
+                          , AllFields (xs ': xss)
+                          , FoldRec (xs ': xss) (xs ': xss)
          ) =>
-         HasElm (Label s, Sum Identity (x ': xs)) where
+         HasElm (Label s, SOP Identity (xs ': xss)) where
   hasElm =
     ToElm
       { coder =
-          invmap (Label, ) snd . Coder.union $ codersRec (Proxy @(x ': xs))
+          invmap (Label, ) snd . Coder.union $ codersPOP (Proxy @(xs ': xss))
       , elmType =
           Fix .
           ElmCustomType (T.pack . symbolVal $ Proxy @s) .
           rfoldMap toElmConstructor $
-          toElmRec (Proxy @(x ': xs))
+          toElmPOP (Proxy @(xs ': xss))
       }
 
-toElmConstructor :: Field ToElm a -> HashMap T.Text [ElmType]
+toElmPOP ::
+     ( AllFieldsConstrained RecApplicative xss
+     , AllFieldsAllConstrained HasElm xss
+     , RecordApplicative xss
+     )
+  => Proxy xss
+  -> POP ToElm xss
+toElmPOP _ = POP.rpureConstrained (Proxy @HasElm) hasElm
+
+codersPOP ::
+     ( AllFieldsConstrained RecApplicative xss
+     , AllFieldsAllConstrained HasElm xss
+     , AllFields xss
+     , RecordApplicative xss
+     )
+  => Proxy xss
+  -> POP Coder xss
+codersPOP p = Record.rmap (rmap coder) (toElmPOP p)
+
+toElmConstructor :: Field (Rec ToElm) a -> HashMap T.Text [ElmType]
 toElmConstructor t@(Field toElm) =
-  HashMap.singleton (getLabel t) [elmType toElm]
+  HashMap.singleton (getLabel t) (rfoldMap (pure . elmType) toElm)

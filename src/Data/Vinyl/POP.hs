@@ -12,6 +12,7 @@
 module Data.Vinyl.POP
   ( POP
   , rpureConstrained
+  , AllFieldsAllConstrained
   ) where
 
 import Data.Proxy (Proxy(Proxy))

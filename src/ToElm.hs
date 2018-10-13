@@ -24,6 +24,7 @@ import Data.Vinyl.Functor
   , Identity(Identity, getIdentity)
   )
 import Data.Vinyl.Record (Field(Field), (=:), getField)
+import Data.Vinyl.SOP (SOP)
 import ElmType
 
 import qualified Coder
@@ -55,18 +56,28 @@ tuple2 first second =
     , elmType = Fix $ ElmTuple2 (elmType first) (elmType second)
     }
 
+type EitherSOP f l r = SOP f '[ '( "_left", '[ l]), '( "_right", '[ r])]
+
 either :: forall l r. ToElm l -> ToElm r -> ToElm (Either l r)
 either left right =
   ToElm
     { coder =
         invmap toEither fromEither . Coder.union $
-        Label @"_left" =: coder left :& Label @"_right" =: coder right :& RNil
+        Label @"_left" =: (coder left :& RNil) :& Label @"_right" =:
+        (coder right :& RNil) :&
+        RNil
     , elmType = Fix $ ElmResult {err = elmType left, ok = elmType right}
     }
   where
+    toEither :: EitherSOP Identity l r -> Either l r
     toEither coRec = Sum.match coRec $ handle Left :& handle Right :& RNil
+    fromEither :: Either l r -> EitherSOP Identity l r
     fromEither (Left l) =
-      CoRec (Field (Identity l) :: Field Identity '( "_left", l))
+      CoRec
+        (Field (Identity l :& RNil) :: Field (Rec Identity) '( "_left", '[ l]))
     fromEither (Right r) =
-      CoRec (Field (Identity r) :: Field Identity '( "_right", r))
-    handle f = Compose (Sum.Op (f . getIdentity . getField))
+      CoRec
+        (Field (Identity r :& RNil) :: Field (Rec Identity) '( "_right", '[ r]))
+    handle f = Compose (Sum.Op (f . getIdentity . extract . getField))
+    extract :: Rec f '[ x] -> f x
+    extract (x :& RNil) = x
