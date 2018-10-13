@@ -1,13 +1,10 @@
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Data.Vinyl.POP
   ( POP
@@ -25,7 +22,6 @@ import Data.Vinyl.Record
   )
 import Data.Vinyl.TypeLevel (AllConstrained)
 import GHC.Exts (Constraint)
-import GHC.TypeLits (Symbol)
 
 import qualified Data.Vinyl.Record as Record
 
@@ -37,7 +33,7 @@ type family AllFieldsAllConstrained c xss :: Constraint where
                                                  , AllFieldsAllConstrained c xss)
 
 rpureConstrained ::
-     forall c f a proxy xss.
+     forall c f proxy xss.
      ( AllFieldsAllConstrained c xss
      , AllFieldsConstrained RecApplicative xss
      , RecordApplicative xss
@@ -46,7 +42,7 @@ rpureConstrained ::
   -> (forall a. c a =>
                   f a)
   -> POP f xss
-rpureConstrained p f = cols proxies
+rpureConstrained _ f = cols proxies
   where
     cols ::
          ( AllFieldsAllConstrained c xss'
@@ -61,7 +57,7 @@ rpureConstrained p f = cols proxies
     rows (Proxy :& xs) = f :& rows xs
 
 proxies ::
-     forall proxy xss.
+     forall xss.
      (RecordApplicative xss, AllFieldsConstrained RecApplicative xss)
   => POP Proxy xss
 proxies = go $ Record.rpure Proxy

@@ -1,13 +1,13 @@
-{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
 module Data.Vinyl.Record
@@ -32,14 +32,11 @@ module Data.Vinyl.Record
 -- allow the value types of a `Field` to be wrapped in an interpreting functor.
 -- This module is based of a different `Field` type that does allow this.
 import Data.Proxy (Proxy(Proxy))
-import Data.Vinyl (Dict, KnownField, Rec((:&), RNil), rapply)
-import Data.Vinyl.Functor ((:.), Lift(Lift))
-import Data.Vinyl.TypeLevel (AllSatisfied)
+import Data.Vinyl (Rec((:&), RNil))
 import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
 import qualified Data.Text as T
-import qualified Data.Vinyl as Vinyl
 
 -- |
 -- Like `Field` from `Vinyl`, this signifies a key-value pair. This version

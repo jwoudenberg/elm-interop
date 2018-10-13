@@ -10,6 +10,10 @@ copyright:           2018 Author name here
 category:            Web
 extra-source-files:
 - README.md
+ghc-options:
+- -Wall
+- -Werror
+- -Wredundant-constraints
 
 dependencies:
   - base >= 4.7 && < 5
