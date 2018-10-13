@@ -47,7 +47,9 @@ import Data.Vinyl.Functor
   , Identity
   , Lift(Lift)
   )
+import Data.Vinyl.POP (POP)
 import Data.Vinyl.Record (Field(Field), Record, (=:), getField, getLabel)
+import Data.Vinyl.SOP (SOP)
 import Data.Vinyl.Sum (Op(Op), Sum)
 import Data.Vinyl.TypeLevel (RIndex)
 import GHC.Exts (toList)
@@ -57,7 +59,9 @@ import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
 import qualified Data.Vinyl as Vinyl
+import qualified Data.Vinyl.POP
 import qualified Data.Vinyl.Record as Record
+import qualified Data.Vinyl.SOP
 import qualified Data.Vinyl.Sum as Sum
 
 data Coder a = Coder
@@ -139,8 +143,8 @@ runEncoder coder x = (getLabel coder, encode (getField coder) x)
 
 union ::
      forall x xs f. (FoldRec (x ': xs) (x ': xs))
-  => Record Coder (x ': xs)
-  -> Coder (Sum Identity (x ': xs))
+  => POP Coder (x ': xs)
+  -> Coder (SOP Identity (x ': xs))
 union coders =
   Coder
     { encode = encode variant . flip Sum.match (unionEncoders coders)
@@ -149,16 +153,39 @@ union coders =
   where
     variant = tuple2 primitive primitive
 
-unionEncoders :: Record Coder ys -> Rec (Op Pair :. Field Identity) ys
+unionEncoders :: POP Coder ys -> Rec (Op Pair :. Field (Rec Identity)) ys
 unionEncoders =
-  rmap
-    (Compose . (\coder -> Op (\(Field x) -> runEncoder coder (getIdentity x))))
+  rmap (Compose . (\coder -> Op (\(Field x) -> encodeRec coder x)))
+
+encodeRec ::
+     forall s ts. (KnownSymbol s)
+  => Field (Rec Coder) '( s, ts)
+  -> Rec Identity ts
+  -> Pair
+encodeRec t@(Field coders) x = (getLabel t, encode (rec coders) x)
+
+rec :: forall xs. Rec Coder xs -> Coder (Rec Identity xs)
+rec coders =
+  Coder
+    { encode = Aeson.toJSON . recordToList . rapply (recEncoders coders)
+    , decode = Aeson.withArray "Parameter List" (decodeArray coders . toList)
+    }
+
+decodeArray :: Rec Coder xs -> [Aeson.Value] -> Parser (Rec Identity xs)
+decodeArray RNil [] = pure RNil
+decodeArray RNil _ = fail "Decoded parameter list is longer than expected."
+decodeArray (c :& cs) (x:xs) =
+  (:&) <$> (Identity <$> decode c x) <*> decodeArray cs xs
+decodeArray _ [] = fail "Decoded parameter list is shorter than expected."
+
+recEncoders :: Rec Coder xs -> Rec (Lift (->) Identity (Const Aeson.Value)) xs
+recEncoders = rmap (\coder -> Lift (\(Identity x) -> Const $ encode coder x))
 
 decodeVariant ::
-     forall xs f. (FoldRec xs xs)
-  => Rec (Field Coder) xs
+     forall xs. (FoldRec xs xs)
+  => POP Coder xs
   -> Pair
-  -> Parser (Sum Identity xs)
+  -> Parser (SOP Identity xs)
 decodeVariant coders pair@(key, _) =
   maybe (fail errorMsg) (coRecTraverse getCompose) . firstField $
   chooseCoder pair coders
@@ -166,18 +193,18 @@ decodeVariant coders pair@(key, _) =
     errorMsg = "Unexpected variant for sum: " <> T.unpack key
 
 chooseCoder ::
-     Pair -> Record Coder xs -> Rec (Maybe :. Parser :. Field Identity) xs
+     Pair -> POP Coder xs -> Rec (Maybe :. Parser :. Field (Rec Identity)) xs
 chooseCoder pair = rmap (\t@(Field x) -> runDecoder pair t)
 
 runDecoder ::
      forall s t f.
      Pair
-  -> Field Coder '( s, t)
-  -> (Maybe :. Parser :. Field Identity) '( s, t)
-runDecoder (key, value) t@(Field coder) =
+  -> Field (Rec Coder) '( s, t)
+  -> (Maybe :. Parser :. Field (Rec Identity)) '( s, t)
+runDecoder (key, value) t@(Field coders) =
   Compose $
   if label == key
-    then Just . Compose . fmap (Field . Identity) $decode coder value
+    then Just . Compose . fmap Field $decode (rec coders) value
     else Nothing
   where
     label = getLabel t

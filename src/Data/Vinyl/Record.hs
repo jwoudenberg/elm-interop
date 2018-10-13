@@ -3,7 +3,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
@@ -19,6 +18,7 @@ module Data.Vinyl.Record
   , getLabel
   , rpureConstrained
   , rmap
+  , rpure
   , FieldConstrained
   , AllFieldsConstrained
   , RecordApplicative
@@ -34,6 +34,7 @@ module Data.Vinyl.Record
 import Data.Proxy (Proxy(Proxy))
 import Data.Vinyl (Dict, KnownField, Rec((:&), RNil), rapply)
 import Data.Vinyl.Functor ((:.), Lift(Lift))
+import Data.Vinyl.TypeLevel (AllSatisfied)
 import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
@@ -102,18 +103,18 @@ class (c (FieldType f)) =>
 
 instance (c t) => FieldConstrained c (Field f '( s, t))
 
-type family AllFieldsConstrained xs c :: Constraint where
-  AllFieldsConstrained '[] c = ()
-  AllFieldsConstrained ('( s, t) ': ts) c = (c t, AllFieldsConstrained ts c)
+type family AllFieldsConstrained c xs :: Constraint where
+  AllFieldsConstrained c '[] = ()
+  AllFieldsConstrained c ('( s, t) ': ts) = (c t, AllFieldsConstrained c ts)
 
 rpureConstrained ::
-     forall c f proxy ts. (AllFieldsConstrained ts c, RecordApplicative ts)
+     forall c f proxy ts. (AllFieldsConstrained c ts, RecordApplicative ts)
   => proxy c
   -> (forall a. c a =>
                   f a)
   -> Record f ts
 rpureConstrained _ f = go (rpure Proxy)
   where
-    go :: (AllFieldsConstrained ts' c) => Record Proxy ts' -> Record f ts'
+    go :: (AllFieldsConstrained c ts') => Record Proxy ts' -> Record f ts'
     go RNil = RNil
     go (Field Proxy :& xs) = Field f :& go xs
