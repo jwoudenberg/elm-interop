@@ -18,6 +18,7 @@ module Data.Vinyl.Record
   , getLabel
   , rpureConstrained
   , rmap
+  , rpure
   , FieldConstrained
   , AllFieldsConstrained
   , RecordApplicative
@@ -33,6 +34,7 @@ module Data.Vinyl.Record
 import Data.Proxy (Proxy(Proxy))
 import Data.Vinyl (Dict, KnownField, Rec((:&), RNil), rapply)
 import Data.Vinyl.Functor ((:.), Lift(Lift))
+import Data.Vinyl.TypeLevel (AllSatisfied)
 import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
