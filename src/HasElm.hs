@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -7,66 +8,53 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module HasElm
-  ( HasElm(hasElm)
+  ( HasElm
+  , coder
+  , typeAST
   ) where
 
+import Data.Bifunctor (bimap)
+import Data.Functor.Invariant (invmap)
 import Data.Proxy (Proxy(Proxy))
-import Data.Vinyl (Label(Label), RecApplicative)
-import Data.Vinyl.CoRec (FoldRec)
-import Data.Vinyl.Functor (Identity)
-import Data.Vinyl.POP (AllFieldsAllConstrained, POP)
-import Data.Vinyl.Record
-  ( AllFieldsConstrained
-  , Record
-  , RecordApplicative
-  , rpureConstrained
-  )
-import Data.Vinyl.SOP (SOP)
-import GHC.TypeLits (KnownSymbol)
-import ToElm (ToElm)
+import IsElmType (IsElmType)
 
-import qualified Data.Vinyl.POP as POP
-import qualified ToElm
+import qualified Coder
+import qualified ElmType
+import qualified IsElmType
 
 class HasElm a where
-  hasElm :: ToElm a
+  type ElmType a
+  isElmType :: Proxy a -> IsElmType (ElmType a)
+  toElmType :: a -> ElmType a
+  fromElmType :: ElmType a -> a
 
-instance HasElm Int where
-  hasElm = ToElm.int
+coder ::
+     forall a. (HasElm a)
+  => Coder.Coder a
+coder = invmap fromElmType toElmType . IsElmType.coder $ isElmType (Proxy @a)
+
+typeAST ::
+     forall a. (HasElm a)
+  => Proxy a
+  -> ElmType.ElmType
+typeAST = IsElmType.typeAST . isElmType
 
 instance HasElm a => HasElm [a] where
-  hasElm = ToElm.list hasElm
+  type ElmType [a] = [ElmType a]
+  isElmType _ = IsElmType.ElmList (isElmType $ Proxy @a)
+  toElmType = fmap toElmType
+  fromElmType = fmap fromElmType
 
 instance (HasElm a, HasElm b) => HasElm (a, b) where
-  hasElm = ToElm.tuple2 hasElm hasElm
+  type ElmType (a, b) = (ElmType a, ElmType b)
+  isElmType _ =
+    IsElmType.ElmTuple2 (isElmType $ Proxy @a) (isElmType $ Proxy @b)
+  toElmType = bimap toElmType toElmType
+  fromElmType = bimap fromElmType fromElmType
 
 instance (HasElm l, HasElm r) => HasElm (Either l r) where
-  hasElm = ToElm.either hasElm hasElm
-
-instance forall xs. (AllFieldsConstrained HasElm xs, RecordApplicative xs) =>
-         HasElm (Record Identity xs) where
-  hasElm = ToElm.record (recSpec (Proxy @xs))
-
-recSpec ::
-     (AllFieldsConstrained HasElm xs, RecordApplicative xs)
-  => Proxy xs
-  -> Record ToElm xs
-recSpec _ = rpureConstrained (Proxy @HasElm) hasElm
-
-instance forall s xs xss. ( KnownSymbol s
-                          , AllFieldsAllConstrained HasElm (xs ': xss)
-                          , AllFieldsConstrained RecApplicative (xs ': xss)
-                          , RecordApplicative (xs ': xss)
-                          , FoldRec (xs ': xss) (xs ': xss)
-         ) =>
-         HasElm (Label s, SOP Identity (xs ': xss)) where
-  hasElm = ToElm.custom (Label @s, customSpec (Proxy @(xs ': xss)))
-
-customSpec ::
-     ( AllFieldsConstrained RecApplicative xss
-     , AllFieldsAllConstrained HasElm xss
-     , RecordApplicative xss
-     )
-  => Proxy xss
-  -> POP ToElm xss
-customSpec _ = POP.rpureConstrained (Proxy @HasElm) hasElm
+  type ElmType (Either l r) = Either (ElmType l) (ElmType r)
+  isElmType _ =
+    IsElmType.ElmResult (isElmType $ Proxy @l) (isElmType $ Proxy @r)
+  toElmType = bimap toElmType toElmType
+  fromElmType = bimap fromElmType fromElmType

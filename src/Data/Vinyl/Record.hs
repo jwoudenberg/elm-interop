@@ -16,6 +16,7 @@ module Data.Vinyl.Record
   , (=:)
   , getField
   , getLabel
+  , labelVal
   , rpureConstrained
   , rmap
   , rpure
@@ -66,6 +67,9 @@ getLabel ::
   => Field f '( s, a)
   -> T.Text
 getLabel _ = T.pack $ symbolVal (Proxy :: Proxy s)
+
+labelVal :: (KnownSymbol s) => proxy s -> T.Text
+labelVal = T.pack . symbolVal
 
 -- |
 -- Construct a 'Record' with 'Field' elements.
