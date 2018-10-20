@@ -23,6 +23,9 @@ module Data.Vinyl.Record
   , FieldConstrained
   , AllFieldsConstrained
   , RecordApplicative
+  , singleton
+  , unSingleton
+  , RecAppend((+++), rappend, rsplit)
   ) where
 
 -- |
@@ -119,3 +122,26 @@ rpureConstrained _ f = go (rpure Proxy)
     go :: (AllFieldsConstrained c ts') => Record Proxy ts' -> Record f ts'
     go RNil = RNil
     go (Field Proxy :& xs) = Field f :& go xs
+
+singleton :: (KnownSymbol s) => Proxy s -> f a -> Record f '[ '( s, a)]
+singleton _ x = Field x :& RNil
+
+unSingleton :: Record f '[ '( s, a)] -> f a
+unSingleton (Field x :& RNil) = x
+
+class RecAppend (xs :: [k]) (ys :: [k]) where
+  type xs +++ ys :: [k]
+  rappend :: Rec f xs -> Rec f ys -> Rec f (xs +++ ys)
+  rsplit :: Rec f (xs +++ ys) -> (Rec f xs, Rec f ys)
+
+instance RecAppend '[] ys where
+  type '[] +++ ys = ys
+  rappend RNil ys = ys
+  rsplit ys = (RNil, ys)
+
+instance (RecAppend xs ys) => RecAppend (x ': xs) ys where
+  type (x ': xs) +++ ys = x ': (xs +++ ys)
+  rappend (x :& xs) ys = x :& rappend xs ys
+  rsplit (x :& zs) = (x :& xs, ys)
+    where
+      (xs, ys) = rsplit zs
