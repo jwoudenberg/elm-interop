@@ -12,7 +12,6 @@ module HasElm
   ( HasElm(ElmType, elmType, to, from)
   , coder
   , typeAST
-  , HasElmRec(toRec, fromRec)
   ) where
 
 import Data.Functor.Invariant (invmap)
@@ -44,17 +43,23 @@ class HasElm a where
   to :: a -> ElmType a
   from :: ElmType a -> a
 
-instance (HasElm a) => HasElm (K1 i a p) where
-  type ElmType (K1 i a p) = ElmType a
-  elmType _ = elmType (Proxy @a)
-  to = to . unK1
-  from = K1 . from
-
 class HasElmRec a where
   type Fields a :: [(Symbol, *)]
   elmTypeRec :: proxy a -> IsElmType (Record Identity (Fields a))
   toRec :: a -> Record Identity (Fields a)
   fromRec :: Record Identity (Fields a) -> a
+
+instance HasElm Int where
+  type ElmType Int = Int
+  elmType _ = IsElmType.ElmInt
+  to = id
+  from = id
+
+instance (HasElm a) => HasElm (K1 i a p) where
+  type ElmType (K1 i a p) = ElmType a
+  elmType _ = elmType (Proxy @a)
+  to = to . unK1
+  from = K1 . from
 
 instance forall n su ss ds f p. (KnownSymbol n, HasElm (f p)) =>
          HasElmRec (M1 S ('MetaSel ('Just n) su ss ds) f p) where
@@ -82,3 +87,18 @@ elmRecAppend ::
   -> IsElmType (Record f ys)
   -> IsElmType (Record f (xs +++ ys))
 elmRecAppend (ElmRecord a) (ElmRecord b) = ElmRecord (rappend a b)
+
+-- | TODO: wrap in constructor
+instance forall f p n fi s. (HasElmRec (f p)) =>
+         HasElm (M1 C ('MetaCons n fi s) f p) where
+  type ElmType (M1 C ('MetaCons n fi s) f p) = Record Identity (Fields (f p))
+  elmType _ = elmTypeRec (Proxy @(f p))
+  to = toRec . unM1
+  from = M1 . fromRec
+
+-- | TODO: wrap in type name
+instance forall f p c. (HasElm (f p)) => HasElm (M1 D c f p) where
+  type ElmType (M1 D c f p) = ElmType (f p)
+  elmType _ = elmType (Proxy @(f p))
+  to = to . unM1
+  from = M1 . from

@@ -1,18 +1,22 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Example where
--- import Data.Aeson (toJSON)
--- import Data.Vinyl (Label(Label), Rec((:&), RNil))
--- import Data.Vinyl.Functor (Identity)
--- import Data.Vinyl.Record (Field, (=:))
--- import Serialized (Serialized(Serialized))
--- type SomeRec = Rec (Field Identity) '[ '( "Foo", Int), '( "Bar", Int)]
--- x :: SomeRec
--- x = Label @"Foo" =: pure 42 :& Label @"Bar" =: pure 12 :& RNil
--- y :: Either Int Int
--- y = Right 42
--- main :: IO ()
--- main = do
---   print (toJSON (Serialized x))
---   print (toJSON (Serialized y))
+
+import Data.Proxy (Proxy(Proxy))
+import GHC.Generics (Generic, from)
+
+import qualified Coder
+import qualified HasElm
+
+data Foo = Foo
+  { jasper :: Int
+  , daniel :: Int
+  , bastiaan :: Int
+  , mattias :: Int
+  } deriving (Generic)
+
+foo :: Foo
+foo = Foo 1 2 3 4
+
+main :: IO ()
+main = print $ Coder.encode (HasElm.coder Proxy) (from foo)
