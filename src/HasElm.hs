@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -16,18 +17,23 @@ module HasElm
 
 import Data.Functor.Invariant (invmap)
 import Data.Proxy (Proxy(Proxy))
+import Data.Vinyl (Label(Label), Rec((:&), RNil))
+import Data.Vinyl.CoRec (FoldRec)
 import Data.Vinyl.Functor (Identity(Identity, getIdentity))
+import Data.Vinyl.POP (POP)
 import Data.Vinyl.Record
   ( RecAppend((+++), rappend, rsplit)
   , Record
   , singleton
   , unSingleton
   )
+import Data.Vinyl.SOP (SOP)
 import GHC.Generics hiding (from, to)
 import GHC.TypeLits (KnownSymbol, Symbol)
 import IsElmType (IsElmType(ElmRecord))
 
 import qualified Coder
+import qualified Data.Vinyl.Sum as Sum
 import qualified ElmType
 import qualified IsElmType
 
@@ -51,6 +57,24 @@ class (HasElm a, ElmType a ~ Record Identity (Fields' a)) =>
 
 type family ElmFields a where
   ElmFields (Record Identity xs) = xs
+
+class HasElmParams a where
+  type Params a :: [*]
+  elmTypeParams :: proxy a -> Rec IsElmType (Params a)
+  toParams :: a -> Rec Identity (Params a)
+  fromParams :: Rec Identity (Params a) -> a
+
+class HasElmCtors a where
+  type Ctors a :: [(Symbol, [*])]
+  elmTypeCtors :: proxy a -> POP IsElmType (Ctors a)
+  toCtors :: a -> SOP Identity (Ctors a)
+  fromCtors :: SOP Identity (Ctors a) -> a
+
+instance HasElm a => HasElmParams a where
+  type Params a = '[ ElmType a]
+  elmTypeParams p = elmType p :& RNil
+  toParams x = Identity (to x) :& RNil
+  fromParams (Identity x :& RNil) = from x
 
 instance HasElm Int where
   type ElmType Int = Int
@@ -92,20 +116,24 @@ instance ( RecAppend (Fields' (a p)) (Fields' (b p))
          ) =>
          HasElmRec' ((a :*: b) p)
 
--- | TODO: wrap in constructor
-instance forall f p n fi s. (HasElm (f p)) =>
-         HasElm (M1 C ('MetaCons n fi s) f p) where
-  type ElmType (M1 C ('MetaCons n fi s) f p) = ElmType (f p)
-  elmType _ = elmType (Proxy @(f p))
-  to = to . unM1
-  from = M1 . from
+instance forall f p n fi s. (HasElmParams (f p), KnownSymbol n) =>
+         HasElmCtors (M1 C ('MetaCons n fi s) f p) where
+  type Ctors (M1 C ('MetaCons n fi s) f p) = '[ '( n, Params (f p))]
+  elmTypeCtors _ = singleton (Proxy @n) $ elmTypeParams (Proxy @(f p))
+  toCtors = Sum.singleton (Proxy @n) . toParams . unM1
+  fromCtors = M1 . fromParams . Sum.unSingleton
 
--- | TODO: wrap in type name
-instance forall f p c. (HasElm (f p)) => HasElm (M1 D c f p) where
-  type ElmType (M1 D c f p) = ElmType (f p)
-  elmType _ = elmType (Proxy @(f p))
-  to = to . unM1
-  from = M1 . from
+instance forall f p n m pa nt x xs. ( HasElmCtors (f p)
+                                    , Ctors (f p) ~ (x ': xs)
+                                    , FoldRec (x ': xs) (x ': xs)
+                                    , KnownSymbol n
+         ) =>
+         HasElm (M1 D ('MetaData n m pa nt) f p) where
+  type ElmType (M1 D ('MetaData n m pa nt) f p) = ( Label n
+                                                  , SOP Identity (Ctors (f p)))
+  elmType _ = IsElmType.ElmCustomType Label $ elmTypeCtors (Proxy @(f p))
+  to = (Label, ) . toCtors . unM1
+  from = M1 . fromCtors . snd
 
 elmRecAppend ::
      (RecAppend xs ys)
