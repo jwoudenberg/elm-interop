@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -24,7 +23,7 @@ import Data.Vinyl.CoRec (FoldRec)
 import Data.Vinyl.Functor (Identity(Identity, getIdentity))
 import Data.Vinyl.POP (POP)
 import Data.Vinyl.Record
-  ( Field(Field)
+  ( DropFields(WithoutFields, addFields, dropFields)
   , RecAppend((+++), rappend, rsplit)
   , Record
   , singleton
@@ -54,13 +53,19 @@ class HasElm a where
 
 type family Params a where
   Params ((a :*: b) p) = Params (a p) +++ Params (b p)
-  Params (M1 S ('MetaSel ('Just n) su ss ds) f p) = '[ '( n, ElmType (f p))]
-  Params a = '[ '( "", ElmType a)]
+  Params (M1 S ('MetaSel mn su ss ds) f p) = '[ '( Name mn, ElmType (f p))]
 
 type family IsNamed a where
   IsNamed ((a :*: b) p) = IsNamed (a p)
-  IsNamed (M1 S ('MetaSel ('Just n) su ss ds) f p) = 'Named
-  IsNamed a = 'Unnamed
+  IsNamed (M1 S ('MetaSel mn su ss ds) f p) = HasName mn
+
+type family Name (a :: Maybe Symbol) where
+  Name ('Just n) = n
+  Name 'Nothing = ""
+
+type family HasName (a :: Maybe Symbol) where
+  HasName ('Just n) = 'Named
+  HasName 'Nothing = 'Unnamed
 
 class HasParams' (n :: Named) a where
   type Params' n a :: [*]
@@ -74,19 +79,16 @@ instance (HasParams a) => HasParams' 'Named a where
   toParams' _ p = Identity (toParams p) :& RNil
   fromParams' _ (Identity x :& RNil) = fromParams x
 
+instance (DropFields (Params a), HasParams a) => HasParams' 'Unnamed a where
+  type Params' 'Unnamed a = WithoutFields (Params a)
+  elmTypeParams' _ = dropFields . elmTypeParams
+  toParams' _ = dropFields . toParams
+  fromParams' _ = fromParams . addFields
+
 class HasParams (a :: *) where
   elmTypeParams :: Proxy a -> Record IsElmType (Params a)
   toParams :: a -> Record Identity (Params a)
   fromParams :: Record Identity (Params a) -> a
-  default elmTypeParams :: (HasElm a, Params a ~ '[ '( "", ElmType a)]) =>
-    Proxy a -> Record IsElmType (Params a)
-  elmTypeParams p = Field (elmType p) :& RNil
-  default toParams :: (HasElm a, Params a ~ '[ '( "", ElmType a)]) =>
-    a -> Record Identity (Params a)
-  toParams x = Field (Identity (to x)) :& RNil
-  default fromParams :: (HasElm a, Params a ~ '[ '( "", ElmType a)]) =>
-    Record Identity (Params a) -> a
-  fromParams (Field (Identity x) :& RNil) = from x
 
 data Named
   = Named
@@ -110,10 +112,10 @@ instance (HasElm a) => HasElm (K1 i a p) where
   to = to . unK1
   from = K1 . from
 
-instance forall n su ss ds f p. (KnownSymbol n, HasElm (f p)) =>
-         HasParams (M1 S ('MetaSel ('Just n) su ss ds) f p) where
-  elmTypeParams _ = singleton (Proxy @n) . elmType $ Proxy @(f p)
-  toParams = singleton (Proxy @n) . Identity . to . unM1
+instance forall mn su ss ds f p. (KnownSymbol (Name mn), HasElm (f p)) =>
+         HasParams (M1 S ('MetaSel mn su ss ds) f p) where
+  elmTypeParams _ = singleton (Proxy @(Name mn)) . elmType $ Proxy @(f p)
+  toParams = singleton (Proxy @(Name mn)) . Identity . to . unM1
   fromParams = M1 . from . getIdentity . unSingleton
 
 instance ( RecAppend (Params (a p)) (Params (b p))

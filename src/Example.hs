@@ -15,8 +15,20 @@ data Foo = Foo
   , mattias :: Int
   } deriving (Generic)
 
+data Bar =
+  Bar Int
+      Int
+      Int
+      Int
+  deriving (Generic)
+
 foo :: Foo
 foo = Foo 1 2 3 4
 
+bar :: Bar
+bar = Bar 1 2 3 4
+
 main :: IO ()
-main = print $ Coder.encode (HasElm.coder Proxy) (from foo)
+main = do
+  print $ Coder.encode (HasElm.coder Proxy) (from foo)
+  print $ Coder.encode (HasElm.coder Proxy) (from bar)

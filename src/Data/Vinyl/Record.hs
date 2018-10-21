@@ -6,6 +6,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
@@ -26,6 +27,7 @@ module Data.Vinyl.Record
   , singleton
   , unSingleton
   , RecAppend((+++), rappend, rsplit)
+  , DropFields(WithoutFields, dropFields, addFields)
   ) where
 
 -- |
@@ -145,3 +147,22 @@ instance (RecAppend xs ys) => RecAppend (x ': xs) ys where
   rsplit (x :& zs) = (x :& xs, ys)
     where
       (xs, ys) = rsplit zs
+
+class DropFields (xs :: [(Symbol, k)]) where
+  type WithoutFields xs :: [k]
+  dropFields :: Record f xs -> Rec f (WithoutFields xs)
+  addFields :: Rec f (WithoutFields xs) -> Record f xs
+
+instance DropFields '[] where
+  type WithoutFields '[] = '[]
+  dropFields _ = RNil
+  addFields _ = RNil
+
+instance forall xs x s. (KnownSymbol s, DropFields xs) =>
+         DropFields ('( s, x) ': xs) where
+  type WithoutFields ('( s, x) ': xs) = x ': WithoutFields xs
+  dropFields (Field x :& xs) = x :& dropFields xs
+  addFields (x :& xs) = mkField (Proxy @s) x :& addFields xs
+
+mkField :: (KnownSymbol s) => Proxy s -> f a -> Field f '( s, a)
+mkField _ = Field
