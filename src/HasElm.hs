@@ -49,17 +49,20 @@ class HasElm a where
   to :: a -> ElmType a
   from :: ElmType a -> a
 
-class (HasElm a, ElmType a ~ Record Identity (Fields' a)) =>
-      HasElmRec' a
+class (HasElm a, ElmType a ~ Record Identity (Fields a)) =>
+      HasElmRec a
   where
-  type Fields' a :: [(Symbol, *)]
-  type Fields' a = ElmFields (ElmType a)
+  type Fields a :: [(Symbol, *)]
+  type Fields a = ElmFields (ElmType a)
 
 type family ElmFields a where
   ElmFields (Record Identity xs) = xs
 
+type family Params a where
+  Params ((a :*: b) p) = Params (a p) +++ Params (b p)
+  Params a = '[ ElmType a]
+
 class HasElmParams a where
-  type Params a :: [*]
   elmTypeParams :: proxy a -> Rec IsElmType (Params a)
   toParams :: a -> Rec Identity (Params a)
   fromParams :: Rec Identity (Params a) -> a
@@ -70,8 +73,18 @@ class HasElmCtors a where
   toCtors :: a -> SOP Identity (Ctors a)
   fromCtors :: SOP Identity (Ctors a) -> a
 
-instance HasElm a => HasElmParams a where
-  type Params a = '[ ElmType a]
+-- |
+-- HasElm needs to support two types of product: record types and multi-param
+-- constructors. The instance head of both product instances looks the same:
+-- `HasElm ((a :*: b) p)`, but the constraints on `a` and `b` are that they are
+-- records in one case and parameters in the other.
+--
+-- Records themselves can be parameters, and so for the product of two records
+-- there are two instances to choose from. Because we know Haskell does not
+-- allow a constructor to have multiple record params, we know the Record
+-- product must take precedence here.
+instance {-# OVERLAPPABLE #-} (HasElm a, Params a ~ '[ ElmType a]) =>
+                              HasElmParams a where
   elmTypeParams p = elmType p :& RNil
   toParams x = Identity (to x) :& RNil
   fromParams (Identity x :& RNil) = from x
@@ -96,25 +109,37 @@ instance forall n su ss ds f p. (KnownSymbol n, HasElm (f p)) =>
   from = M1 . from . getIdentity . unSingleton
 
 instance forall n su ss ds f p. (KnownSymbol n, HasElm (f p)) =>
-         HasElmRec' (M1 S ('MetaSel ('Just n) su ss ds) f p)
+         HasElmRec (M1 S ('MetaSel ('Just n) su ss ds) f p)
 
-instance ( RecAppend (Fields' (a p)) (Fields' (b p))
-         , HasElmRec' (a p)
-         , HasElmRec' (b p)
-         ) =>
-         HasElm ((a :*: b) p) where
-  type ElmType ((a :*: b) p) = Record Identity (Fields' (a p) +++ Fields' (b p))
+instance {-# OVERLAPPING #-} ( RecAppend (Fields (a p)) (Fields (b p))
+                             , HasElmRec (a p)
+                             , HasElmRec (b p)
+                             ) =>
+                             HasElm ((a :*: b) p) where
+  type ElmType ((a :*: b) p) = Record Identity (Fields (a p) +++ Fields (b p))
   elmType _ = elmRecAppend (elmType $ Proxy @(a p)) (elmType $ Proxy @(b p))
   to (x :*: y) = rappend (to x) (to y)
   from rec = from x :*: from y
     where
       (x, y) = rsplit rec
 
-instance ( RecAppend (Fields' (a p)) (Fields' (b p))
-         , HasElmRec' (a p)
-         , HasElmRec' (b p)
+instance {-# OVERLAPPABLE #-} ( RecAppend (Params (a p)) (Params (b p))
+                              , HasElmParams (a p)
+                              , HasElmParams (b p)
+                              ) =>
+                              HasElmParams ((a :*: b) p) where
+  elmTypeParams _ =
+    rappend (elmTypeParams $ Proxy @(a p)) (elmTypeParams $ Proxy @(b p))
+  toParams (x :*: y) = rappend (toParams x) (toParams y)
+  fromParams params = fromParams x :*: fromParams y
+    where
+      (x, y) = rsplit params
+
+instance ( RecAppend (Fields (a p)) (Fields (b p))
+         , HasElmRec (a p)
+         , HasElmRec (b p)
          ) =>
-         HasElmRec' ((a :*: b) p)
+         HasElmRec ((a :*: b) p)
 
 instance forall f p n fi s. (HasElmParams (f p), KnownSymbol n) =>
          HasElmCtors (M1 C ('MetaCons n fi s) f p) where
