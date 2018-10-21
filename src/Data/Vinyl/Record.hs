@@ -26,7 +26,7 @@ module Data.Vinyl.Record
   , RecordApplicative
   , singleton
   , unSingleton
-  , RecAppend((+++), rappend, rsplit)
+  , RecAppend(rappend, rsplit)
   , DropFields(WithoutFields, dropFields, addFields)
   ) where
 
@@ -39,6 +39,7 @@ module Data.Vinyl.Record
 -- This module is based of a different `Field` type that does allow this.
 import Data.Proxy (Proxy(Proxy))
 import Data.Vinyl (Rec((:&), RNil))
+import Data.Vinyl.TypeLevel (type (++))
 import GHC.Exts (Constraint)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
@@ -132,17 +133,14 @@ unSingleton :: Record f '[ '( s, a)] -> f a
 unSingleton (Field x :& RNil) = x
 
 class RecAppend (xs :: [k]) (ys :: [k]) where
-  type xs +++ ys :: [k]
-  rappend :: Rec f xs -> Rec f ys -> Rec f (xs +++ ys)
-  rsplit :: Rec f (xs +++ ys) -> (Rec f xs, Rec f ys)
+  rappend :: Rec f xs -> Rec f ys -> Rec f (xs ++ ys)
+  rsplit :: Rec f (xs ++ ys) -> (Rec f xs, Rec f ys)
 
 instance RecAppend '[] ys where
-  type '[] +++ ys = ys
   rappend RNil ys = ys
   rsplit ys = (RNil, ys)
 
 instance (RecAppend xs ys) => RecAppend (x ': xs) ys where
-  type (x ': xs) +++ ys = x ': (xs +++ ys)
   rappend (x :& xs) ys = x :& rappend xs ys
   rsplit (x :& zs) = (x :& xs, ys)
     where

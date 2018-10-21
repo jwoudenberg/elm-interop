@@ -24,12 +24,13 @@ import Data.Vinyl.Functor (Identity(Identity, getIdentity))
 import Data.Vinyl.POP (POP)
 import Data.Vinyl.Record
   ( DropFields(WithoutFields, addFields, dropFields)
-  , RecAppend((+++), rappend, rsplit)
+  , RecAppend(rappend, rsplit)
   , Record
   , singleton
   , unSingleton
   )
 import Data.Vinyl.SOP (SOP)
+import Data.Vinyl.TypeLevel (type (++))
 import GHC.Generics hiding (from, to)
 import GHC.TypeLits (KnownSymbol, Symbol)
 import IsElmType (IsElmType)
@@ -52,7 +53,7 @@ class HasElm a where
   from :: ElmType a -> a
 
 type family Params a where
-  Params ((a :*: b) p) = Params (a p) +++ Params (b p)
+  Params ((a :*: b) p) = Params (a p) ++ Params (b p)
   Params (M1 S m f p) = '[ '( Name m, ElmType (f p))]
 
 type family IsNamed a :: Named where
