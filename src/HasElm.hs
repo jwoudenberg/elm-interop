@@ -53,19 +53,18 @@ class HasElm a where
 
 type family Params a where
   Params ((a :*: b) p) = Params (a p) +++ Params (b p)
-  Params (M1 S ('MetaSel mn su ss ds) f p) = '[ '( Name mn, ElmType (f p))]
+  Params (M1 S m f p) = '[ '( Name m, ElmType (f p))]
 
-type family IsNamed a where
+type family IsNamed a :: Named where
   IsNamed ((a :*: b) p) = IsNamed (a p)
-  IsNamed (M1 S ('MetaSel mn su ss ds) f p) = HasName mn
+  IsNamed (M1 S ('MetaSel ('Just n) _ _ _) _ _) = 'Named
+  IsNamed (M1 S ('MetaSel 'Nothing _ _ _) _ _) = 'Unnamed
 
-type family Name (a :: Maybe Symbol) where
-  Name ('Just n) = n
-  Name 'Nothing = ""
-
-type family HasName (a :: Maybe Symbol) where
-  HasName ('Just n) = 'Named
-  HasName 'Nothing = 'Unnamed
+type family Name (a :: Meta) :: Symbol where
+  Name ('MetaSel ('Just n) _ _ _) = n
+  Name ('MetaSel 'Nothing _ _ _) = ""
+  Name ('MetaCons n _ _) = n
+  Name ('MetaData n _ _ _) = n
 
 class HasParams' (n :: Named) a where
   type Params' n a :: [*]
@@ -112,10 +111,10 @@ instance (HasElm a) => HasElm (K1 i a p) where
   to = to . unK1
   from = K1 . from
 
-instance forall mn su ss ds f p. (KnownSymbol (Name mn), HasElm (f p)) =>
-         HasParams (M1 S ('MetaSel mn su ss ds) f p) where
-  elmTypeParams _ = singleton (Proxy @(Name mn)) . elmType $ Proxy @(f p)
-  toParams = singleton (Proxy @(Name mn)) . Identity . to . unM1
+instance forall m f p. (KnownSymbol (Name m), HasElm (f p)) =>
+         HasParams (M1 S m f p) where
+  elmTypeParams _ = singleton (Proxy @(Name m)) . elmType $ Proxy @(f p)
+  toParams = singleton (Proxy @(Name m)) . Identity . to . unM1
   fromParams = M1 . from . getIdentity . unSingleton
 
 instance ( RecAppend (Params (a p)) (Params (b p))
@@ -130,25 +129,24 @@ instance ( RecAppend (Params (a p)) (Params (b p))
     where
       (x, y) = rsplit rec
 
-instance forall named f p n fi s. ( named ~ IsNamed (f p)
-                                  , HasParams' named (f p)
-                                  , KnownSymbol n
+instance forall named f p m. ( named ~ IsNamed (f p)
+                             , HasParams' named (f p)
+                             , KnownSymbol (Name m)
          ) =>
-         HasElmCtors (M1 C ('MetaCons n fi s) f p) where
-  type Ctors (M1 C ('MetaCons n fi s) f p) = '[ '( n, Params' (IsNamed (f p)) (f p))]
+         HasElmCtors (M1 C m f p) where
+  type Ctors (M1 C m f p) = '[ '( (Name m), Params' (IsNamed (f p)) (f p))]
   elmTypeCtors _ =
-    singleton (Proxy @n) $ elmTypeParams' (Proxy @named) (Proxy @(f p))
-  toCtors = Sum.singleton (Proxy @n) . toParams' (Proxy @named) . unM1
+    singleton (Proxy @(Name m)) $ elmTypeParams' (Proxy @named) (Proxy @(f p))
+  toCtors = Sum.singleton (Proxy @(Name m)) . toParams' (Proxy @named) . unM1
   fromCtors = M1 . fromParams' (Proxy @named) . Sum.unSingleton
 
-instance forall f p n m pa nt x xs. ( HasElmCtors (f p)
-                                    , Ctors (f p) ~ (x ': xs)
-                                    , FoldRec (x ': xs) (x ': xs)
-                                    , KnownSymbol n
+instance forall f p m x xs. ( HasElmCtors (f p)
+                            , Ctors (f p) ~ (x ': xs)
+                            , FoldRec (x ': xs) (x ': xs)
+                            , KnownSymbol (Name m)
          ) =>
-         HasElm (M1 D ('MetaData n m pa nt) f p) where
-  type ElmType (M1 D ('MetaData n m pa nt) f p) = ( Label n
-                                                  , SOP Identity (Ctors (f p)))
+         HasElm (M1 D m f p) where
+  type ElmType (M1 D m f p) = (Label (Name m), SOP Identity (Ctors (f p)))
   elmType _ = IsElmType.ElmCustomType Label $ elmTypeCtors (Proxy @(f p))
   to = (Label, ) . toCtors . unM1
   from = M1 . fromCtors . snd
