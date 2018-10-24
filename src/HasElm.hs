@@ -22,20 +22,24 @@ import Data.Vinyl (Label(Label), Rec((:&), RNil))
 import Data.Vinyl.CoRec (FoldRec)
 import Data.Vinyl.Functor (Identity(Identity, getIdentity))
 import Data.Vinyl.POP (POP)
-import Data.Vinyl.Record
-  ( DropFields(WithoutFields, addFields, dropFields)
-  , RecAppend(rappend, rsplit)
-  , Record
-  , singleton
-  , unSingleton
-  )
+import Data.Vinyl.Record (Record)
 import Data.Vinyl.SOP (SOP)
 import Data.Vinyl.TypeLevel (type (++))
-import GHC.Generics hiding (from, to)
+import GHC.Generics
+  ( (:*:)((:*:))
+  , (:+:)(L1, R1)
+  , C
+  , D
+  , K1(K1, unK1)
+  , M1(M1, unM1)
+  , Meta(MetaCons, MetaData, MetaSel)
+  , S
+  )
 import GHC.TypeLits (KnownSymbol, Symbol)
 import IsElmType (IsElmType)
 
 import qualified Coder
+import qualified Data.Vinyl.Record as Record
 import qualified Data.Vinyl.Sum as Sum
 import qualified ElmType
 import qualified IsElmType
@@ -92,11 +96,12 @@ instance forall named f p m. ( named ~ IsNamed (f p)
          CtorList (M1 C m f p) where
   type Ctors (M1 C m f p) = '[ '( (Name m), Params' (IsNamed (f p)) (f p))]
   elmTypeCtors _ =
-    singleton (Proxy @(Name m)) $ elmTypeParams' (Proxy @named) (Proxy @(f p))
+    Record.singleton (Proxy @(Name m)) $
+    elmTypeParams' (Proxy @named) (Proxy @(f p))
   toCtors = Sum.singleton (Proxy @(Name m)) . toParams' (Proxy @named) . unM1
   fromCtors = M1 . fromParams' (Proxy @named) . Sum.unSingleton
 
-instance forall a b p. ( RecAppend (Ctors (a p)) (Ctors (b p))
+instance forall a b p. ( Record.RecAppend (Ctors (a p)) (Ctors (b p))
                        , CtorList (a p)
                        , CtorList (b p)
                        , Sum.CoRecAppend (Ctors (a p)) (Ctors (b p))
@@ -104,7 +109,7 @@ instance forall a b p. ( RecAppend (Ctors (a p)) (Ctors (b p))
          CtorList ((a :+: b) p) where
   type Ctors ((a :+: b) p) = Ctors (a p) ++ Ctors (b p)
   elmTypeCtors _ =
-    rappend (elmTypeCtors (Proxy @(a p))) (elmTypeCtors (Proxy @(b p)))
+    Record.rappend (elmTypeCtors (Proxy @(a p))) (elmTypeCtors (Proxy @(b p)))
   toCtors = Sum.cappend . bimap toCtors toCtors . toEither
   fromCtors = fromEither . bimap fromCtors fromCtors . Sum.csplit
 
@@ -118,21 +123,21 @@ class ParamList (a :: *) where
 
 instance forall m f p. (KnownSymbol (Name m), HasElmG (f p)) =>
          ParamList (M1 S m f p) where
-  elmTypeParams _ = singleton (Proxy @(Name m)) . elmType $ Proxy @(f p)
-  toParams = singleton (Proxy @(Name m)) . Identity . to . unM1
-  fromParams = M1 . from . getIdentity . unSingleton
+  elmTypeParams _ = Record.singleton (Proxy @(Name m)) . elmType $ Proxy @(f p)
+  toParams = Record.singleton (Proxy @(Name m)) . Identity . to . unM1
+  fromParams = M1 . from . getIdentity . Record.unSingleton
 
-instance ( RecAppend (Params (a p)) (Params (b p))
+instance ( Record.RecAppend (Params (a p)) (Params (b p))
          , ParamList (a p)
          , ParamList (b p)
          ) =>
          ParamList ((a :*: b) p) where
   elmTypeParams _ =
-    rappend (elmTypeParams $ Proxy @(a p)) (elmTypeParams $ Proxy @(b p))
-  toParams (x :*: y) = rappend (toParams x) (toParams y)
+    Record.rappend (elmTypeParams $ Proxy @(a p)) (elmTypeParams $ Proxy @(b p))
+  toParams (x :*: y) = Record.rappend (toParams x) (toParams y)
   fromParams rec = fromParams x :*: fromParams y
     where
-      (x, y) = rsplit rec
+      (x, y) = Record.rsplit rec
 
 -- |
 -- A version of `ParamList` tagged with information about whether the included
@@ -152,11 +157,12 @@ instance (ParamList a) => ParamList' 'Named a where
   toParams' _ p = Identity (toParams p) :& RNil
   fromParams' _ (Identity x :& RNil) = fromParams x
 
-instance (DropFields (Params a), ParamList a) => ParamList' 'Unnamed a where
-  type Params' 'Unnamed a = WithoutFields (Params a)
-  elmTypeParams' _ = dropFields . elmTypeParams
-  toParams' _ = dropFields . toParams
-  fromParams' _ = fromParams . addFields
+instance (Record.DropFields (Params a), ParamList a) =>
+         ParamList' 'Unnamed a where
+  type Params' 'Unnamed a = Record.WithoutFields (Params a)
+  elmTypeParams' _ = Record.dropFields . elmTypeParams
+  toParams' _ = Record.dropFields . toParams
+  fromParams' _ = fromParams . Record.addFields
 
 type family Params a where
   Params ((a :*: b) p) = Params (a p) ++ Params (b p)
