@@ -46,59 +46,13 @@ coder p = invmap from to . IsElmType.coder $ elmType p
 typeAST :: (HasElmG a) => proxy a -> ElmType.ElmType
 typeAST p = IsElmType.typeAST (elmType p)
 
+-- |
+-- Generics-derived types that have some Elm equivalent type.
 class HasElmG a where
   type ElmType a
   elmType :: proxy a -> IsElmType (ElmType a)
   to :: a -> ElmType a
   from :: ElmType a -> a
-
-type family Params a where
-  Params ((a :*: b) p) = Params (a p) ++ Params (b p)
-  Params (M1 S m f p) = '[ '( Name m, ElmType (f p))]
-
-type family IsNamed a :: Named where
-  IsNamed ((a :*: b) p) = IsNamed (a p)
-  IsNamed (M1 S ('MetaSel ('Just n) _ _ _) _ _) = 'Named
-  IsNamed (M1 S ('MetaSel 'Nothing _ _ _) _ _) = 'Unnamed
-
-type family Name (a :: Meta) :: Symbol where
-  Name ('MetaSel ('Just n) _ _ _) = n
-  Name ('MetaSel 'Nothing _ _ _) = ""
-  Name ('MetaCons n _ _) = n
-  Name ('MetaData n _ _ _) = n
-
-class HasParams' (n :: Named) a where
-  type Params' n a :: [*]
-  elmTypeParams' :: Proxy n -> Proxy a -> Rec IsElmType (Params' n a)
-  toParams' :: Proxy n -> a -> Rec Identity (Params' n a)
-  fromParams' :: Proxy n -> Rec Identity (Params' n a) -> a
-
-instance (HasParams a) => HasParams' 'Named a where
-  type Params' 'Named a = '[ Record Identity (Params a)]
-  elmTypeParams' _ p = IsElmType.ElmRecord (elmTypeParams p) :& RNil
-  toParams' _ p = Identity (toParams p) :& RNil
-  fromParams' _ (Identity x :& RNil) = fromParams x
-
-instance (DropFields (Params a), HasParams a) => HasParams' 'Unnamed a where
-  type Params' 'Unnamed a = WithoutFields (Params a)
-  elmTypeParams' _ = dropFields . elmTypeParams
-  toParams' _ = dropFields . toParams
-  fromParams' _ = fromParams . addFields
-
-class HasParams (a :: *) where
-  elmTypeParams :: Proxy a -> Record IsElmType (Params a)
-  toParams :: a -> Record Identity (Params a)
-  fromParams :: Record Identity (Params a) -> a
-
-data Named
-  = Named
-  | Unnamed
-
-class HasCtors a where
-  type Ctors a :: [(Symbol, [*])]
-  elmTypeCtors :: proxy a -> POP IsElmType (Ctors a)
-  toCtors :: a -> SOP Identity (Ctors a)
-  fromCtors :: SOP Identity (Ctors a) -> a
 
 instance HasElmG Int where
   type ElmType Int = Int
@@ -112,23 +66,24 @@ instance (HasElmG a) => HasElmG (K1 i a p) where
   to = to . unK1
   from = K1 . from
 
-instance forall m f p. (KnownSymbol (Name m), HasElmG (f p)) =>
-         HasParams (M1 S m f p) where
-  elmTypeParams _ = singleton (Proxy @(Name m)) . elmType $ Proxy @(f p)
-  toParams = singleton (Proxy @(Name m)) . Identity . to . unM1
-  fromParams = M1 . from . getIdentity . unSingleton
-
-instance ( RecAppend (Params (a p)) (Params (b p))
-         , HasParams (a p)
-         , HasParams (b p)
+instance forall f p m x xs. ( HasCtors (f p)
+                            , Ctors (f p) ~ (x ': xs)
+                            , FoldRec (x ': xs) (x ': xs)
+                            , KnownSymbol (Name m)
          ) =>
-         HasParams ((a :*: b) p) where
-  elmTypeParams _ =
-    rappend (elmTypeParams $ Proxy @(a p)) (elmTypeParams $ Proxy @(b p))
-  toParams (x :*: y) = rappend (toParams x) (toParams y)
-  fromParams rec = fromParams x :*: fromParams y
-    where
-      (x, y) = rsplit rec
+         HasElmG (M1 D m f p) where
+  type ElmType (M1 D m f p) = (Label (Name m), SOP Identity (Ctors (f p)))
+  elmType _ = IsElmType.ElmCustomType Label $ elmTypeCtors (Proxy @(f p))
+  to = (Label, ) . toCtors . unM1
+  from = M1 . fromCtors . snd
+
+-- |
+-- Indicates the type is a list of Haskell constructors, part of an ADT.
+class HasCtors a where
+  type Ctors a :: [(Symbol, [*])]
+  elmTypeCtors :: proxy a -> POP IsElmType (Ctors a)
+  toCtors :: a -> SOP Identity (Ctors a)
+  fromCtors :: SOP Identity (Ctors a) -> a
 
 instance forall named f p m. ( named ~ IsNamed (f p)
                              , HasParams' named (f p)
@@ -153,6 +108,75 @@ instance forall a b p. ( RecAppend (Ctors (a p)) (Ctors (b p))
   toCtors = Sum.cappend . bimap toCtors toCtors . toEither
   fromCtors = fromEither . bimap fromCtors fromCtors . Sum.csplit
 
+-- |
+-- Indicates the type is a parameter list for a Haskell constructor.
+-- This is a wrapper around the `HasParams'` class which does the actual work.
+class HasParams (a :: *) where
+  elmTypeParams :: Proxy a -> Record IsElmType (Params a)
+  toParams :: a -> Record Identity (Params a)
+  fromParams :: Record Identity (Params a) -> a
+
+instance forall m f p. (KnownSymbol (Name m), HasElmG (f p)) =>
+         HasParams (M1 S m f p) where
+  elmTypeParams _ = singleton (Proxy @(Name m)) . elmType $ Proxy @(f p)
+  toParams = singleton (Proxy @(Name m)) . Identity . to . unM1
+  fromParams = M1 . from . getIdentity . unSingleton
+
+instance ( RecAppend (Params (a p)) (Params (b p))
+         , HasParams (a p)
+         , HasParams (b p)
+         ) =>
+         HasParams ((a :*: b) p) where
+  elmTypeParams _ =
+    rappend (elmTypeParams $ Proxy @(a p)) (elmTypeParams $ Proxy @(b p))
+  toParams (x :*: y) = rappend (toParams x) (toParams y)
+  fromParams rec = fromParams x :*: fromParams y
+    where
+      (x, y) = rsplit rec
+
+-- |
+-- A version of `HasParams` tagged with information about whether the included
+-- parameters are named or not. Named parameters mean we're inspecting a record.
+-- Unnamed parameters mean we're inspecing a parameter list.
+-- Haskell requires the parameters for a single constructor to all be named or
+-- all be unnamed.
+class HasParams' (n :: Named) a where
+  type Params' n a :: [*]
+  elmTypeParams' :: Proxy n -> Proxy a -> Rec IsElmType (Params' n a)
+  toParams' :: Proxy n -> a -> Rec Identity (Params' n a)
+  fromParams' :: Proxy n -> Rec Identity (Params' n a) -> a
+
+instance (HasParams a) => HasParams' 'Named a where
+  type Params' 'Named a = '[ Record Identity (Params a)]
+  elmTypeParams' _ p = IsElmType.ElmRecord (elmTypeParams p) :& RNil
+  toParams' _ p = Identity (toParams p) :& RNil
+  fromParams' _ (Identity x :& RNil) = fromParams x
+
+instance (DropFields (Params a), HasParams a) => HasParams' 'Unnamed a where
+  type Params' 'Unnamed a = WithoutFields (Params a)
+  elmTypeParams' _ = dropFields . elmTypeParams
+  toParams' _ = dropFields . toParams
+  fromParams' _ = fromParams . addFields
+
+type family Params a where
+  Params ((a :*: b) p) = Params (a p) ++ Params (b p)
+  Params (M1 S m f p) = '[ '( Name m, ElmType (f p))]
+
+type family IsNamed a :: Named where
+  IsNamed ((a :*: b) p) = IsNamed (a p)
+  IsNamed (M1 S ('MetaSel ('Just n) _ _ _) _ _) = 'Named
+  IsNamed (M1 S ('MetaSel 'Nothing _ _ _) _ _) = 'Unnamed
+
+type family Name (a :: Meta) :: Symbol where
+  Name ('MetaSel ('Just n) _ _ _) = n
+  Name ('MetaSel 'Nothing _ _ _) = ""
+  Name ('MetaCons n _ _) = n
+  Name ('MetaData n _ _ _) = n
+
+data Named
+  = Named
+  | Unnamed
+
 bimap :: (a -> c) -> (b -> d) -> Either a b -> Either c d
 bimap f _ (Left l) = Left (f l)
 bimap _ g (Right r) = Right (g r)
@@ -164,14 +188,3 @@ toEither (R1 r) = Right r
 fromEither :: Either (a p) (b p) -> (a :+: b) p
 fromEither (Left l) = L1 l
 fromEither (Right r) = R1 r
-
-instance forall f p m x xs. ( HasCtors (f p)
-                            , Ctors (f p) ~ (x ': xs)
-                            , FoldRec (x ': xs) (x ': xs)
-                            , KnownSymbol (Name m)
-         ) =>
-         HasElmG (M1 D m f p) where
-  type ElmType (M1 D m f p) = (Label (Name m), SOP Identity (Ctors (f p)))
-  elmType _ = IsElmType.ElmCustomType Label $ elmTypeCtors (Proxy @(f p))
-  to = (Label, ) . toCtors . unM1
-  from = M1 . fromCtors . snd
