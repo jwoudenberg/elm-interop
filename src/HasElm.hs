@@ -141,6 +141,30 @@ instance forall named f p m. ( named ~ IsNamed (f p)
   toCtors = Sum.singleton (Proxy @(Name m)) . toParams' (Proxy @named) . unM1
   fromCtors = M1 . fromParams' (Proxy @named) . Sum.unSingleton
 
+instance forall a b p. ( RecAppend (Ctors (a p)) (Ctors (b p))
+                       , HasElmCtors (a p)
+                       , HasElmCtors (b p)
+                       , Sum.CoRecAppend (Ctors (a p)) (Ctors (b p))
+         ) =>
+         HasElmCtors ((a :+: b) p) where
+  type Ctors ((a :+: b) p) = Ctors (a p) ++ Ctors (b p)
+  elmTypeCtors _ =
+    rappend (elmTypeCtors (Proxy @(a p))) (elmTypeCtors (Proxy @(b p)))
+  toCtors = Sum.cappend . bimap toCtors toCtors . toEither
+  fromCtors = fromEither . bimap fromCtors fromCtors . Sum.csplit
+
+bimap :: (a -> c) -> (b -> d) -> Either a b -> Either c d
+bimap f _ (Left l) = Left (f l)
+bimap _ g (Right r) = Right (g r)
+
+toEither :: (a :+: b) p -> Either (a p) (b p)
+toEither (L1 l) = Left l
+toEither (R1 r) = Right r
+
+fromEither :: Either (a p) (b p) -> (a :+: b) p
+fromEither (Left l) = L1 l
+fromEither (Right r) = R1 r
+
 instance forall f p m x xs. ( HasElmCtors (f p)
                             , Ctors (f p) ~ (x ': xs)
                             , FoldRec (x ': xs) (x ': xs)
