@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module HasElm
-  ( HasElm(ElmType, elmType, to, from)
+  ( HasElmG(ElmType, elmType, to, from)
   , coder
   , typeAST
   ) where
@@ -40,13 +40,13 @@ import qualified Data.Vinyl.Sum as Sum
 import qualified ElmType
 import qualified IsElmType
 
-coder :: (HasElm a) => proxy a -> Coder.Coder a
+coder :: (HasElmG a) => proxy a -> Coder.Coder a
 coder p = invmap from to . IsElmType.coder $ elmType p
 
-typeAST :: (HasElm a) => proxy a -> ElmType.ElmType
+typeAST :: (HasElmG a) => proxy a -> ElmType.ElmType
 typeAST p = IsElmType.typeAST (elmType p)
 
-class HasElm a where
+class HasElmG a where
   type ElmType a
   elmType :: proxy a -> IsElmType (ElmType a)
   to :: a -> ElmType a
@@ -94,25 +94,25 @@ data Named
   = Named
   | Unnamed
 
-class HasElmCtors a where
+class HasCtors a where
   type Ctors a :: [(Symbol, [*])]
   elmTypeCtors :: proxy a -> POP IsElmType (Ctors a)
   toCtors :: a -> SOP Identity (Ctors a)
   fromCtors :: SOP Identity (Ctors a) -> a
 
-instance HasElm Int where
+instance HasElmG Int where
   type ElmType Int = Int
   elmType _ = IsElmType.ElmInt
   to = id
   from = id
 
-instance (HasElm a) => HasElm (K1 i a p) where
+instance (HasElmG a) => HasElmG (K1 i a p) where
   type ElmType (K1 i a p) = ElmType a
   elmType _ = elmType (Proxy @a)
   to = to . unK1
   from = K1 . from
 
-instance forall m f p. (KnownSymbol (Name m), HasElm (f p)) =>
+instance forall m f p. (KnownSymbol (Name m), HasElmG (f p)) =>
          HasParams (M1 S m f p) where
   elmTypeParams _ = singleton (Proxy @(Name m)) . elmType $ Proxy @(f p)
   toParams = singleton (Proxy @(Name m)) . Identity . to . unM1
@@ -134,7 +134,7 @@ instance forall named f p m. ( named ~ IsNamed (f p)
                              , HasParams' named (f p)
                              , KnownSymbol (Name m)
          ) =>
-         HasElmCtors (M1 C m f p) where
+         HasCtors (M1 C m f p) where
   type Ctors (M1 C m f p) = '[ '( (Name m), Params' (IsNamed (f p)) (f p))]
   elmTypeCtors _ =
     singleton (Proxy @(Name m)) $ elmTypeParams' (Proxy @named) (Proxy @(f p))
@@ -142,11 +142,11 @@ instance forall named f p m. ( named ~ IsNamed (f p)
   fromCtors = M1 . fromParams' (Proxy @named) . Sum.unSingleton
 
 instance forall a b p. ( RecAppend (Ctors (a p)) (Ctors (b p))
-                       , HasElmCtors (a p)
-                       , HasElmCtors (b p)
+                       , HasCtors (a p)
+                       , HasCtors (b p)
                        , Sum.CoRecAppend (Ctors (a p)) (Ctors (b p))
          ) =>
-         HasElmCtors ((a :+: b) p) where
+         HasCtors ((a :+: b) p) where
   type Ctors ((a :+: b) p) = Ctors (a p) ++ Ctors (b p)
   elmTypeCtors _ =
     rappend (elmTypeCtors (Proxy @(a p))) (elmTypeCtors (Proxy @(b p)))
@@ -165,12 +165,12 @@ fromEither :: Either (a p) (b p) -> (a :+: b) p
 fromEither (Left l) = L1 l
 fromEither (Right r) = R1 r
 
-instance forall f p m x xs. ( HasElmCtors (f p)
+instance forall f p m x xs. ( HasCtors (f p)
                             , Ctors (f p) ~ (x ': xs)
                             , FoldRec (x ': xs) (x ': xs)
                             , KnownSymbol (Name m)
          ) =>
-         HasElm (M1 D m f p) where
+         HasElmG (M1 D m f p) where
   type ElmType (M1 D m f p) = (Label (Name m), SOP Identity (Ctors (f p)))
   elmType _ = IsElmType.ElmCustomType Label $ elmTypeCtors (Proxy @(f p))
   to = (Label, ) . toCtors . unM1
