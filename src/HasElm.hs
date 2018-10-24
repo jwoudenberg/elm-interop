@@ -66,7 +66,7 @@ instance (HasElmG a) => HasElmG (K1 i a p) where
   to = to . unK1
   from = K1 . from
 
-instance forall f p m x xs. ( HasCtors (f p)
+instance forall f p m x xs. ( CtorList (f p)
                             , Ctors (f p) ~ (x ': xs)
                             , FoldRec (x ': xs) (x ': xs)
                             , KnownSymbol (Name m)
@@ -79,17 +79,17 @@ instance forall f p m x xs. ( HasCtors (f p)
 
 -- |
 -- Indicates the type is a list of Haskell constructors, part of an ADT.
-class HasCtors a where
+class CtorList a where
   type Ctors a :: [(Symbol, [*])]
   elmTypeCtors :: proxy a -> POP IsElmType (Ctors a)
   toCtors :: a -> SOP Identity (Ctors a)
   fromCtors :: SOP Identity (Ctors a) -> a
 
 instance forall named f p m. ( named ~ IsNamed (f p)
-                             , HasParams' named (f p)
+                             , ParamList' named (f p)
                              , KnownSymbol (Name m)
          ) =>
-         HasCtors (M1 C m f p) where
+         CtorList (M1 C m f p) where
   type Ctors (M1 C m f p) = '[ '( (Name m), Params' (IsNamed (f p)) (f p))]
   elmTypeCtors _ =
     singleton (Proxy @(Name m)) $ elmTypeParams' (Proxy @named) (Proxy @(f p))
@@ -97,11 +97,11 @@ instance forall named f p m. ( named ~ IsNamed (f p)
   fromCtors = M1 . fromParams' (Proxy @named) . Sum.unSingleton
 
 instance forall a b p. ( RecAppend (Ctors (a p)) (Ctors (b p))
-                       , HasCtors (a p)
-                       , HasCtors (b p)
+                       , CtorList (a p)
+                       , CtorList (b p)
                        , Sum.CoRecAppend (Ctors (a p)) (Ctors (b p))
          ) =>
-         HasCtors ((a :+: b) p) where
+         CtorList ((a :+: b) p) where
   type Ctors ((a :+: b) p) = Ctors (a p) ++ Ctors (b p)
   elmTypeCtors _ =
     rappend (elmTypeCtors (Proxy @(a p))) (elmTypeCtors (Proxy @(b p)))
@@ -110,23 +110,23 @@ instance forall a b p. ( RecAppend (Ctors (a p)) (Ctors (b p))
 
 -- |
 -- Indicates the type is a parameter list for a Haskell constructor.
--- This is a wrapper around the `HasParams'` class which does the actual work.
-class HasParams (a :: *) where
+-- This is a wrapper around the `ParamList'` class which does the actual work.
+class ParamList (a :: *) where
   elmTypeParams :: Proxy a -> Record IsElmType (Params a)
   toParams :: a -> Record Identity (Params a)
   fromParams :: Record Identity (Params a) -> a
 
 instance forall m f p. (KnownSymbol (Name m), HasElmG (f p)) =>
-         HasParams (M1 S m f p) where
+         ParamList (M1 S m f p) where
   elmTypeParams _ = singleton (Proxy @(Name m)) . elmType $ Proxy @(f p)
   toParams = singleton (Proxy @(Name m)) . Identity . to . unM1
   fromParams = M1 . from . getIdentity . unSingleton
 
 instance ( RecAppend (Params (a p)) (Params (b p))
-         , HasParams (a p)
-         , HasParams (b p)
+         , ParamList (a p)
+         , ParamList (b p)
          ) =>
-         HasParams ((a :*: b) p) where
+         ParamList ((a :*: b) p) where
   elmTypeParams _ =
     rappend (elmTypeParams $ Proxy @(a p)) (elmTypeParams $ Proxy @(b p))
   toParams (x :*: y) = rappend (toParams x) (toParams y)
@@ -135,24 +135,24 @@ instance ( RecAppend (Params (a p)) (Params (b p))
       (x, y) = rsplit rec
 
 -- |
--- A version of `HasParams` tagged with information about whether the included
+-- A version of `ParamList` tagged with information about whether the included
 -- parameters are named or not. Named parameters mean we're inspecting a record.
 -- Unnamed parameters mean we're inspecing a parameter list.
 -- Haskell requires the parameters for a single constructor to all be named or
 -- all be unnamed.
-class HasParams' (n :: Named) a where
+class ParamList' (n :: Named) a where
   type Params' n a :: [*]
   elmTypeParams' :: Proxy n -> Proxy a -> Rec IsElmType (Params' n a)
   toParams' :: Proxy n -> a -> Rec Identity (Params' n a)
   fromParams' :: Proxy n -> Rec Identity (Params' n a) -> a
 
-instance (HasParams a) => HasParams' 'Named a where
+instance (ParamList a) => ParamList' 'Named a where
   type Params' 'Named a = '[ Record Identity (Params a)]
   elmTypeParams' _ p = IsElmType.ElmRecord (elmTypeParams p) :& RNil
   toParams' _ p = Identity (toParams p) :& RNil
   fromParams' _ (Identity x :& RNil) = fromParams x
 
-instance (DropFields (Params a), HasParams a) => HasParams' 'Unnamed a where
+instance (DropFields (Params a), ParamList a) => ParamList' 'Unnamed a where
   type Params' 'Unnamed a = WithoutFields (Params a)
   elmTypeParams' _ = dropFields . elmTypeParams
   toParams' _ = dropFields . toParams
