@@ -33,6 +33,7 @@ import GHC.Generics
   , C
   , D
   , Generic(Rep)
+  , K1(K1, unK1)
   , M1(M1, unM1)
   , Meta(MetaCons, MetaData, MetaSel)
   , S
@@ -58,11 +59,11 @@ class HasElm a where
   to :: a -> ElmType a
   from :: ElmType a -> a
   type ElmType a = GElmType (Rep a)
-  default elmType :: (Generic a, GHasElm (Rep a), J a) =>
+  default elmType :: (GHasElm (Rep a), J a) =>
     Proxy a -> IsElmType (ElmType a)
   elmType p = gElmType (proxyRep p)
     where
-      proxyRep :: Proxy a -> Proxy (Rep a :: * -> *)
+      proxyRep :: Proxy a -> Proxy (Rep a)
       proxyRep Proxy = Proxy
   default to :: (Generic a, GHasElm (Rep a), J a) =>
     a -> ElmType a
@@ -91,6 +92,12 @@ class GHasElm (a :: * -> *) where
   gElmType :: proxy a -> IsElmType (GElmType a)
   gTo :: a p -> GElmType a
   gFrom :: GElmType a -> a p
+
+instance (HasElm c) => GHasElm (K1 i c) where
+  type GElmType (K1 i c) = ElmType c
+  gElmType _ = elmType (Proxy @c)
+  gTo = to . unK1
+  gFrom = K1 . from
 
 instance forall f m x xs. ( CtorList f
                           , Ctors f ~ (x ': xs)
