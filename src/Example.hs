@@ -3,7 +3,8 @@
 module Example where
 
 import Data.Proxy (Proxy(Proxy))
-import GHC.Generics (Generic, from)
+import GHC.Generics (Generic)
+import HasElm (HasElm)
 
 import qualified Coder
 import qualified HasElm
@@ -15,6 +16,8 @@ data Foo = Foo
   , mattias :: Int
   } deriving (Generic)
 
+instance HasElm Foo
+
 data Bar =
   Bar Int
       Int
@@ -22,12 +25,16 @@ data Bar =
       Int
   deriving (Generic)
 
+instance HasElm Bar
+
 data Baz
   = Baz1 { one :: Int
          , two :: Int }
   | Baz2 Int
   | Baz3 Int
   deriving (Generic)
+
+instance HasElm Baz
 
 foo :: Foo
 foo = Foo 1 2 3 4
@@ -40,6 +47,6 @@ baz = Baz1 42 43
 
 main :: IO ()
 main = do
-  print $ Coder.encode (HasElm.coder Proxy) (from foo)
-  print $ Coder.encode (HasElm.coder Proxy) (from bar)
-  print $ Coder.encode (HasElm.coder Proxy) (from baz)
+  print $ Coder.encode (HasElm.coder Proxy) foo
+  print $ Coder.encode (HasElm.coder Proxy) bar
+  print $ Coder.encode (HasElm.coder Proxy) baz
