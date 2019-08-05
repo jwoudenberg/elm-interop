@@ -10,6 +10,15 @@ copyright:           2018 Author name here
 category:            Web
 extra-source-files:
 - README.md
+ghc-options:
+- -j4
+- -Werror
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wpartial-fields
+- -Wredundant-constraints
 
 dependencies:
   - base
@@ -17,6 +26,7 @@ dependencies:
   - insert-ordered-containers
   - recursion-schemes
   - text
+  - wl-pprint-text
 
 executables:
   dhall-elm:
