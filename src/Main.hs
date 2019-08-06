@@ -47,7 +47,7 @@ data ElmTypeF a
 type ElmType = Fix ElmTypeF
 
 showDoc :: PP.Doc -> Text
-showDoc = PP.displayTStrict . PP.renderPretty 1 40
+showDoc = PP.displayTStrict . PP.renderPretty 1 80
 
 printType :: ElmType -> PP.Doc
 printType =
@@ -59,23 +59,30 @@ printType =
     String -> "String"
     List (a, i) -> "List" <+> parens a i
     Maybe (a, i) -> "Maybe" <+> parens a i
-    Record xs ->
-      PP.encloseSep
-        (PP.lbrace <> PP.space)
-        (PP.space <> PP.rbrace)
-        (PP.comma <> PP.space) .
-      fmap printRecordField $
-      HashMap.toList xs
+    Record xs -> encloseSep' PP.lbrace PP.rbrace PP.comma fields
+      where fields = printRecordField <$> HashMap.toList xs
     Union n _ -> PP.textStrict n
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
-      where idoc
-              -- We only need to parenthesize the input argument if it is a
-              -- lambda function itself.
-             =
+      -- |
+      -- We only need to parenthesize the input argument if it is a
+      -- lambda function itself.
+      where idoc =
               case ai of
                 SingleWord -> i
                 MultipleWord -> i
                 MultipleWordLambda -> PP.parens i
+
+-- |
+-- Version of `encloseSep` that puts the closing delimiter on a new line, and
+-- adds a space between the separator and the content.
+--
+-- Used for printing lists and records in a fashion compatible with elm-format.
+encloseSep' :: PP.Doc -> PP.Doc -> PP.Doc -> [PP.Doc] -> PP.Doc
+encloseSep' left right sp ds =
+  case ds of
+    [] -> left <> right
+    [d] -> left <+> d <+> right
+    _ -> PP.align (PP.vcat (zipWith (<+>) (left : repeat sp) ds <> [right]))
 
 data TypeAppearance
   = SingleWord
