@@ -24,7 +24,8 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 main :: IO ()
 main = do
   dhall <-
-    Dhall.inputExpr "{ is : List (Optional Integer), d : Double, n : Natural }"
+    Dhall.inputExpr
+      "{ is : List (Optional Integer), d : Double, n : Natural -> Text }"
   let elmType = dhallToElm dhall
   putStrLn . Text.unpack . showDoc . printType $ elmType
 
@@ -59,7 +60,11 @@ printType =
     List i -> "List" <+> PP.parens i
     Maybe i -> "Maybe" <+> PP.parens i
     Record xs ->
-      PP.encloseSep PP.lbrace PP.rbrace PP.comma . fmap printRecordField $
+      PP.encloseSep
+        (PP.lbrace <> PP.space)
+        (PP.space <> PP.rbrace)
+        (PP.comma <> PP.space) .
+      fmap printRecordField $
       HashMap.toList xs
     Union n _ -> PP.textStrict n
     Lambda i o -> PP.parens i <+> "->" <+> PP.parens o
