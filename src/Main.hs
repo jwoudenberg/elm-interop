@@ -1,14 +1,20 @@
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
 
-module Main
-  ( main
-  ) where
+module Main where
 
 import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
+import Data.Void (Void)
+import GHC.Generics
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.HashMap.Strict.InsOrd as HashMap
@@ -25,6 +31,7 @@ main =
 
 data ElmTypeF a
   = Unit
+  | Never
   | Bool
   | Int
   | Float
@@ -55,6 +62,7 @@ printType :: ElmType -> PP.Doc
 printType =
   zygo appearance $ \case
     Unit -> "()"
+    Never -> "Never"
     Bool -> "Bool"
     Int -> "Int"
     Float -> "Float"
@@ -102,6 +110,7 @@ typeDefinitions :: ElmType -> [ElmTypeDefinition]
 typeDefinitions =
   para $ \case
     Unit -> mempty
+    Never -> mempty
     Bool -> mempty
     Int -> mempty
     Float -> mempty
@@ -140,6 +149,7 @@ appearance :: ElmTypeF a -> TypeAppearance
 appearance =
   \case
     Unit -> SingleWord
+    Never -> SingleWord
     Bool -> SingleWord
     Int -> SingleWord
     Float -> SingleWord
@@ -159,3 +169,54 @@ parens a doc =
 
 printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
 printRecordField (k, (_, v)) = PP.textStrict k <+> ":" <+> v
+
+class HasElmType (a :: *) where
+  hasElmType :: Proxy a -> ElmType
+  default hasElmType :: (HasElmTypeG (Rep a)) =>
+    Proxy a -> ElmType
+  hasElmType _ = hasElmTypeG (Proxy :: Proxy (Rep a))
+
+instance HasElmType () where
+  hasElmType _ = Fix Unit
+
+instance HasElmType Void where
+  hasElmType _ = Fix Never
+
+instance HasElmType Int where
+  hasElmType _ = Fix Int
+
+instance HasElmType a => HasElmType [a] where
+  hasElmType _ = Fix $ List (hasElmType (Proxy :: Proxy a))
+
+class HasElmTypeG (f :: * -> *) where
+  hasElmTypeG :: Proxy f -> ElmType
+
+instance HasElmTypeG V1 where
+  hasElmTypeG _ = Fix Never
+
+instance HasElmTypeG U1 where
+  hasElmTypeG _ = Fix Unit
+
+instance HasElmType c => HasElmTypeG (K1 i c) where
+  hasElmTypeG _ = hasElmType (Proxy :: Proxy c)
+
+instance (HasElmProductG f, HasElmProductG g) => HasElmTypeG (f :*: g) where
+  hasElmTypeG _ = Fix . Record . HashMap.fromList $ zip fieldNames values
+    where
+      values = fmap snd prod
+      fieldNames =
+        case traverse fst prod of
+          Nothing -> ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
+          Just names -> names
+      prod =
+        hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
+
+class HasElmProductG (f :: * -> *) where
+  hasElmProductG :: Proxy f -> [(Maybe Text, ElmType)]
+  default hasElmProductG :: HasElmTypeG f =>
+    Proxy f -> [(Maybe Text, ElmType)]
+  hasElmProductG x = [(Nothing, hasElmTypeG x)]
+
+instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
+  hasElmProductG _ =
+    hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
