@@ -6,7 +6,7 @@ module Main
   ( main
   ) where
 
-import Data.Functor.Foldable (Fix, ana, cata)
+import Data.Functor.Foldable (Fix, ana, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.Text (Text)
 import Dhall.Core (Expr)
@@ -25,7 +25,7 @@ main :: IO ()
 main = do
   dhall <-
     Dhall.inputExpr
-      "{ is : List (Optional Integer), d : Double, n : Natural -> Text }"
+      "{ is : List (Optional Integer), d : Double, n : List Natural -> Text -> Bool }"
   let elmType = dhallToElm dhall
   putStrLn . Text.unpack . showDoc . printType $ elmType
 
@@ -47,18 +47,18 @@ data ElmTypeF a
 type ElmType = Fix ElmTypeF
 
 showDoc :: PP.Doc -> Text
-showDoc = PP.displayTStrict . PP.renderPretty 1 120
+showDoc = PP.displayTStrict . PP.renderPretty 1 40
 
 printType :: ElmType -> PP.Doc
 printType =
-  cata $ \case
+  zygo appearance $ \case
     Unit -> "()"
     Bool -> "Bool"
     Int -> "Int"
     Float -> "Float"
     String -> "String"
-    List i -> "List" <+> PP.parens i
-    Maybe i -> "Maybe" <+> PP.parens i
+    List (a, i) -> "List" <+> parens a i
+    Maybe (a, i) -> "Maybe" <+> parens a i
     Record xs ->
       PP.encloseSep
         (PP.lbrace <> PP.space)
@@ -67,10 +67,47 @@ printType =
       fmap printRecordField $
       HashMap.toList xs
     Union n _ -> PP.textStrict n
-    Lambda i o -> PP.parens i <+> "->" <+> PP.parens o
+    Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
+      where idoc
+              -- We only need to parenthesize the input argument if it is a
+              -- lambda function itself.
+             =
+              case ai of
+                SingleWord -> i
+                MultipleWord -> i
+                MultipleWordLambda -> PP.parens i
 
-printRecordField :: (Text, PP.Doc) -> PP.Doc
-printRecordField (k, v) = PP.textStrict k <+> ":" <+> v
+data TypeAppearance
+  = SingleWord
+  -- ^ The printed type consists of a single word, like `Int` or `Thing`.
+  | MultipleWord
+  -- ^ The printed type consists of multiple words, like `List Int`
+  | MultipleWordLambda
+  -- ^ The type is a lambda, like `Text -> Int`. Implies `MultipleWord`.
+
+appearance :: ElmTypeF TypeAppearance -> TypeAppearance
+appearance =
+  \case
+    Unit -> SingleWord
+    Bool -> SingleWord
+    Int -> SingleWord
+    Float -> SingleWord
+    String -> SingleWord
+    List _ -> MultipleWord
+    Maybe _ -> MultipleWord
+    Record _ -> SingleWord
+    Union _ _ -> SingleWord
+    Lambda _ _ -> MultipleWordLambda
+
+parens :: TypeAppearance -> PP.Doc -> PP.Doc
+parens a doc =
+  case a of
+    SingleWord -> doc
+    MultipleWord -> PP.parens doc
+    MultipleWordLambda -> PP.parens doc
+
+printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
+printRecordField (k, (_, v)) = PP.textStrict k <+> ":" <+> v
 
 dhallToElm :: Expr s X -> ElmType
 dhallToElm =
