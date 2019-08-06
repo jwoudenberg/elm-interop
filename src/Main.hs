@@ -6,7 +6,7 @@ module Main
   ( main
   ) where
 
-import Data.Functor.Foldable (Fix, ana, zygo)
+import Data.Functor.Foldable (Fix, ana, unfix, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.Text (Text)
 import Dhall.Core (Expr)
@@ -27,7 +27,7 @@ main = do
     Dhall.inputExpr
       "{ is : List (Optional Integer), d : Double, n : List Natural -> Text -> Bool }"
   let elmType = dhallToElm dhall
-  putStrLn . Text.unpack . showDoc . printType $ elmType
+  putStrLn . Text.unpack . showDoc . printTypeDefinition $ Alias "Hi" elmType
 
 data ElmTypeF a
   = Unit
@@ -51,6 +51,8 @@ data ElmTypeDefinitionF a
   | Alias Text
           a
   deriving (Functor, Show)
+
+type ElmTypeDefinition = ElmTypeDefinitionF ElmType
 
 showDoc :: PP.Doc -> Text
 showDoc = PP.displayTStrict . PP.renderPretty 1 80
@@ -79,6 +81,33 @@ printType =
                 MultipleWord -> i
                 MultipleWordLambda -> PP.parens i
 
+printTypeDefinition :: ElmTypeDefinition -> PP.Doc
+printTypeDefinition =
+  \case
+    Custom name constructors ->
+      "type" <+> PP.textStrict name <> PP.linebreak <> printedConstructors
+      where printedConstructors =
+              PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
+              printConstructor <$> HashMap.toList constructors
+    Alias name base ->
+      "type alias" <+>
+      PP.textStrict name <+>
+      "=" <> PP.line <> PP.indent elmIndent (printType base)
+
+printConstructor :: (Text, [ElmType]) -> PP.Doc
+printConstructor (name, params) =
+  PP.nest elmIndent (PP.sep (PP.textStrict name : (printParam <$> params)))
+  where
+    printParam :: ElmType -> PP.Doc
+    printParam t =
+      case appearance (unfix t) of
+        SingleWord -> printType t
+        MultipleWord -> PP.parens $ printType t
+        MultipleWordLambda -> PP.parens $ printType t
+
+elmIndent :: Int
+elmIndent = 4
+
 -- |
 -- Version of `encloseSep` that puts the closing delimiter on a new line, and
 -- adds a space between the separator and the content.
@@ -89,7 +118,7 @@ encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
     [d] -> left <+> d <+> right
-    _ -> PP.align (PP.vcat (zipWith (<+>) (left : repeat sp) ds <> [right]))
+    _ -> PP.cat (zipWith (<+>) (left : repeat sp) ds <> [right])
 
 data TypeAppearance
   = SingleWord
@@ -99,7 +128,7 @@ data TypeAppearance
   | MultipleWordLambda
   -- ^ The type is a lambda, like `Text -> Int`. Implies `MultipleWord`.
 
-appearance :: ElmTypeF TypeAppearance -> TypeAppearance
+appearance :: ElmTypeF a -> TypeAppearance
 appearance =
   \case
     Unit -> SingleWord
