@@ -55,7 +55,7 @@ data ElmTypeDefinitionF a
 type ElmTypeDefinition = ElmTypeDefinitionF ElmType
 
 showDoc :: PP.Doc -> Text
-showDoc = PP.displayTStrict . PP.renderPretty 1 80
+showDoc = PP.displayTStrict . PP.renderPretty 1 40
 
 printType :: ElmType -> PP.Doc
 printType =
@@ -118,7 +118,8 @@ encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
     [d] -> left <+> d <+> right
-    _ -> PP.cat (zipWith (<+>) (left : repeat sp) ds <> [right])
+    _ -> PP.group $ PP.vcat entries <> PP.line <> right
+      where entries = zipWith (<+>) (left : repeat sp) ds
 
 data TypeAppearance
   = SingleWord
