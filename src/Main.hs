@@ -9,8 +9,10 @@
 
 module Main where
 
+import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
 import Data.Void (Void)
@@ -18,6 +20,7 @@ import GHC.Generics
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.HashMap.Strict.InsOrd as HashMap
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -38,6 +41,11 @@ data ElmTypeF a
   | String
   | List a
   | Maybe a
+  | Tuple2 a
+           a
+  | Tuple3 a
+           a
+           a
   | Record (InsOrdHashMap Text a)
   | Lambda a
            a
@@ -69,6 +77,8 @@ printType =
     String -> "String"
     List (a, i) -> "List" <+> parens a i
     Maybe (a, i) -> "Maybe" <+> parens a i
+    Tuple2 (_, i) (_, j) -> PP.tupled [i, j]
+    Tuple3 (_, i) (_, j) (_, k) -> PP.tupled [i, j, k]
     Record xs -> encloseSep' PP.lbrace PP.rbrace PP.comma fields
       where fields = printRecordField <$> HashMap.toList xs
     Defined (Custom n _) -> PP.textStrict n
@@ -117,6 +127,8 @@ typeDefinitions =
     String -> mempty
     List (_, x) -> x
     Maybe (_, x) -> x
+    Tuple2 (_, x) (_, y) -> x <> y
+    Tuple3 (_, x) (_, y) (_, z) -> x <> y <> z
     Record x -> mconcat $ snd <$> HashMap.elems x
     Defined (Alias n (t, x)) -> Alias n t : x
     Defined (Custom n x) ->
@@ -156,6 +168,8 @@ appearance =
     String -> SingleWord
     List _ -> MultipleWord
     Maybe _ -> MultipleWord
+    Tuple2 _ _ -> SingleWord
+    Tuple3 _ _ _ -> SingleWord
     Record _ -> SingleWord
     Defined _ -> SingleWord
     Lambda _ _ -> MultipleWordLambda
@@ -201,21 +215,32 @@ instance HasElmType c => HasElmTypeG (K1 i c) where
   hasElmTypeG _ = hasElmType (Proxy :: Proxy c)
 
 instance (HasElmProductG f, HasElmProductG g) => HasElmTypeG (f :*: g) where
-  hasElmTypeG _ = Fix . Record . HashMap.fromList $ zip fieldNames values
+  hasElmTypeG _ =
+    case traverse fst prod of
+      Just names ->
+        Fix . Record . HashMap.fromList . toList $ NonEmpty.zip names values
+      Nothing -> mkElmTuple values
     where
-      values = fmap snd prod
-      fieldNames =
-        case traverse fst prod of
-          Nothing -> ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
-          Just names -> names
+      values = snd <$> prod
       prod =
         hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
 
+mkElmTuple :: NonEmpty ElmType -> ElmType
+mkElmTuple values =
+  case values of
+    x :| [] -> x
+    x :| [y] -> Fix $ Tuple2 x y
+    x :| [y, z] -> Fix $ Tuple3 x y z
+    -- Elm only has tuples with 2 or 3 elements. If we have more values
+    -- than that we have to use a record.
+    _ -> Fix . Record . HashMap.fromList $ zip anonFields (toList values)
+      where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
+
 class HasElmProductG (f :: * -> *) where
-  hasElmProductG :: Proxy f -> [(Maybe Text, ElmType)]
+  hasElmProductG :: Proxy f -> NonEmpty (Maybe Text, ElmType)
   default hasElmProductG :: HasElmTypeG f =>
-    Proxy f -> [(Maybe Text, ElmType)]
-  hasElmProductG x = [(Nothing, hasElmTypeG x)]
+    Proxy f -> NonEmpty (Maybe Text, ElmType)
+  hasElmProductG x = (Nothing, hasElmTypeG x) :| []
 
 instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
   hasElmProductG _ =
