@@ -22,7 +22,6 @@ ghc-options:
 
 dependencies:
   - base
-  - dhall
   - insert-ordered-containers
   - recursion-schemes
   - text

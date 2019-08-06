@@ -6,30 +6,22 @@ module Main
   ( main
   ) where
 
-import Data.Functor.Foldable (Fix(Fix), ana, para, unfix, zygo)
+import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.Text (Text)
-import Dhall.Core (Expr)
-import Dhall.TypeCheck (X)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.HashMap.Strict.InsOrd as HashMap
 import qualified Data.Text as Text
-import qualified Dhall
-import qualified Dhall.Core
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 -- |
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
-main = do
-  dhall <-
-    Dhall.inputExpr
-      "{ is : List (Optional Integer), d : < Left : Double | Right : Text >, n : List Natural -> Text -> Bool }"
-  let elmType = dhallToElm dhall
+main =
   putStrLn .
-    Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
-    Fix (Defined (Alias "Hi" elmType))
+  Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
+  Fix (Defined (Alias "Hi" (Fix Int)))
 
 data ElmTypeF a
   = Unit
@@ -101,11 +93,7 @@ printConstructor (name, params) =
   PP.nest elmIndent (PP.sep (PP.textStrict name : (printParam <$> params)))
   where
     printParam :: ElmType -> PP.Doc
-    printParam t =
-      case appearance (unfix t) of
-        SingleWord -> printType t
-        MultipleWord -> PP.parens $ printType t
-        MultipleWordLambda -> PP.parens $ printType t
+    printParam t = parens (appearance (unfix t)) (printType t)
 
 elmIndent :: Int
 elmIndent = 4
@@ -171,21 +159,3 @@ parens a doc =
 
 printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
 printRecordField (k, (_, v)) = PP.textStrict k <+> ":" <+> v
-
-dhallToElm :: Expr s X -> ElmType
-dhallToElm =
-  ana $ \case
-    Dhall.Core.Pi _var x y -> Lambda x y
-    Dhall.Core.Bool -> Bool
-    Dhall.Core.Natural -> Int
-    Dhall.Core.Integer -> Int
-    Dhall.Core.Double -> Float
-    Dhall.Core.Text -> String
-    Dhall.Core.App Dhall.Core.List x -> List x
-    Dhall.Core.App Dhall.Core.Optional x -> Maybe x
-    Dhall.Core.Record xs -> Record xs
-    Dhall.Core.Union xs -> Defined (Custom name (fmap pure xs))
-      where name = Text.intercalate "Or" $ HashMap.keys xs
-    Dhall.Core.CombineTypes (Dhall.Core.Record xs) (Dhall.Core.Record ys) ->
-      Record (HashMap.unionWith Dhall.Core.CombineTypes xs ys)
-    _ -> Unit
