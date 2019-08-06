@@ -6,7 +6,7 @@ module Main
   ( main
   ) where
 
-import Data.Functor.Foldable (Fix, ana, unfix, zygo)
+import Data.Functor.Foldable (Fix(Fix), ana, para, unfix, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.Text (Text)
 import Dhall.Core (Expr)
@@ -25,9 +25,11 @@ main :: IO ()
 main = do
   dhall <-
     Dhall.inputExpr
-      "{ is : List (Optional Integer), d : Double, n : List Natural -> Text -> Bool }"
+      "{ is : List (Optional Integer), d : < Left : Double | Right : Text >, n : List Natural -> Text -> Bool }"
   let elmType = dhallToElm dhall
-  putStrLn . Text.unpack . showDoc . printTypeDefinition $ Alias "Hi" elmType
+  putStrLn .
+    Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
+    Fix (Defined (Alias "Hi" elmType))
 
 data ElmTypeF a
   = Unit
@@ -107,6 +109,23 @@ printConstructor (name, params) =
 
 elmIndent :: Int
 elmIndent = 4
+
+typeDefinitions :: ElmType -> [ElmTypeDefinition]
+typeDefinitions =
+  para $ \case
+    Unit -> mempty
+    Bool -> mempty
+    Int -> mempty
+    Float -> mempty
+    String -> mempty
+    List (_, x) -> x
+    Maybe (_, x) -> x
+    Record x -> mconcat $ snd <$> HashMap.elems x
+    Defined (Alias n (t, x)) -> Alias n t : x
+    Defined (Custom n x) ->
+      Custom n (fmap fst <$> x) :
+      (mconcat . fmap snd . mconcat $ HashMap.elems x)
+    Lambda (_, x) (_, y) -> x <> y
 
 -- |
 -- Version of `encloseSep` that puts the closing delimiter on a new line, and
