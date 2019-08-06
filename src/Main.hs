@@ -2,7 +2,9 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Main
+  ( main
+  ) where
 
 import Data.Functor.Foldable (Fix, ana, cata)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
@@ -13,14 +15,18 @@ import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.HashMap.Strict.InsOrd as HashMap
 import qualified Data.Text as Text
+import qualified Dhall
 import qualified Dhall.Core
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
+-- |
+-- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
-main = putStrLn "hello world"
-
-data CompileError =
-  UnsupportedFeature
+main = do
+  dhall <-
+    Dhall.inputExpr "{ is : List (Optional Integer), d : Double, n : Natural }"
+  let elmType = dhallToElm dhall
+  putStrLn . Text.unpack . showDoc . printType $ elmType
 
 data ElmTypeF a
   = Unit
@@ -35,7 +41,7 @@ data ElmTypeF a
           (InsOrdHashMap Text [a])
   | Lambda a
            a
-  deriving (Functor)
+  deriving (Functor, Show)
 
 type ElmType = Fix ElmTypeF
 
