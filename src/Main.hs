@@ -38,13 +38,19 @@ data ElmTypeF a
   | List a
   | Maybe a
   | Record (InsOrdHashMap Text a)
-  | Union Text
-          (InsOrdHashMap Text [a])
   | Lambda a
            a
+  | Defined (ElmTypeDefinitionF a)
   deriving (Functor, Show)
 
 type ElmType = Fix ElmTypeF
+
+data ElmTypeDefinitionF a
+  = Custom Text
+           (InsOrdHashMap Text [a])
+  | Alias Text
+          a
+  deriving (Functor, Show)
 
 showDoc :: PP.Doc -> Text
 showDoc = PP.displayTStrict . PP.renderPretty 1 80
@@ -61,7 +67,8 @@ printType =
     Maybe (a, i) -> "Maybe" <+> parens a i
     Record xs -> encloseSep' PP.lbrace PP.rbrace PP.comma fields
       where fields = printRecordField <$> HashMap.toList xs
-    Union n _ -> PP.textStrict n
+    Defined (Custom n _) -> PP.textStrict n
+    Defined (Alias n _) -> PP.textStrict n
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
       -- |
       -- We only need to parenthesize the input argument if it is a
@@ -103,7 +110,7 @@ appearance =
     List _ -> MultipleWord
     Maybe _ -> MultipleWord
     Record _ -> SingleWord
-    Union _ _ -> SingleWord
+    Defined _ -> SingleWord
     Lambda _ _ -> MultipleWordLambda
 
 parens :: TypeAppearance -> PP.Doc -> PP.Doc
@@ -128,7 +135,7 @@ dhallToElm =
     Dhall.Core.App Dhall.Core.List x -> List x
     Dhall.Core.App Dhall.Core.Optional x -> Maybe x
     Dhall.Core.Record xs -> Record xs
-    Dhall.Core.Union xs -> Union name (fmap pure xs)
+    Dhall.Core.Union xs -> Defined (Custom name (fmap pure xs))
       where name = Text.intercalate "Or" $ HashMap.keys xs
     Dhall.Core.CombineTypes (Dhall.Core.Record xs) (Dhall.Core.Record ys) ->
       Record (HashMap.unionWith Dhall.Core.CombineTypes xs ys)
