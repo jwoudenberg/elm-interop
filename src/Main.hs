@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -238,7 +239,7 @@ instance HasElmProductG f => HasElmTypeG (M1 C c f) where
       Nothing -> mkElmTuple values
     where
       values = snd <$> prod
-      prod = hasElmProductG (Proxy :: Proxy f)
+      prod = unElmProduct $ hasElmProductG (Proxy :: Proxy f)
 
 instance HasElmTypeG f => HasElmTypeG (M1 D c f) where
   hasElmTypeG _ = hasElmTypeG (Proxy :: Proxy f)
@@ -251,10 +252,14 @@ instance HasElmType c => HasElmTypeG (K1 i c) where
 -- product we're constructing (tuple, record, parameter list), so we can reuse
 -- this logic for all those products.
 class HasElmProductG (f :: * -> *) where
-  hasElmProductG :: Proxy f -> [(Maybe Text, ElmType)]
+  hasElmProductG :: Proxy f -> ElmProduct
   default hasElmProductG :: HasElmTypeG f =>
-    Proxy f -> [(Maybe Text, ElmType)]
-  hasElmProductG x = [(Nothing, hasElmTypeG x)]
+    Proxy f -> ElmProduct
+  hasElmProductG x = ElmProduct [(Nothing, hasElmTypeG x)]
+
+newtype ElmProduct = ElmProduct
+  { unElmProduct :: [(Maybe Text, ElmType)]
+  } deriving (Semigroup, Monoid)
 
 instance HasElmType c => HasElmProductG (K1 i c)
 
@@ -264,7 +269,7 @@ instance HasElmProductG U1
 
 instance (HasElmTypeG f, HasName c) => HasElmProductG (M1 S c f) where
   hasElmProductG _ =
-    [(hasName (Proxy :: Proxy c), hasElmTypeG (Proxy :: Proxy f))]
+    ElmProduct [(hasName (Proxy :: Proxy c), hasElmTypeG (Proxy :: Proxy f))]
 
 instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
   hasElmProductG _ =
