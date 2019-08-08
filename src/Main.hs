@@ -2,6 +2,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -9,17 +10,19 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Main where
 
+import Data.Bifunctor (first)
 import Data.Foldable (toList)
-import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
+import Data.Functor.Foldable (Fix(Fix), cata, para, unfix, zygo)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Text.PrettyPrint.Leijen.Text ((<+>))
@@ -31,17 +34,19 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 -- |
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
-main =
+main = do
   putStrLn .
-  Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
-  hasElmType (Proxy :: Proxy Foo)
+    Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
+    elmType (Proxy @Foo)
+  putStrLn . (show :: Maybe Foo -> String) . fromElmValue . toElmValue $
+    Foo {one = (), two = 42, three = "Hi!", four = Bar 12 "Bye"}
 
 data Foo = Foo
   { one :: ()
   , two :: Int32
   , three :: Text
   , four :: Bar
-  } deriving (Generic)
+  } deriving (Generic, Show)
 
 instance HasElmType Foo
 
@@ -49,7 +54,7 @@ data Bar
   = Bar Int32
         Text
   | Baz
-  deriving (Generic)
+  deriving (Generic, Show)
 
 instance HasElmType Bar
 
@@ -71,7 +76,7 @@ data ElmTypeF a
   | Lambda a
            a
   | Defined (ElmTypeDefinitionF a)
-  deriving (Functor, Show)
+  deriving (Functor)
 
 type ElmType = Fix ElmTypeF
 
@@ -80,35 +85,29 @@ data ElmTypeDefinitionF a
            (NonEmpty (Text, [a]))
   | Alias Text
           a
-  deriving (Functor, Show)
+  deriving (Functor)
 
 type ElmTypeDefinition = ElmTypeDefinitionF ElmType
 
 data ElmValueF a
-  = UnitValue
-  | BoolValue Bool
-  | IntValue Int32
-  | FloatValue Double
-  | StringValue Text
-  | ListValue [a]
-  | MaybeValue (Maybe a)
-  | Tuple2Value a
-                a
-  | Tuple3Value a
-                a
-                a
-  | RecordValue [(Text, a)]
-  | ConstructorValue Text
-                     [a]
-  deriving (Functor, Show)
+  = MkUnit
+  | MkBool Bool
+  | MkInt Int32
+  | MkFloat Double
+  | MkString Text
+  | MkList [a]
+  | MKMaybe (Maybe a)
+  | MkTuple2 a
+             a
+  | MkTuple3 a
+             a
+             a
+  | MkRecord [(Text, a)]
+  | MkCustom Text
+             [a]
+  deriving (Functor)
 
 type ElmValue = Fix ElmValueF
-
-data HaskellToElm a = HaskellToElm
-  { elmType :: ElmType
-  , toElmValue :: a -> ElmValue
-  , fromElmValue :: ElmValue -> Maybe a
-  }
 
 showDoc :: PP.Doc -> Text
 showDoc = PP.displayTStrict . PP.renderPretty 1 40
@@ -160,6 +159,24 @@ printConstructor (name, params) =
   where
     printParam :: ElmType -> PP.Doc
     printParam t = parens (appearance (unfix t)) (printType t)
+
+printValue :: ElmValue -> PP.Doc
+printValue =
+  cata $ \case
+    MkUnit -> "()"
+    MkBool bool -> PP.textStrict . Text.pack $ show bool
+    MkInt int -> PP.textStrict . Text.pack $ show int
+    MkFloat double -> PP.textStrict . Text.pack $ show double
+    MkString text -> PP.textStrict text
+    MkList items -> encloseSep' PP.lbracket PP.rbracket PP.comma items
+    MKMaybe a -> maybe "Nothing" ("Maybe" <+>) a
+    MkTuple2 x y -> encloseSep' PP.lparen PP.rparen PP.comma [x, y]
+    MkTuple3 x y z -> encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
+    MkRecord fields ->
+      encloseSep' PP.lbrace PP.rbrace PP.comma (printField <$> fields)
+      where printField :: (Text, PP.Doc) -> PP.Doc
+            printField (name, value) = PP.textStrict name <+> "=" <+> value
+    MkCustom name items -> PP.sep (PP.textStrict name : items)
 
 elmIndent :: Int
 elmIndent = 4
@@ -236,67 +253,143 @@ printRecordField (k, (_, v)) = PP.textStrict k <+> ":" <+> v
 -- Class for Haskell types that have an Elm type. The goal is for this class
 -- to be able to generate Elm representations for all Haskell types.
 class HasElmType (a :: *) where
-  hasElmType :: Proxy a -> ElmType
-  default hasElmType :: (HasElmTypeG (Rep a)) =>
+  elmType :: Proxy a -> ElmType
+  toElmValue :: a -> ElmValue
+  fromElmValue :: ElmValue -> Maybe a
+  default elmType :: (HasElmTypeG (Rep a)) =>
     Proxy a -> ElmType
-  hasElmType _ = hasElmTypeG (Proxy :: Proxy (Rep a))
+  elmType _ = elmTypeG (Proxy @(Rep a))
+  default toElmValue :: (Generic a, HasElmTypeG (Rep a)) =>
+    a -> ElmValue
+  toElmValue = toElmValueG . from
+  default fromElmValue :: (Generic a, HasElmTypeG (Rep a)) =>
+    ElmValue -> Maybe a
+  fromElmValue = fmap to . fromElmValueG
 
 instance HasElmType () where
-  hasElmType _ = Fix Unit
+  elmType _ = Fix Unit
+  toElmValue () = Fix MkUnit
+  fromElmValue =
+    \case
+      Fix MkUnit -> Just ()
+      _ -> Nothing
 
 instance HasElmType Void where
-  hasElmType _ = Fix Never
+  elmType _ = Fix Never
+  toElmValue = absurd
+  fromElmValue = const Nothing
 
 instance HasElmType Int32 where
-  hasElmType _ = Fix Int
+  elmType _ = Fix Int
+  toElmValue = Fix . MkInt
+  fromElmValue =
+    \case
+      Fix (MkInt n) -> Just n
+      _ -> Nothing
 
 instance HasElmType Text where
-  hasElmType _ = Fix String
+  elmType _ = Fix String
+  toElmValue = Fix . MkString
+  fromElmValue =
+    \case
+      Fix (MkString n) -> Just n
+      _ -> Nothing
 
 instance HasElmType a => HasElmType [a] where
-  hasElmType _ = Fix $ List (hasElmType (Proxy :: Proxy a))
+  elmType _ = Fix . List $ elmType (Proxy @a)
+  toElmValue = Fix . MkList . fmap toElmValue
+  fromElmValue =
+    \case
+      Fix (MkList xs) -> traverse fromElmValue xs
+      _ -> Nothing
 
 -- |
 -- Helper class for constructing elm types from generics primitives. The
 -- GHC.Generics recommends you create such a class, to allow you to work on
 -- kinds * -> * instead of kinds * that the `HasElmType` class works on.
 class HasElmTypeG (f :: * -> *) where
-  hasElmTypeG :: Proxy f -> ElmType
+  elmTypeG :: Proxy f -> ElmType
+  toElmValueG :: f p -> ElmValue
+  fromElmValueG :: ElmValue -> Maybe (f p)
 
 instance HasElmTypeG V1 where
-  hasElmTypeG _ = Fix Never
+  elmTypeG _ = Fix Never
+  toElmValueG = \case {}
+  fromElmValueG = const Nothing
 
 instance HasElmTypeG U1 where
-  hasElmTypeG _ = Fix Unit
+  elmTypeG _ = Fix Unit
+  toElmValueG U1 = Fix MkUnit
+  fromElmValueG =
+    \case
+      Fix MkUnit -> Just U1
+      _ -> Nothing
 
 instance HasElmType c => HasElmTypeG (K1 i c) where
-  hasElmTypeG _ = hasElmType (Proxy :: Proxy c)
+  elmTypeG _ = elmType (Proxy @c)
+  toElmValueG = toElmValue . unK1
+  fromElmValueG = fmap K1 . fromElmValue
 
 instance (HasElmSumG f, HasDataName c) => HasElmTypeG (M1 D c f) where
-  hasElmTypeG _ =
-    mkElmSum (hasDataName (Proxy :: Proxy c)) (hasElmSumG (Proxy :: Proxy f))
+  elmTypeG _ = mkElmSum (hasDataName (Proxy @c)) (hasElmSumG (Proxy @f))
+  toElmValueG = toElmValueSumG . unM1
+  fromElmValueG = fmap M1 . fromElmValueSumG
 
 -- |
 -- Helper class for constructing sum types.
 class HasElmSumG (f :: * -> *) where
   hasElmSumG :: Proxy f -> ElmSum
+  toElmValueSumG :: (f p) -> ElmValue
+  fromElmValueSumG :: ElmValue -> Maybe (f p)
 
 newtype ElmSum =
   ElmSum [(Text, ElmProduct)]
   deriving (Semigroup, Monoid)
 
+inSum :: ElmValue -> ElmSum -> Bool
+inSum (Fix (MkCustom name _)) (ElmSum sum') = name `elem` (fst <$> sum')
+inSum _ _ = False
+
 instance HasElmSumG V1 where
   hasElmSumG _ = mempty
+  toElmValueSumG = \case {}
+  fromElmValueSumG _ = Nothing
 
 instance (HasElmProductG f, HasConstructorName c) => HasElmSumG (M1 C c f) where
   hasElmSumG _ =
-    ElmSum
-      [ ( hasConstructorName (Proxy :: Proxy c)
-        , hasElmProductG (Proxy :: Proxy f))
-      ]
+    ElmSum [(hasConstructorName (Proxy @c), hasElmProductG (Proxy @f))]
+  toElmValueSumG x = Fix $ MkCustom (hasConstructorName (Proxy @c)) params
+    where
+      params =
+        case traverse fst prod of
+          Nothing -> values
+          Just fieldNames -> [Fix . MkRecord $ zipWith (,) fieldNames values]
+      values = toElmValueProductG (unM1 x)
+      (ElmProduct prod) = hasElmProductG (Proxy @f)
+  fromElmValueSumG params =
+    case (params, traverse fst prod) of
+      (Fix (MkCustom name [Fix (MkRecord fields)]), Just fieldNames)
+        | name == (hasConstructorName (Proxy @c)) -> do
+          values <- traverse (flip lookup fields) fieldNames
+          rep <- fromElmValueProductG values
+          pure $ M1 rep
+      (Fix (MkCustom name xs), Nothing)
+        | name == (hasConstructorName (Proxy @c)) ->
+          M1 <$> fromElmValueProductG xs
+      _ -> Nothing
+    where
+      (ElmProduct prod) = hasElmProductG (Proxy @f)
 
 instance (HasElmSumG f, HasElmSumG g) => HasElmSumG (f :+: g) where
-  hasElmSumG _ = hasElmSumG (Proxy :: Proxy f) <> hasElmSumG (Proxy :: Proxy g)
+  hasElmSumG _ = hasElmSumG (Proxy @f) <> hasElmSumG (Proxy @g)
+  toElmValueSumG =
+    \case
+      (L1 l) -> toElmValueSumG l
+      (R1 r) -> toElmValueSumG r
+  fromElmValueSumG custom
+    | custom `inSum` hasElmSumG (Proxy @f) = L1 <$> fromElmValueSumG custom
+    | custom `inSum` hasElmSumG (Proxy @g) = R1 <$> fromElmValueSumG custom
+    | otherwise = Nothing
 
 mkElmSum :: Text -> ElmSum -> ElmType
 mkElmSum name (ElmSum sum') =
@@ -311,13 +404,27 @@ mkElmSum name (ElmSum sum') =
 -- this logic for all those products.
 class HasElmProductG (f :: * -> *) where
   hasElmProductG :: Proxy f -> ElmProduct
+  toElmValueProductG :: f p -> [ElmValue]
+  fromElmValueProductG :: [ElmValue] -> Maybe (f p)
   default hasElmProductG :: HasElmTypeG f =>
     Proxy f -> ElmProduct
-  hasElmProductG x = ElmProduct [(Nothing, hasElmTypeG x)]
+  hasElmProductG x = ElmProduct [(Nothing, elmTypeG x)]
+  default toElmValueProductG :: HasElmTypeG f =>
+    f p -> [ElmValue]
+  toElmValueProductG = pure . toElmValueG
+  default fromElmValueProductG :: HasElmTypeG f =>
+    [ElmValue] -> Maybe (f p)
+  fromElmValueProductG =
+    \case
+      [x] -> fromElmValueG x
+      _ -> Nothing
 
 newtype ElmProduct =
   ElmProduct [(Maybe Text, ElmType)]
   deriving (Semigroup)
+
+productLength :: ElmProduct -> Int
+productLength (ElmProduct xs) = length xs
 
 instance HasElmType c => HasElmProductG (K1 i c)
 
@@ -325,14 +432,26 @@ instance HasElmProductG V1
 
 instance HasElmProductG U1
 
-instance (HasElmTypeG f, HasFieldName c) => HasElmProductG (M1 S c f) where
+instance (HasElmProductG f, HasFieldName c) => HasElmProductG (M1 S c f) where
   hasElmProductG _ =
-    ElmProduct
-      [(hasFieldName (Proxy :: Proxy c), hasElmTypeG (Proxy :: Proxy f))]
+    case hasElmProductG (Proxy @f) of
+      ElmProduct fields ->
+        ElmProduct $ (map . first) (const (hasFieldName (Proxy @c))) fields
+  toElmValueProductG = toElmValueProductG . unM1
+  fromElmValueProductG = fmap M1 . fromElmValueProductG
 
 instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
-  hasElmProductG _ =
-    hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
+  hasElmProductG _ = hasElmProductG (Proxy @f) <> hasElmProductG (Proxy @g)
+  toElmValueProductG (x :*: y) = toElmValueProductG x <> toElmValueProductG y
+  fromElmValueProductG xs
+    | length g == lengthG
+    , length f == lengthF =
+      (:*:) <$> fromElmValueProductG f <*> fromElmValueProductG g
+    | otherwise = Nothing
+    where
+      lengthF = productLength (hasElmProductG (Proxy @f))
+      lengthG = productLength (hasElmProductG (Proxy @g))
+      (f, g) = splitAt lengthF xs
 
 mkElmProduct :: ElmProduct -> [ElmType]
 mkElmProduct (ElmProduct prod) =
@@ -363,7 +482,7 @@ instance HasFieldName ('MetaSel 'Nothing su ss ds) where
   hasFieldName _ = Nothing
 
 instance KnownSymbol n => HasFieldName ('MetaSel ('Just n) su ss ds) where
-  hasFieldName _ = Just . Text.pack $ symbolVal (Proxy :: Proxy n)
+  hasFieldName _ = Just . Text.pack $ symbolVal (Proxy @n)
 
 -- |
 -- Helper class for extracting a name from a generics 'MetaCons type.
@@ -371,7 +490,7 @@ class HasConstructorName (a :: Meta) where
   hasConstructorName :: Proxy a -> Text
 
 instance KnownSymbol n => HasConstructorName ('MetaCons n f s) where
-  hasConstructorName _ = Text.pack $ symbolVal (Proxy :: Proxy n)
+  hasConstructorName _ = Text.pack $ symbolVal (Proxy @n)
 
 -- |
 -- Helper class for extracting a name from a generics 'MetaData type.
@@ -379,4 +498,4 @@ class HasDataName (a :: Meta) where
   hasDataName :: Proxy a -> Text
 
 instance KnownSymbol n => HasDataName ('MetaData n m p nt) where
-  hasDataName _ = Text.pack $ symbolVal (Proxy :: Proxy n)
+  hasDataName _ = Text.pack $ symbolVal (Proxy @n)
