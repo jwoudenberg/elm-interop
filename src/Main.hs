@@ -1,62 +1,29 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE EmptyCase #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Main where
 
-import Data.Bifunctor (first)
+import Control.Monad.Free (Free(Free))
+import Data.Coerce (coerce)
 import Data.Foldable (toList)
-import Data.Functor.Foldable (Fix(Fix), cata, para, unfix, zygo)
+import Data.Functor.Foldable (Fix(Fix), cata, futu, para, unfix, zygo)
 import Data.Int (Int32)
-import Data.List.NonEmpty (NonEmpty)
-import Data.Proxy (Proxy(Proxy))
+import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.Proxy (Proxy)
 import Data.Text (Text)
-import Data.Void (Void, absurd)
-import GHC.Generics
-import GHC.TypeLits (KnownSymbol, symbolVal)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
-import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
+import qualified Wire
 
 -- |
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
 main = do
-  putStrLn .
-    Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
-    elmType (Proxy @Foo)
-  putStrLn . (show :: Maybe Foo -> String) . fromElmValue . toElmValue $
-    Foo {one = (), two = 42, three = "Hi!", four = Bar 12 "Bye"}
-
-data Foo = Foo
-  { one :: ()
-  , two :: Int32
-  , three :: Text
-  , four :: Bar
-  } deriving (Generic, Show)
-
-instance HasElmType Foo
-
-data Bar
-  = Bar Int32
-        Text
-  | Baz
-  deriving (Generic, Show)
-
-instance HasElmType Bar
+  putStrLn "Hi"
 
 data ElmTypeF a
   = Unit
@@ -250,252 +217,55 @@ printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
 printRecordField (k, (_, v)) = PP.textStrict k <+> ":" <+> v
 
 -- |
--- Class for Haskell types that have an Elm type. The goal is for this class
--- to be able to generate Elm representations for all Haskell types.
-class HasElmType (a :: *) where
-  elmType :: Proxy a -> ElmType
-  toElmValue :: a -> ElmValue
-  fromElmValue :: ElmValue -> Maybe a
-  default elmType :: (HasElmTypeG (Rep a)) =>
-    Proxy a -> ElmType
-  elmType _ = elmTypeG (Proxy @(Rep a))
-  default toElmValue :: (Generic a, HasElmTypeG (Rep a)) =>
-    a -> ElmValue
-  toElmValue = toElmValueG . from
-  default fromElmValue :: (Generic a, HasElmTypeG (Rep a)) =>
-    ElmValue -> Maybe a
-  fromElmValue = fmap to . fromElmValueG
-
-instance HasElmType () where
-  elmType _ = Fix Unit
-  toElmValue () = Fix MkUnit
-  fromElmValue =
-    \case
-      Fix MkUnit -> Just ()
-      _ -> Nothing
-
-instance HasElmType Void where
-  elmType _ = Fix Never
-  toElmValue = absurd
-  fromElmValue = const Nothing
-
-instance HasElmType Int32 where
-  elmType _ = Fix Int
-  toElmValue = Fix . MkInt
-  fromElmValue =
-    \case
-      Fix (MkInt n) -> Just n
-      _ -> Nothing
-
-instance HasElmType Text where
-  elmType _ = Fix String
-  toElmValue = Fix . MkString
-  fromElmValue =
-    \case
-      Fix (MkString n) -> Just n
-      _ -> Nothing
-
-instance HasElmType a => HasElmType [a] where
-  elmType _ = Fix . List $ elmType (Proxy @a)
-  toElmValue = Fix . MkList . fmap toElmValue
-  fromElmValue =
-    \case
-      Fix (MkList xs) -> traverse fromElmValue xs
-      _ -> Nothing
-
--- |
--- Helper class for constructing elm types from generics primitives. The
--- GHC.Generics recommends you create such a class, to allow you to work on
--- kinds * -> * instead of kinds * that the `HasElmType` class works on.
-class HasElmTypeG (f :: * -> *) where
-  elmTypeG :: Proxy f -> ElmType
-  toElmValueG :: f p -> ElmValue
-  fromElmValueG :: ElmValue -> Maybe (f p)
-
-instance HasElmTypeG V1 where
-  elmTypeG _ = Fix Never
-  toElmValueG = \case {}
-  fromElmValueG = const Nothing
-
-instance HasElmTypeG U1 where
-  elmTypeG _ = Fix Unit
-  toElmValueG U1 = Fix MkUnit
-  fromElmValueG =
-    \case
-      Fix MkUnit -> Just U1
-      _ -> Nothing
-
-instance HasElmType c => HasElmTypeG (K1 i c) where
-  elmTypeG _ = elmType (Proxy @c)
-  toElmValueG = toElmValue . unK1
-  fromElmValueG = fmap K1 . fromElmValue
-
-instance (HasElmSumG f, HasDataName c) => HasElmTypeG (M1 D c f) where
-  elmTypeG _ = mkElmSum (hasDataName (Proxy @c)) (hasElmSumG (Proxy @f))
-  toElmValueG = toElmValueSumG . unM1
-  fromElmValueG = fmap M1 . fromElmValueSumG
-
--- |
--- Helper class for constructing sum types.
-class HasElmSumG (f :: * -> *) where
-  hasElmSumG :: Proxy f -> ElmSum
-  toElmValueSumG :: (f p) -> ElmValue
-  fromElmValueSumG :: ElmValue -> Maybe (f p)
-
-newtype ElmSum =
-  ElmSum [(Text, ElmProduct)]
-  deriving (Semigroup, Monoid)
-
-inSum :: ElmValue -> ElmSum -> Bool
-inSum (Fix (MkCustom name _)) (ElmSum sum') = name `elem` (fst <$> sum')
-inSum _ _ = False
-
-instance HasElmSumG V1 where
-  hasElmSumG _ = mempty
-  toElmValueSumG = \case {}
-  fromElmValueSumG _ = Nothing
-
-instance (HasElmProductG f, HasConstructorName c) => HasElmSumG (M1 C c f) where
-  hasElmSumG _ =
-    ElmSum [(hasConstructorName (Proxy @c), hasElmProductG (Proxy @f))]
-  toElmValueSumG x = Fix $ MkCustom (hasConstructorName (Proxy @c)) params
-    where
-      params =
-        case traverse fst prod of
-          Nothing -> values
-          Just fieldNames -> [Fix . MkRecord $ zipWith (,) fieldNames values]
-      values = toElmValueProductG (unM1 x)
-      (ElmProduct prod) = hasElmProductG (Proxy @f)
-  fromElmValueSumG params =
-    case (params, traverse fst prod) of
-      (Fix (MkCustom name [Fix (MkRecord fields)]), Just fieldNames)
-        | name == (hasConstructorName (Proxy @c)) -> do
-          values <- traverse (flip lookup fields) fieldNames
-          rep <- fromElmValueProductG values
-          pure $ M1 rep
-      (Fix (MkCustom name xs), Nothing)
-        | name == (hasConstructorName (Proxy @c)) ->
-          M1 <$> fromElmValueProductG xs
-      _ -> Nothing
-    where
-      (ElmProduct prod) = hasElmProductG (Proxy @f)
-
-instance (HasElmSumG f, HasElmSumG g) => HasElmSumG (f :+: g) where
-  hasElmSumG _ = hasElmSumG (Proxy @f) <> hasElmSumG (Proxy @g)
-  toElmValueSumG =
-    \case
-      (L1 l) -> toElmValueSumG l
-      (R1 r) -> toElmValueSumG r
-  fromElmValueSumG custom
-    | custom `inSum` hasElmSumG (Proxy @f) = L1 <$> fromElmValueSumG custom
-    | custom `inSum` hasElmSumG (Proxy @g) = R1 <$> fromElmValueSumG custom
-    | otherwise = Nothing
-
-mkElmSum :: Text -> ElmSum -> ElmType
-mkElmSum name (ElmSum sum') =
-  case NonEmpty.nonEmpty sum' of
-    Nothing -> Fix Never
-    Just nonEmptySum ->
-      Fix . Defined . Custom name . (fmap . fmap) mkElmProduct $ nonEmptySum
-
--- |
--- Helper class for constructing product types. We don't decide yet the type of
--- product we're constructing (tuple, record, parameter list), so we can reuse
--- this logic for all those products.
-class HasElmProductG (f :: * -> *) where
-  hasElmProductG :: Proxy f -> ElmProduct
-  toElmValueProductG :: f p -> [ElmValue]
-  fromElmValueProductG :: [ElmValue] -> Maybe (f p)
-  default hasElmProductG :: HasElmTypeG f =>
-    Proxy f -> ElmProduct
-  hasElmProductG x = ElmProduct [(Nothing, elmTypeG x)]
-  default toElmValueProductG :: HasElmTypeG f =>
-    f p -> [ElmValue]
-  toElmValueProductG = pure . toElmValueG
-  default fromElmValueProductG :: HasElmTypeG f =>
-    [ElmValue] -> Maybe (f p)
-  fromElmValueProductG =
-    \case
-      [x] -> fromElmValueG x
-      _ -> Nothing
-
-newtype ElmProduct =
-  ElmProduct [(Maybe Text, ElmType)]
-  deriving (Semigroup)
-
-productLength :: ElmProduct -> Int
-productLength (ElmProduct xs) = length xs
-
-instance HasElmType c => HasElmProductG (K1 i c)
-
-instance HasElmProductG V1
-
-instance HasElmProductG U1
-
-instance (HasElmProductG f, HasFieldName c) => HasElmProductG (M1 S c f) where
-  hasElmProductG _ =
-    case hasElmProductG (Proxy @f) of
-      ElmProduct fields ->
-        ElmProduct $ (map . first) (const (hasFieldName (Proxy @c))) fields
-  toElmValueProductG = toElmValueProductG . unM1
-  fromElmValueProductG = fmap M1 . fromElmValueProductG
-
-instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
-  hasElmProductG _ = hasElmProductG (Proxy @f) <> hasElmProductG (Proxy @g)
-  toElmValueProductG (x :*: y) = toElmValueProductG x <> toElmValueProductG y
-  fromElmValueProductG xs
-    | length g == lengthG
-    , length f == lengthF =
-      (:*:) <$> fromElmValueProductG f <*> fromElmValueProductG g
-    | otherwise = Nothing
-    where
-      lengthF = productLength (hasElmProductG (Proxy @f))
-      lengthG = productLength (hasElmProductG (Proxy @g))
-      (f, g) = splitAt lengthF xs
-
-mkElmProduct :: ElmProduct -> [ElmType]
-mkElmProduct (ElmProduct prod) =
-  case traverse fst prod of
-    Just names -> [Fix . Record $ zip names values]
-    Nothing -> values
+-- Get the Elm-representation of a type.
+elmType :: Wire.Elm a => Proxy a -> ElmType
+elmType = futu go . Wire.wireType
   where
-    values = snd <$> prod
+    go :: Wire.WireType -> ElmTypeF (Free ElmTypeF Wire.WireType)
+    go =
+      \case
+        Wire.Int -> Int
+        Wire.Float -> Float
+        Wire.String -> String
+        Wire.Sum _ [] -> Never
+        Wire.Sum name (x:xs) -> Defined $ Custom name constructors
+          where constructors = fmap toElmConstructor (x :| xs)
+                toElmConstructor = fmap toParamsList . coerce
 
+-- |
+-- Build a params list for a constructor.
+toParamsList :: [(Text, a)] -> [Free ElmTypeF a]
+toParamsList params =
+  case traverse (nonNull . fst) params of
+    Just names -> pure . Free . fmap pure . Record $ zip names (map snd params)
+    -- ^ All params are named. This is a record.
+    --
+    --     type Thing = Constructor { number : Int, message : String }
+    Nothing -> pure . snd <$> params
+    -- ^ At least one param is not named. This is an argument list.
+    --
+    --     type Thing = Constructor Int String
+
+nonNull :: Text -> Maybe Text
+nonNull =
+  \case
+    "" -> Nothing
+    x -> Just x
+
+-- |
+-- Build an Elm type representing a 'tuple' of different types.
 mkElmTuple :: [ElmType] -> ElmType
 mkElmTuple values =
   case values of
     [] -> Fix Unit
+    -- ^ An empty tuple is isomporphic with `()`.
     [x] -> x
+    -- ^ A single-valued tuple doesn't need any sort of wrapping.
     [x, y] -> Fix $ Tuple2 x y
+    -- ^ A 2-tuple. Example: `(Int, Text)`.
     [x, y, z] -> Fix $ Tuple3 x y z
-    -- Elm only has tuples with 2 or 3 elements. If we have more values
-    -- than that we have to use a record.
+    -- ^ A 3-tuple. Example: `(Int, Text, Bool)`.
     _ -> Fix . Record $ zip anonFields (toList values)
+    -- ^ Elm only has tuples with 2 or 3 elements. If we have more values
+    -- than that we have to use a record.
       where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
-
--- |
--- Helper class for extracting a name from a generics 'MetaSel type.
-class HasFieldName (f :: Meta) where
-  hasFieldName :: Proxy f -> Maybe Text
-
-instance HasFieldName ('MetaSel 'Nothing su ss ds) where
-  hasFieldName _ = Nothing
-
-instance KnownSymbol n => HasFieldName ('MetaSel ('Just n) su ss ds) where
-  hasFieldName _ = Just . Text.pack $ symbolVal (Proxy @n)
-
--- |
--- Helper class for extracting a name from a generics 'MetaCons type.
-class HasConstructorName (a :: Meta) where
-  hasConstructorName :: Proxy a -> Text
-
-instance KnownSymbol n => HasConstructorName ('MetaCons n f s) where
-  hasConstructorName _ = Text.pack $ symbolVal (Proxy @n)
-
--- |
--- Helper class for extracting a name from a generics 'MetaData type.
-class HasDataName (a :: Meta) where
-  hasDataName :: Proxy a -> Text
-
-instance KnownSymbol n => HasDataName ('MetaData n m p nt) where
-  hasDataName _ = Text.pack $ symbolVal (Proxy @n)
