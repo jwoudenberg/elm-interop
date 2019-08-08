@@ -194,6 +194,9 @@ parens a doc =
 printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
 printRecordField (k, (_, v)) = PP.textStrict k <+> ":" <+> v
 
+-- |
+-- Class for Haskell types that have an Elm type. The goal is for this class
+-- to be able to generate Elm representations for all Haskell types.
 class HasElmType (a :: *) where
   hasElmType :: Proxy a -> ElmType
   default hasElmType :: (HasElmTypeG (Rep a)) =>
@@ -215,6 +218,10 @@ instance HasElmType Text where
 instance HasElmType a => HasElmType [a] where
   hasElmType _ = Fix $ List (hasElmType (Proxy :: Proxy a))
 
+-- |
+-- Helper class for constructing elm types from generics primitives. The
+-- GHC.Generics recommends you create such a class, to allow you to work on
+-- kinds * -> * instead of kinds * that the `HasElmType` class works on.
 class HasElmTypeG (f :: * -> *) where
   hasElmTypeG :: Proxy f -> ElmType
 
@@ -239,6 +246,10 @@ instance HasElmTypeG f => HasElmTypeG (M1 D c f) where
 instance HasElmType c => HasElmTypeG (K1 i c) where
   hasElmTypeG _ = hasElmType (Proxy :: Proxy c)
 
+-- |
+-- Helper class for constructing product types. We don't decide yet the type of
+-- product we're constructing (tuple, record, parameter list), so we can reuse
+-- this logic for all those products.
 class HasElmProductG (f :: * -> *) where
   hasElmProductG :: Proxy f -> [(Maybe Text, ElmType)]
   default hasElmProductG :: HasElmTypeG f =>
@@ -259,6 +270,8 @@ instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
   hasElmProductG _ =
     hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
 
+-- |
+-- Helper class for extracting a name from a generics Meta type.
 class HasName (f :: Meta) where
   hasName :: Proxy f -> Maybe Text
 
