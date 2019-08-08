@@ -15,6 +15,7 @@ module Main where
 
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
+import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
@@ -37,7 +38,7 @@ main =
 
 data Foo = Foo
   { one :: ()
-  , two :: Int
+  , two :: Int32
   , three :: Text
   , four :: Bar
   } deriving (Generic)
@@ -45,7 +46,7 @@ data Foo = Foo
 instance HasElmType Foo
 
 data Bar
-  = Bar Int
+  = Bar Int32
         Text
   | Baz
   deriving (Generic)
@@ -82,6 +83,32 @@ data ElmTypeDefinitionF a
   deriving (Functor, Show)
 
 type ElmTypeDefinition = ElmTypeDefinitionF ElmType
+
+data ElmValueF a
+  = UnitValue
+  | BoolValue Bool
+  | IntValue Int32
+  | FloatValue Double
+  | StringValue Text
+  | ListValue [a]
+  | MaybeValue (Maybe a)
+  | Tuple2Value a
+                a
+  | Tuple3Value a
+                a
+                a
+  | RecordValue [(Text, a)]
+  | ConstructorValue Text
+                     [a]
+  deriving (Functor, Show)
+
+type ElmValue = Fix ElmValueF
+
+data HaskellToElm a = HaskellToElm
+  { elmType :: ElmType
+  , toElmValue :: a -> ElmValue
+  , fromElmValue :: ElmValue -> Maybe a
+  }
 
 showDoc :: PP.Doc -> Text
 showDoc = PP.displayTStrict . PP.renderPretty 1 40
@@ -220,7 +247,7 @@ instance HasElmType () where
 instance HasElmType Void where
   hasElmType _ = Fix Never
 
-instance HasElmType Int where
+instance HasElmType Int32 where
   hasElmType _ = Fix Int
 
 instance HasElmType Text where
