@@ -31,16 +31,26 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
 main =
-  putStrLn . Text.unpack . showDoc . printType $ hasElmType (Proxy :: Proxy Foo)
+  putStrLn .
+  Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
+  hasElmType (Proxy :: Proxy Foo)
 
-data Foo = Bar
+data Foo = Foo
   { one :: ()
   , two :: Int
   , three :: Text
-  , four :: ()
+  , four :: Bar
   } deriving (Generic)
 
 instance HasElmType Foo
+
+data Bar
+  = Bar Int
+        Text
+  | Baz
+  deriving (Generic)
+
+instance HasElmType Bar
 
 data ElmTypeF a
   = Unit
@@ -232,20 +242,38 @@ instance HasElmTypeG V1 where
 instance HasElmTypeG U1 where
   hasElmTypeG _ = Fix Unit
 
-instance HasElmProductG f => HasElmTypeG (M1 C c f) where
-  hasElmTypeG _ =
-    case traverse fst prod of
-      Just names -> Fix . Record . HashMap.fromList $ zip names values
-      Nothing -> mkElmTuple values
-    where
-      values = snd <$> prod
-      prod = unElmProduct $ hasElmProductG (Proxy :: Proxy f)
-
-instance HasElmTypeG f => HasElmTypeG (M1 D c f) where
-  hasElmTypeG _ = hasElmTypeG (Proxy :: Proxy f)
-
 instance HasElmType c => HasElmTypeG (K1 i c) where
   hasElmTypeG _ = hasElmType (Proxy :: Proxy c)
+
+instance (HasElmSumG f, HasDataName c) => HasElmTypeG (M1 D c f) where
+  hasElmTypeG _ =
+    mkElmSum (hasDataName (Proxy :: Proxy c)) (hasElmSumG (Proxy :: Proxy f))
+
+-- |
+-- Helper class for constructing sum types.
+class HasElmSumG (f :: * -> *) where
+  hasElmSumG :: Proxy f -> ElmSum
+
+newtype ElmSum =
+  ElmSum [(Text, ElmProduct)]
+  deriving (Semigroup, Monoid)
+
+instance HasElmSumG V1 where
+  hasElmSumG _ = mempty
+
+instance (HasElmProductG f, HasConstructorName c) => HasElmSumG (M1 C c f) where
+  hasElmSumG _ =
+    ElmSum
+      [ ( hasConstructorName (Proxy :: Proxy c)
+        , hasElmProductG (Proxy :: Proxy f))
+      ]
+
+instance (HasElmSumG f, HasElmSumG g) => HasElmSumG (f :+: g) where
+  hasElmSumG _ = hasElmSumG (Proxy :: Proxy f) <> hasElmSumG (Proxy :: Proxy g)
+
+mkElmSum :: Text -> ElmSum -> ElmType
+mkElmSum name (ElmSum sum') =
+  Fix . Defined . Custom name . fmap mkElmProduct $ HashMap.fromList sum'
 
 -- |
 -- Helper class for constructing product types. We don't decide yet the type of
@@ -257,9 +285,9 @@ class HasElmProductG (f :: * -> *) where
     Proxy f -> ElmProduct
   hasElmProductG x = ElmProduct [(Nothing, hasElmTypeG x)]
 
-newtype ElmProduct = ElmProduct
-  { unElmProduct :: [(Maybe Text, ElmType)]
-  } deriving (Semigroup, Monoid)
+newtype ElmProduct =
+  ElmProduct [(Maybe Text, ElmType)]
+  deriving (Semigroup)
 
 instance HasElmType c => HasElmProductG (K1 i c)
 
@@ -267,24 +295,22 @@ instance HasElmProductG V1
 
 instance HasElmProductG U1
 
-instance (HasElmTypeG f, HasName c) => HasElmProductG (M1 S c f) where
+instance (HasElmTypeG f, HasFieldName c) => HasElmProductG (M1 S c f) where
   hasElmProductG _ =
-    ElmProduct [(hasName (Proxy :: Proxy c), hasElmTypeG (Proxy :: Proxy f))]
+    ElmProduct
+      [(hasFieldName (Proxy :: Proxy c), hasElmTypeG (Proxy :: Proxy f))]
 
 instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
   hasElmProductG _ =
     hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
 
--- |
--- Helper class for extracting a name from a generics Meta type.
-class HasName (f :: Meta) where
-  hasName :: Proxy f -> Maybe Text
-
-instance HasName ('MetaSel 'Nothing su ss ds) where
-  hasName _ = Nothing
-
-instance KnownSymbol n => HasName ('MetaSel ('Just n) su ss ds) where
-  hasName _ = Just . Text.pack $ symbolVal (Proxy :: Proxy n)
+mkElmProduct :: ElmProduct -> [ElmType]
+mkElmProduct (ElmProduct prod) =
+  case traverse fst prod of
+    Just names -> [Fix . Record . HashMap.fromList $ zip names values]
+    Nothing -> values
+  where
+    values = snd <$> prod
 
 mkElmTuple :: [ElmType] -> ElmType
 mkElmTuple values =
@@ -297,3 +323,30 @@ mkElmTuple values =
     -- than that we have to use a record.
     _ -> Fix . Record . HashMap.fromList $ zip anonFields (toList values)
       where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
+
+-- |
+-- Helper class for extracting a name from a generics 'MetaSel type.
+class HasFieldName (f :: Meta) where
+  hasFieldName :: Proxy f -> Maybe Text
+
+instance HasFieldName ('MetaSel 'Nothing su ss ds) where
+  hasFieldName _ = Nothing
+
+instance KnownSymbol n => HasFieldName ('MetaSel ('Just n) su ss ds) where
+  hasFieldName _ = Just . Text.pack $ symbolVal (Proxy :: Proxy n)
+
+-- |
+-- Helper class for extracting a name from a generics 'MetaCons type.
+class HasConstructorName (a :: Meta) where
+  hasConstructorName :: Proxy a -> Text
+
+instance KnownSymbol n => HasConstructorName ('MetaCons n f s) where
+  hasConstructorName _ = Text.pack $ symbolVal (Proxy :: Proxy n)
+
+-- |
+-- Helper class for extracting a name from a generics 'MetaData type.
+class HasDataName (a :: Meta) where
+  hasDataName :: Proxy a -> Text
+
+instance KnownSymbol n => HasDataName ('MetaData n m p nt) where
+  hasDataName _ = Text.pack $ symbolVal (Proxy :: Proxy n)
