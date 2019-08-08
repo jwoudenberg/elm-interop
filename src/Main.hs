@@ -1,6 +1,9 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -12,15 +15,14 @@ module Main where
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
-import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
 import Data.Void (Void)
 import GHC.Generics
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.HashMap.Strict.InsOrd as HashMap
-import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -28,9 +30,16 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
 main =
-  putStrLn .
-  Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
-  Fix (Defined (Alias "Hi" (Fix Int)))
+  putStrLn . Text.unpack . showDoc . printType $ hasElmType (Proxy :: Proxy Foo)
+
+data Foo = Bar
+  { one :: ()
+  , two :: Int
+  , three :: Text
+  , four :: ()
+  } deriving (Generic)
+
+instance HasElmType Foo
 
 data ElmTypeF a
   = Unit
@@ -77,8 +86,9 @@ printType =
     String -> "String"
     List (a, i) -> "List" <+> parens a i
     Maybe (a, i) -> "Maybe" <+> parens a i
-    Tuple2 (_, i) (_, j) -> PP.tupled [i, j]
-    Tuple3 (_, i) (_, j) (_, k) -> PP.tupled [i, j, k]
+    Tuple2 (_, i) (_, j) -> encloseSep' PP.lparen PP.rparen PP.comma [i, j]
+    Tuple3 (_, i) (_, j) (_, k) ->
+      encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs -> encloseSep' PP.lbrace PP.rbrace PP.comma fields
       where fields = printRecordField <$> HashMap.toList xs
     Defined (Custom n _) -> PP.textStrict n
@@ -199,6 +209,9 @@ instance HasElmType Void where
 instance HasElmType Int where
   hasElmType _ = Fix Int
 
+instance HasElmType Text where
+  hasElmType _ = Fix String
+
 instance HasElmType a => HasElmType [a] where
   hasElmType _ = Fix $ List (hasElmType (Proxy :: Proxy a))
 
@@ -211,37 +224,58 @@ instance HasElmTypeG V1 where
 instance HasElmTypeG U1 where
   hasElmTypeG _ = Fix Unit
 
-instance HasElmType c => HasElmTypeG (K1 i c) where
-  hasElmTypeG _ = hasElmType (Proxy :: Proxy c)
-
-instance (HasElmProductG f, HasElmProductG g) => HasElmTypeG (f :*: g) where
+instance HasElmProductG f => HasElmTypeG (M1 C c f) where
   hasElmTypeG _ =
     case traverse fst prod of
-      Just names ->
-        Fix . Record . HashMap.fromList . toList $ NonEmpty.zip names values
+      Just names -> Fix . Record . HashMap.fromList $ zip names values
       Nothing -> mkElmTuple values
     where
       values = snd <$> prod
-      prod =
-        hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
+      prod = hasElmProductG (Proxy :: Proxy f)
 
-mkElmTuple :: NonEmpty ElmType -> ElmType
-mkElmTuple values =
-  case values of
-    x :| [] -> x
-    x :| [y] -> Fix $ Tuple2 x y
-    x :| [y, z] -> Fix $ Tuple3 x y z
-    -- Elm only has tuples with 2 or 3 elements. If we have more values
-    -- than that we have to use a record.
-    _ -> Fix . Record . HashMap.fromList $ zip anonFields (toList values)
-      where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
+instance HasElmTypeG f => HasElmTypeG (M1 D c f) where
+  hasElmTypeG _ = hasElmTypeG (Proxy :: Proxy f)
+
+instance HasElmType c => HasElmTypeG (K1 i c) where
+  hasElmTypeG _ = hasElmType (Proxy :: Proxy c)
 
 class HasElmProductG (f :: * -> *) where
-  hasElmProductG :: Proxy f -> NonEmpty (Maybe Text, ElmType)
+  hasElmProductG :: Proxy f -> [(Maybe Text, ElmType)]
   default hasElmProductG :: HasElmTypeG f =>
-    Proxy f -> NonEmpty (Maybe Text, ElmType)
-  hasElmProductG x = (Nothing, hasElmTypeG x) :| []
+    Proxy f -> [(Maybe Text, ElmType)]
+  hasElmProductG x = [(Nothing, hasElmTypeG x)]
+
+instance HasElmType c => HasElmProductG (K1 i c)
+
+instance HasElmProductG V1
+
+instance HasElmProductG U1
+
+instance (HasElmTypeG f, HasName c) => HasElmProductG (M1 S c f) where
+  hasElmProductG _ =
+    [(hasName (Proxy :: Proxy c), hasElmTypeG (Proxy :: Proxy f))]
 
 instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
   hasElmProductG _ =
     hasElmProductG (Proxy :: Proxy f) <> hasElmProductG (Proxy :: Proxy g)
+
+class HasName (f :: Meta) where
+  hasName :: Proxy f -> Maybe Text
+
+instance HasName ('MetaSel 'Nothing su ss ds) where
+  hasName _ = Nothing
+
+instance KnownSymbol n => HasName ('MetaSel ('Just n) su ss ds) where
+  hasName _ = Just . Text.pack $ symbolVal (Proxy :: Proxy n)
+
+mkElmTuple :: [ElmType] -> ElmType
+mkElmTuple values =
+  case values of
+    [] -> Fix Unit
+    [x] -> x
+    [x, y] -> Fix $ Tuple2 x y
+    [x, y, z] -> Fix $ Tuple3 x y z
+    -- Elm only has tuples with 2 or 3 elements. If we have more values
+    -- than that we have to use a record.
+    _ -> Fix . Record . HashMap.fromList $ zip anonFields (toList values)
+      where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
