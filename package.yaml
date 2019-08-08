@@ -22,7 +22,6 @@ ghc-options:
 
 dependencies:
   - base
-  - insert-ordered-containers
   - recursion-schemes
   - text
   - wl-pprint-text

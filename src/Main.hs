@@ -15,7 +15,6 @@ module Main where
 
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
-import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
@@ -24,7 +23,6 @@ import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
-import qualified Data.HashMap.Strict.InsOrd as HashMap
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
@@ -68,7 +66,7 @@ data ElmTypeF a
   | Tuple3 a
            a
            a
-  | Record (InsOrdHashMap Text a)
+  | Record [(Text, a)]
   | Lambda a
            a
   | Defined (ElmTypeDefinitionF a)
@@ -102,8 +100,8 @@ printType =
     Tuple2 (_, i) (_, j) -> encloseSep' PP.lparen PP.rparen PP.comma [i, j]
     Tuple3 (_, i) (_, j) (_, k) ->
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
-    Record xs -> encloseSep' PP.lbrace PP.rbrace PP.comma fields
-      where fields = printRecordField <$> HashMap.toList xs
+    Record xs ->
+      encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
     Defined (Custom n _) -> PP.textStrict n
     Defined (Alias n _) -> PP.textStrict n
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
@@ -152,7 +150,7 @@ typeDefinitions =
     Maybe (_, x) -> x
     Tuple2 (_, x) (_, y) -> x <> y
     Tuple3 (_, x) (_, y) (_, z) -> x <> y <> z
-    Record x -> mconcat $ snd <$> HashMap.elems x
+    Record x -> mconcat $ snd . snd <$> x
     Defined (Alias n (t, x)) -> Alias n t : x
     Defined (Custom n x) ->
       Custom n (fmap (fmap fst) <$> x) :
@@ -312,7 +310,7 @@ instance (HasElmProductG f, HasElmProductG g) => HasElmProductG (f :*: g) where
 mkElmProduct :: ElmProduct -> [ElmType]
 mkElmProduct (ElmProduct prod) =
   case traverse fst prod of
-    Just names -> [Fix . Record . HashMap.fromList $ zip names values]
+    Just names -> [Fix . Record $ zip names values]
     Nothing -> values
   where
     values = snd <$> prod
@@ -326,7 +324,7 @@ mkElmTuple values =
     [x, y, z] -> Fix $ Tuple3 x y z
     -- Elm only has tuples with 2 or 3 elements. If we have more values
     -- than that we have to use a record.
-    _ -> Fix . Record . HashMap.fromList $ zip anonFields (toList values)
+    _ -> Fix . Record $ zip anonFields (toList values)
       where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
 
 -- |
