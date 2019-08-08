@@ -16,6 +16,7 @@ module Main where
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), para, unfix, zygo)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
 import Data.Void (Void)
@@ -24,6 +25,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.HashMap.Strict.InsOrd as HashMap
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -76,7 +78,7 @@ type ElmType = Fix ElmTypeF
 
 data ElmTypeDefinitionF a
   = Custom Text
-           (InsOrdHashMap Text [a])
+           (NonEmpty (Text, [a]))
   | Alias Text
           a
   deriving (Functor, Show)
@@ -121,7 +123,7 @@ printTypeDefinition =
       "type" <+> PP.textStrict name <> PP.linebreak <> printedConstructors
       where printedConstructors =
               PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
-              printConstructor <$> HashMap.toList constructors
+              printConstructor <$> toList constructors
     Alias name base ->
       "type alias" <+>
       PP.textStrict name <+>
@@ -153,8 +155,8 @@ typeDefinitions =
     Record x -> mconcat $ snd <$> HashMap.elems x
     Defined (Alias n (t, x)) -> Alias n t : x
     Defined (Custom n x) ->
-      Custom n (fmap fst <$> x) :
-      (mconcat . fmap snd . mconcat $ HashMap.elems x)
+      Custom n (fmap (fmap fst) <$> x) :
+      (mconcat . fmap snd . mconcat . fmap snd $ toList x)
     Lambda (_, x) (_, y) -> x <> y
 
 -- |
@@ -273,7 +275,10 @@ instance (HasElmSumG f, HasElmSumG g) => HasElmSumG (f :+: g) where
 
 mkElmSum :: Text -> ElmSum -> ElmType
 mkElmSum name (ElmSum sum') =
-  Fix . Defined . Custom name . fmap mkElmProduct $ HashMap.fromList sum'
+  case NonEmpty.nonEmpty sum' of
+    Nothing -> Fix Never
+    Just nonEmptySum ->
+      Fix . Defined . Custom name . (fmap . fmap) mkElmProduct $ nonEmptySum
 
 -- |
 -- Helper class for constructing product types. We don't decide yet the type of
