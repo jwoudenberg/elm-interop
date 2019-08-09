@@ -36,6 +36,7 @@ data WireType
   | Float
   | String
   | Unit
+  | List WireType
   | Sum Text
         [Product]
 
@@ -50,6 +51,7 @@ data WireValue
   | MkFloat Double
   | MkString Text
   | MkUnit
+  | MkList [WireValue]
   | MkSum NthConstructor
           [WireValue]
 
@@ -103,6 +105,12 @@ instance Elm () where
 instance Elm Void where
   wireType _ = Sum "" []
   toWire = absurd
+  fromWire _ = Nothing
+
+instance Elm a => Elm [a] where
+  wireType _ = List (wireType (Proxy @a))
+  toWire = MkList . fmap toWire
+  fromWire (MkList xs) = traverse fromWire xs
   fromWire _ = Nothing
 
 -- |

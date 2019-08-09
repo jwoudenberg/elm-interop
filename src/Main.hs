@@ -33,7 +33,7 @@ main = do
 data Foo = Foo
   { one :: Int32
   , two :: ()
-  , three :: Text
+  , three :: [Text]
   , four :: Bar
   , five :: Unicorn
   } deriving (Generic)
@@ -257,6 +257,7 @@ elmType = futu go . Wire.wireType
         Wire.Float -> Float
         Wire.String -> String
         Wire.Unit -> Unit
+        Wire.List x -> List (pure x)
         Wire.Sum _ [] -> Never
         Wire.Sum name (x:xs) -> Defined $ Custom name constructors
           where constructors = fmap toElmConstructor (x :| xs)
