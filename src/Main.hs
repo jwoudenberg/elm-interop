@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -11,8 +12,10 @@ import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), cata, futu, para, unfix, zygo)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.Proxy (Proxy)
+import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
+import Data.Void (Void)
+import GHC.Generics (Generic)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.Text as Text
@@ -23,7 +26,33 @@ import qualified Wire
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
 main = do
-  putStrLn "Hi"
+  putStrLn .
+    Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
+    elmType (Proxy :: Proxy Foo)
+
+data Foo = Foo
+  { one :: Int32
+  , two :: ()
+  , three :: Text
+  , four :: Bar
+  , five :: Unicorn
+  } deriving (Generic)
+
+instance Wire.Elm Foo
+
+data Bar
+  = Bar Void
+        Int32
+        Text
+  | Baz
+  deriving (Generic)
+
+instance Wire.Elm Bar
+
+data Unicorn
+  deriving (Generic)
+
+instance Wire.Elm Unicorn
 
 data ElmTypeF a
   = Unit
@@ -227,6 +256,7 @@ elmType = futu go . Wire.wireType
         Wire.Int -> Int
         Wire.Float -> Float
         Wire.String -> String
+        Wire.Unit -> Unit
         Wire.Sum _ [] -> Never
         Wire.Sum name (x:xs) -> Defined $ Custom name constructors
           where constructors = fmap toElmConstructor (x :| xs)
@@ -235,6 +265,7 @@ elmType = futu go . Wire.wireType
 -- |
 -- Build a params list for a constructor.
 toParamsList :: [(Text, a)] -> [Free ElmTypeF a]
+toParamsList [] = []
 toParamsList params =
   case traverse (nonNull . fst) params of
     Just names -> pure . Free . fmap pure . Record $ zip names (map snd params)

@@ -24,6 +24,7 @@ import Data.Bifunctor (first)
 import Data.Int (Int32)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
+import Data.Void (Void, absurd)
 import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Numeric.Natural (Natural)
@@ -34,6 +35,7 @@ data WireType
   = Int
   | Float
   | String
+  | Unit
   | Sum Text
         [Product]
 
@@ -47,6 +49,7 @@ data WireValue
   = MkInt Int32
   | MkFloat Double
   | MkString Text
+  | MkUnit
   | MkSum NthConstructor
           [WireValue]
 
@@ -92,6 +95,16 @@ instance Elm Text where
   fromWire (MkString string) = Just string
   fromWire _ = Nothing
 
+instance Elm () where
+  wireType _ = Unit
+  toWire () = MkUnit
+  fromWire _ = pure ()
+
+instance Elm Void where
+  wireType _ = Sum "" []
+  toWire = absurd
+  fromWire _ = Nothing
+
 -- |
 -- Helper class for constructing write types from generic representations of
 -- types.
@@ -108,7 +121,7 @@ instance (Elm c) => ElmG (K1 i c) where
 instance (HasName m, SumsG f) => ElmG (M1 D m f) where
   wireTypeG _ = Sum (name (Proxy @m)) (sumsG (Proxy @f))
   toWireG = uncurry MkSum . toSumsG . unM1
-  fromWireG (MkSum n x) = fmap M1 $ fromSumG n x
+  fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
 
 -- |
@@ -116,20 +129,25 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
 class SumsG (f :: * -> *) where
   sumsG :: Proxy f -> [Product]
   toSumsG :: f p -> (NthConstructor, [WireValue])
-  fromSumG :: NthConstructor -> [WireValue] -> Maybe (f p)
+  fromSumsG :: NthConstructor -> [WireValue] -> Maybe (f p)
 
 instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   sumsG _ = sumsG (Proxy @f) <> sumsG (Proxy @g)
   toSumsG (L1 x) = toSumsG x
   toSumsG (R1 x) = first (+ 1) $ toSumsG x
-  fromSumG 0 x = fmap L1 (fromSumG 0 x)
-  fromSumG n x = fmap R1 (fromSumG (n - 1) x)
+  fromSumsG 0 x = fmap L1 (fromSumsG 0 x)
+  fromSumsG n x = fmap R1 (fromSumsG (n - 1) x)
 
 instance (HasName m, ProductG f) => SumsG (M1 C m f) where
   sumsG _ = [Product (name (Proxy @m), productG (Proxy @f))]
   toSumsG = (0, ) . toProductG . unM1
-  fromSumG 0 x = fmap M1 (fromProductG x)
-  fromSumG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
+  fromSumsG 0 x = fmap M1 (fromProductG x)
+  fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
+
+instance SumsG V1 where
+  sumsG _ = []
+  toSumsG = \case {}
+  fromSumsG _ _ = Nothing
 
 -- |
 -- Helper class for constructing products.
@@ -150,6 +168,12 @@ instance (HasName m, ElmG f) => ProductG (M1 S m f) where
   toProductG = pure . toWireG . unM1
   fromProductG [x] = M1 <$> fromWireG x
   fromProductG _ = Nothing -- ^ We got the wrong number of constructors.
+
+instance ProductG U1 where
+  productG _ = []
+  toProductG U1 = []
+  fromProductG [] = Just U1
+  fromProductG _ = Nothing
 
 -- |
 -- Helper class for extracting the type-level name of a `Meta` kind.
