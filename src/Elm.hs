@@ -1,10 +1,14 @@
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Elm where
+module Elm
+  ( Wire.Elm
+  , elmType
+  , printTypes
+  , printValue
+  ) where
 
 import Control.Monad.Free (Free(Free))
 import Data.Coerce (coerce)
@@ -12,47 +16,13 @@ import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix, cata, futu, para, unfix, zygo)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.Proxy (Proxy(Proxy))
+import Data.Proxy (Proxy)
 import Data.Text (Text)
-import Data.Void (Void)
-import GHC.Generics (Generic)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.Text as Text
 import qualified Elm.Wire as Wire
 import qualified Text.PrettyPrint.Leijen.Text as PP
-
--- |
--- Small test of functionality in this library. Will be removed before release.
-main :: IO ()
-main = do
-  putStrLn .
-    Text.unpack . showDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions $
-    elmType (Proxy :: Proxy Foo)
-
-data Foo = Foo
-  { one :: (Int32, Text, Text)
-  , two :: ()
-  , three :: [Text]
-  , four :: Bar
-  , five :: Unicorn
-  } deriving (Generic)
-
-instance Wire.Elm Foo
-
-data Bar
-  = Bar Void
-        Int32
-        Text
-  | Baz
-  deriving (Generic)
-
-instance Wire.Elm Bar
-
-data Unicorn
-  deriving (Generic)
-
-instance Wire.Elm Unicorn
 
 data ElmTypeF a
   = Unit
@@ -105,8 +75,11 @@ data ElmValueF a
 
 type ElmValue = Fix ElmValueF
 
-showDoc :: PP.Doc -> Text
-showDoc = PP.displayTStrict . PP.renderPretty 1 40
+printTypes :: ElmType -> Text
+printTypes = printDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions
+
+printDoc :: PP.Doc -> Text
+printDoc = PP.displayTStrict . PP.renderPretty 1 80
 
 printType :: ElmType -> PP.Doc
 printType =

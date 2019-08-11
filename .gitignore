@@ -1,4 +1,4 @@
 .stack-work
 .history
-dhall-elm.cabal
+*.cabal
 Setup.hs

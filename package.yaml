@@ -1,4 +1,4 @@
-name:                dhall-elm
+name:                elm-interop
 version:             0.1.0.0
 #synopsis:
 #description:
@@ -30,3 +30,11 @@ library:
   exposed-modules:
   - Elm
   source-dirs: src
+
+tests:
+  spec:
+    dependencies:
+    - base
+    - elm-interop
+    main: Spec.hs
+    source-dirs: tests
