@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Wire
+module Elm.Wire
   ( WireType(..)
   , WireValue(..)
   , Elm(..)

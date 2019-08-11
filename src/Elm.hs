@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Main where
+module Elm where
 
 import Control.Monad.Free (Free(Free))
 import Data.Coerce (coerce)
@@ -19,8 +19,8 @@ import GHC.Generics (Generic)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.Text as Text
+import qualified Elm.Wire as Wire
 import qualified Text.PrettyPrint.Leijen.Text as PP
-import qualified Wire
 
 -- |
 -- Small test of functionality in this library. Will be removed before release.
