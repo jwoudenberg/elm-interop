@@ -22,6 +22,7 @@ ghc-options:
 
 library:
   dependencies:
+  - aeson
   - base
   - free
   - recursion-schemes

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -14,13 +15,16 @@
 
 module Elm.Wire
   ( WireType(..)
-  , WireValue(..)
+  , WireValueF(..)
+  , WireValue
   , Elm(..)
   , Product(Product)
   , Field(Field)
+  , ElmJson(ElmJson)
   ) where
 
 import Data.Bifunctor (first)
+import Data.Functor.Foldable (Fix(Fix), cata)
 import Data.Int (Int32)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
@@ -29,7 +33,9 @@ import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Numeric.Natural (Natural)
 
+import qualified Data.Aeson
 import qualified Data.Text as Text
+import qualified Elm.Json as Json
 
 data WireType
   = Int
@@ -47,19 +53,47 @@ newtype Product =
 newtype Field =
   Field (Text, WireType)
 
-data WireValue
+data WireValueF a
   = MkInt Int32
   | MkFloat Double
   | MkString Text
   | MkUnit
-  | MkList [WireValue]
-  | MkTuple (WireValue, WireValue, [WireValue])
+  | MkList [a]
+  | MkTuple (a, a, [a])
   | MkSum NthConstructor
-          [WireValue]
+          [a]
+  deriving (Functor)
+
+type WireValue = Fix WireValueF
 
 newtype NthConstructor =
   NthConstructor Natural
-  deriving (Eq, Num)
+  deriving (Enum, Eq, Integral, Num, Ord, Real)
+
+instance Data.Aeson.ToJSON WireValue where
+  toJSON = Data.Aeson.toJSON . encode
+  toEncoding = Data.Aeson.toEncoding . encode
+
+encode :: WireValue -> Json.Encoded
+encode =
+  cata $ \case
+    MkInt int -> Json.int int
+    MkFloat float -> Json.float float
+    MkString string -> Json.string string
+    MkUnit -> Json.unit ()
+    MkList xs -> Json.list xs
+    MkTuple (x, y, zs) -> Json.list (x : y : zs)
+    MkSum n xs -> Json.list [Json.int (fromIntegral n), Json.list (xs)]
+
+-- |
+-- Provide Aeson instances for any type that implements `Elm`.
+newtype ElmJson a = ElmJson
+  { unElmJson :: a
+  }
+
+instance Elm a => Data.Aeson.ToJSON (ElmJson a) where
+  toJSON = Data.Aeson.toJSON . toWire . unElmJson
+  toEncoding = Data.Aeson.toEncoding . toWire . unElmJson
 
 -- |
 -- Class of types that have a wire format representation. The class is named
@@ -83,25 +117,25 @@ class Elm (a :: *) where
 
 instance Elm Int32 where
   wireType _ = Int
-  toWire = MkInt
-  fromWire (MkInt int) = Just int
+  toWire = Fix . MkInt
+  fromWire (Fix (MkInt int)) = Just int
   fromWire _ = Nothing
 
 instance Elm Double where
   wireType _ = Float
-  toWire = MkFloat
-  fromWire (MkFloat float) = Just float
+  toWire = Fix . MkFloat
+  fromWire (Fix (MkFloat float)) = Just float
   fromWire _ = Nothing
 
 instance Elm Text where
   wireType _ = String
-  toWire = MkString
-  fromWire (MkString string) = Just string
+  toWire = Fix . MkString
+  fromWire (Fix (MkString string)) = Just string
   fromWire _ = Nothing
 
 instance Elm () where
   wireType _ = Unit
-  toWire () = MkUnit
+  toWire () = Fix MkUnit
   fromWire _ = pure ()
 
 instance Elm Void where
@@ -111,8 +145,8 @@ instance Elm Void where
 
 instance Elm a => Elm [a] where
   wireType _ = List (wireType (Proxy @a))
-  toWire = MkList . fmap toWire
-  fromWire (MkList xs) = traverse fromWire xs
+  toWire = Fix . MkList . fmap toWire
+  fromWire (Fix (MkList xs)) = traverse fromWire xs
   fromWire _ = Nothing
 
 -- Instances for tuples.
@@ -120,15 +154,15 @@ instance Elm a => Elm [a] where
 -- up to that number here too.
 instance (Elm a, Elm b) => Elm (a, b) where
   wireType _ = Tuple (wireType (Proxy @a), wireType (Proxy @b), [])
-  toWire (a, b) = MkTuple (toWire a, toWire b, [])
-  fromWire (MkTuple (a, b, [])) = (,) <$> fromWire a <*> fromWire b
+  toWire (a, b) = Fix $ MkTuple (toWire a, toWire b, [])
+  fromWire (Fix (MkTuple (a, b, []))) = (,) <$> fromWire a <*> fromWire b
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
   wireType _ =
     Tuple (wireType (Proxy @a), wireType (Proxy @b), [wireType (Proxy @c)])
-  toWire (a, b, c) = MkTuple (toWire a, toWire b, [toWire c])
-  fromWire (MkTuple (a, b, [c])) =
+  toWire (a, b, c) = Fix $ MkTuple (toWire a, toWire b, [toWire c])
+  fromWire (Fix (MkTuple (a, b, [c]))) =
     (,,) <$> fromWire a <*> fromWire b <*> fromWire c
   fromWire _ = Nothing
 
@@ -138,8 +172,8 @@ instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
       ( wireType (Proxy @a)
       , wireType (Proxy @b)
       , [wireType (Proxy @c), wireType (Proxy @d)])
-  toWire (a, b, c, d) = MkTuple (toWire a, toWire b, [toWire c, toWire d])
-  fromWire (MkTuple (a, b, [c, d])) =
+  toWire (a, b, c, d) = Fix $ MkTuple (toWire a, toWire b, [toWire c, toWire d])
+  fromWire (Fix (MkTuple (a, b, [c, d]))) =
     (,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
   fromWire _ = Nothing
 
@@ -150,8 +184,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
       , wireType (Proxy @b)
       , [wireType (Proxy @c), wireType (Proxy @d), wireType (Proxy @e)])
   toWire (a, b, c, d, e) =
-    MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e])
-  fromWire (MkTuple (a, b, [c, d, e])) =
+    Fix $ MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e])
+  fromWire (Fix (MkTuple (a, b, [c, d, e]))) =
     (,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e
   fromWire _ = Nothing
@@ -168,8 +202,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
         , wireType (Proxy @f)
         ])
   toWire (a, b, c, d, e, f) =
-    MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e, toWire f])
-  fromWire (MkTuple (a, b, [c, d, e, f])) =
+    Fix $ MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e, toWire f])
+  fromWire (Fix (MkTuple (a, b, [c, d, e, f]))) =
     (,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f
@@ -188,9 +222,10 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
         , wireType (Proxy @g)
         ])
   toWire (a, b, c, d, e, f, g) =
+    Fix $
     MkTuple
       (toWire a, toWire b, [toWire c, toWire d, toWire e, toWire f, toWire g])
-  fromWire (MkTuple (a, b, [c, d, e, f, g])) =
+  fromWire (Fix (MkTuple (a, b, [c, d, e, f, g]))) =
     (,,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f <*>
@@ -212,8 +247,8 @@ instance (Elm c) => ElmG (K1 i c) where
 
 instance (HasName m, SumsG f) => ElmG (M1 D m f) where
   wireTypeG _ = Sum (name (Proxy @m)) (sumsG (Proxy @f))
-  toWireG = uncurry MkSum . toSumsG . unM1
-  fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
+  toWireG = Fix . uncurry MkSum . toSumsG . unM1
+  fromWireG (Fix (MkSum n x)) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
 
 -- |

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Spec
   ( main
@@ -10,20 +11,23 @@ import Data.Void (Void)
 import Elm
 import GHC.Generics (Generic)
 
+import qualified Data.Aeson
 import Data.Text as Text
+import qualified Elm.Wire
 
 -- |
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
 main = do
   putStrLn . Text.unpack . printTypes $ elmType (Proxy :: Proxy Foo)
+  putStrLn . show . Data.Aeson.encode . Elm.Wire.ElmJson $
+    Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
 
 data Foo = Foo
   { one :: (Int32, Text, Text)
   , two :: ()
   , three :: [Text]
   , four :: Bar
-  , five :: Unicorn
   } deriving (Generic)
 
 instance Elm Foo
