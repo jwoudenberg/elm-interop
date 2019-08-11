@@ -31,7 +31,7 @@ main = do
     elmType (Proxy :: Proxy Foo)
 
 data Foo = Foo
-  { one :: (Int32, Text)
+  { one :: (Int32, Text, Text)
   , two :: ()
   , three :: [Text]
   , four :: Bar
@@ -140,14 +140,13 @@ printTypeDefinition :: ElmTypeDefinition -> PP.Doc
 printTypeDefinition =
   \case
     Custom name constructors ->
-      "type" <+> PP.textStrict name <> PP.linebreak <> printedConstructors
+      "type" <+> PP.textStrict name <++> printedConstructors
       where printedConstructors =
               PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
               printConstructor <$> toList constructors
     Alias name base ->
       "type alias" <+>
-      PP.textStrict name <+>
-      "=" <> PP.line <> PP.indent elmIndent (printType base)
+      PP.textStrict name <+> "=" <++> PP.indent elmIndent (printType base)
 
 printConstructor :: (Text, [ElmType]) -> PP.Doc
 printConstructor (name, params) =
@@ -173,6 +172,13 @@ printValue =
       where printField :: (Text, PP.Doc) -> PP.Doc
             printField (name, value) = PP.textStrict name <+> "=" <+> value
     MkCustom name items -> PP.sep (PP.textStrict name : items)
+
+-- |
+-- Replacement for the `PP.<$>` operator, which we use for `fmap` instead.
+infixr 5 <++>
+
+(<++>) :: PP.Doc -> PP.Doc -> PP.Doc
+(<++>) = (PP.<$>)
 
 elmIndent :: Int
 elmIndent = 4
@@ -206,9 +212,24 @@ encloseSep' :: PP.Doc -> PP.Doc -> PP.Doc -> [PP.Doc] -> PP.Doc
 encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
-    [d] -> left <+> d <+> right
-    _ -> PP.group $ PP.vcat entries <> PP.line <> right
+    _ -> PP.vcat entries <++> right
       where entries = zipWith (<+>) (left : repeat sp) ds
+
+-- |
+-- Switch between hanging formatting or single-line formatting.
+--
+-- Hanging:
+--
+--     line1
+--        line2
+--        line3
+--
+-- Single-line notation:
+--
+--     line1 line2 line3
+--
+hangCollapse :: PP.Doc -> PP.Doc
+hangCollapse = PP.nest elmIndent . PP.group
 
 data TypeAppearance
   = SingleWord
@@ -243,7 +264,7 @@ parens a doc =
     MultipleWordLambda -> PP.parens doc
 
 printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
-printRecordField (k, (_, v)) = PP.textStrict k <+> ":" <+> v
+printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
 
 -- |
 -- Get the Elm-representation of a type.
