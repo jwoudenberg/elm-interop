@@ -37,6 +37,7 @@ data WireType
   | String
   | Unit
   | List WireType
+  | Tuple (WireType, WireType, [WireType])
   | Sum Text
         [Product]
 
@@ -52,6 +53,7 @@ data WireValue
   | MkString Text
   | MkUnit
   | MkList [WireValue]
+  | MkTuple (WireValue, WireValue, [WireValue])
   | MkSum NthConstructor
           [WireValue]
 
@@ -111,6 +113,88 @@ instance Elm a => Elm [a] where
   wireType _ = List (wireType (Proxy @a))
   toWire = MkList . fmap toWire
   fromWire (MkList xs) = traverse fromWire xs
+  fromWire _ = Nothing
+
+-- Instances for tuples.
+-- The 7-tuple is the largest one that has a Generics instance, so we'll support
+-- up to that number here too.
+instance (Elm a, Elm b) => Elm (a, b) where
+  wireType _ = Tuple (wireType (Proxy @a), wireType (Proxy @b), [])
+  toWire (a, b) = MkTuple (toWire a, toWire b, [])
+  fromWire (MkTuple (a, b, [])) = (,) <$> fromWire a <*> fromWire b
+  fromWire _ = Nothing
+
+instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
+  wireType _ =
+    Tuple (wireType (Proxy @a), wireType (Proxy @b), [wireType (Proxy @c)])
+  toWire (a, b, c) = MkTuple (toWire a, toWire b, [toWire c])
+  fromWire (MkTuple (a, b, [c])) =
+    (,,) <$> fromWire a <*> fromWire b <*> fromWire c
+  fromWire _ = Nothing
+
+instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
+  wireType _ =
+    Tuple
+      ( wireType (Proxy @a)
+      , wireType (Proxy @b)
+      , [wireType (Proxy @c), wireType (Proxy @d)])
+  toWire (a, b, c, d) = MkTuple (toWire a, toWire b, [toWire c, toWire d])
+  fromWire (MkTuple (a, b, [c, d])) =
+    (,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
+  fromWire _ = Nothing
+
+instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
+  wireType _ =
+    Tuple
+      ( wireType (Proxy @a)
+      , wireType (Proxy @b)
+      , [wireType (Proxy @c), wireType (Proxy @d), wireType (Proxy @e)])
+  toWire (a, b, c, d, e) =
+    MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e])
+  fromWire (MkTuple (a, b, [c, d, e])) =
+    (,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
+    fromWire e
+  fromWire _ = Nothing
+
+instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
+         Elm (a, b, c, d, e, f) where
+  wireType _ =
+    Tuple
+      ( wireType (Proxy @a)
+      , wireType (Proxy @b)
+      , [ wireType (Proxy @c)
+        , wireType (Proxy @d)
+        , wireType (Proxy @e)
+        , wireType (Proxy @f)
+        ])
+  toWire (a, b, c, d, e, f) =
+    MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e, toWire f])
+  fromWire (MkTuple (a, b, [c, d, e, f])) =
+    (,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
+    fromWire e <*>
+    fromWire f
+  fromWire _ = Nothing
+
+instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
+         Elm (a, b, c, d, e, f, g) where
+  wireType _ =
+    Tuple
+      ( wireType (Proxy @a)
+      , wireType (Proxy @b)
+      , [ wireType (Proxy @c)
+        , wireType (Proxy @d)
+        , wireType (Proxy @e)
+        , wireType (Proxy @f)
+        , wireType (Proxy @g)
+        ])
+  toWire (a, b, c, d, e, f, g) =
+    MkTuple
+      (toWire a, toWire b, [toWire c, toWire d, toWire e, toWire f, toWire g])
+  fromWire (MkTuple (a, b, [c, d, e, f, g])) =
+    (,,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
+    fromWire e <*>
+    fromWire f <*>
+    fromWire g
   fromWire _ = Nothing
 
 -- |

@@ -9,7 +9,7 @@ module Main where
 import Control.Monad.Free (Free(Free))
 import Data.Coerce (coerce)
 import Data.Foldable (toList)
-import Data.Functor.Foldable (Fix(Fix), cata, futu, para, unfix, zygo)
+import Data.Functor.Foldable (Fix, cata, futu, para, unfix, zygo)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy (Proxy(Proxy))
@@ -31,7 +31,7 @@ main = do
     elmType (Proxy :: Proxy Foo)
 
 data Foo = Foo
-  { one :: Int32
+  { one :: (Int32, Text)
   , two :: ()
   , three :: [Text]
   , four :: Bar
@@ -258,6 +258,7 @@ elmType = futu go . Wire.wireType
         Wire.String -> String
         Wire.Unit -> Unit
         Wire.List x -> List (pure x)
+        Wire.Tuple xs -> pure <$> mkElmTuple xs
         Wire.Sum _ [] -> Never
         Wire.Sum name (x:xs) -> Defined $ Custom name constructors
           where constructors = fmap toElmConstructor (x :| xs)
@@ -286,18 +287,14 @@ nonNull =
 
 -- |
 -- Build an Elm type representing a 'tuple' of different types.
-mkElmTuple :: [ElmType] -> ElmType
+mkElmTuple :: (a, a, [a]) -> ElmTypeF a
 mkElmTuple values =
   case values of
-    [] -> Fix Unit
-    -- ^ An empty tuple is isomporphic with `()`.
-    [x] -> x
-    -- ^ A single-valued tuple doesn't need any sort of wrapping.
-    [x, y] -> Fix $ Tuple2 x y
+    (x, y, []) -> Tuple2 (x) (y)
     -- ^ A 2-tuple. Example: `(Int, Text)`.
-    [x, y, z] -> Fix $ Tuple3 x y z
+    (x, y, [z]) -> Tuple3 (x) (y) (z)
     -- ^ A 3-tuple. Example: `(Int, Text, Bool)`.
-    _ -> Fix . Record $ zip anonFields (toList values)
+    (x, y, zs) -> Record $ zip anonFields (x : y : zs)
     -- ^ Elm only has tuples with 2 or 3 elements. If we have more values
     -- than that we have to use a record.
       where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
