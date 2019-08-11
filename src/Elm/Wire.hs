@@ -14,12 +14,13 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Elm.Wire
-  ( WireType(..)
-  , WireValueF(..)
+  ( WireType
+  , WireTypeF(..)
+  , WireTypePrimitive
+  , WireTypePrimitiveF(..)
   , WireValue
+  , WireValueF(..)
   , Elm(..)
-  , Product(Product)
-  , Field(Field)
   , ElmJson(ElmJson)
   ) where
 
@@ -37,29 +38,100 @@ import qualified Data.Aeson
 import qualified Data.Text as Text
 import qualified Elm.Json as Json
 
-data WireType
+-- |
+-- A type to describe the shape of data flowing between the front- and backend.
+--
+-- We generate Elm types based on descriptions of types expressed in `WireType`
+-- so there's enough information there for that, but otherwise the intention is
+-- for this type to be as small as possible, which is to say having the least
+-- amount of constructors.
+--
+-- Having a small type here contributes to simplifying other parts of the code:
+-- - Using `GHC.Generics` we produce `WireType` representations of all Haskell
+--   types. Generics code by its nature is spread out across a large number of
+--   type class instances. The more high end-user concepts like 'records' or
+--   'tuple we add to this type the more we have to perform the construction of
+--   those higher level constructs in our generics code. By keeping the type
+--   smaller, and closer to the way `GHC.Generics` represents types we can deal
+--   with the generics first, and with end-user concepts separately.
+-- - Because our Elm and Haskell code communicate using these types, both need
+--   to have compatible implementations for encoding/decoding it. The smaller
+--   the type the fewer opportunities there are for these implementations to be
+--   misaligned.
+data WireTypeF a
+  = Product [(Text, WireTypePrimitiveF a)]
+  -- ^ A product type, like a tuple or a record.
+  --
+  --     Product [(Text             , WireTypePrimitiveF a)]
+  --               ^^^^               ^^^^^^^^^^^^^^^^^^^^
+  --               Field name (       Field type
+  --               "" for tuples")
+  --
+  | Sum Text
+        [(Text, a)]
+  -- ^ A 'data type' (Haskell) or 'custom type' (Elm).
+  --
+  --     Sum Text      [( Text             , a)]
+  --         ^^^^         ^^^^               ^
+  --         Type name    constructor name   constructor params
+  --
+  deriving (Functor)
+
+type WireType = Fix WireTypeF
+
+-- |
+-- Represents a 'primitive' wire type value, except it doesn't really (see
+-- exceptions mentioned in comments below).
+data WireTypePrimitiveF a
   = Int
   | Float
   | String
-  | Unit
-  | List WireType
-  | Tuple (WireType, WireType, [WireType])
-  | Sum Text
-        [Product]
+  | List a
+  -- ^ Not really a primitive and we could scrap this, treating lists as just
+  -- another data type using `Nil` and `Cons` constructors. That would be a pain
+  -- to work with though and probably not terribly efficient over the wire, so
+  -- we're making an exception.
+  | Rec a
+  -- ^ A non-primitive nested type, to support types within types. Elm example:
+  --
+  --     type alias Room = { windows : Int, curtains : Flowery }
+  --     ^^^^^^^^^^^^^^^                               ^^^^^^^
+  --     A record type                                 A nested type
+  --
+  deriving (Functor)
 
-newtype Product =
-  Product (Text, [Field])
+type WireTypePrimitive = WireTypePrimitiveF WireType
 
-newtype Field =
-  Field (Text, WireType)
+-- |
+-- Helper function for creating primitives as products containing only a single
+-- type.
+primitive :: WireTypePrimitive -> WireType
+primitive = Fix . Product . pure . ("", )
 
+-- |
+-- The `WireType` describes the types of the things going over the wire between
+-- Haskell and Elm. This `WireValue` type describes the values of those types
+-- we're going to encode and decode.
+--
+-- As you can see the `WireValue` constructors make no mention of field names or
+-- constructor names. Instead we use the order of fields in products and
+-- constructors in sums to indicate which value belongs where. This means you
+-- need the `WireType` to be able to decode a `WireValue`, and also that the
+-- data going over the wire will be hard for humans to grok.
+--
+-- There's reasons we do it this way regardless:
+-- - The amount of data we're sending over the wire is smaller this way (Though
+--   arguably gzipping would take care of a lot of that anyway).
+-- - It gives us freedom to change aspects of the generated Elm code (like the
+--   names of types and constructors) without affecting encoding and decoding
+--   logic. This is important because we need flexibility in renaming to prevent
+--   naming collisions in generated code.
 data WireValueF a
   = MkInt Int32
   | MkFloat Double
   | MkString Text
-  | MkUnit
   | MkList [a]
-  | MkTuple (a, a, [a])
+  | MkProduct [a]
   | MkSum NthConstructor
           [a]
   deriving (Functor)
@@ -80,9 +152,8 @@ encode =
     MkInt int -> Json.int int
     MkFloat float -> Json.float float
     MkString string -> Json.string string
-    MkUnit -> Json.unit ()
     MkList xs -> Json.list xs
-    MkTuple (x, y, zs) -> Json.list (x : y : zs)
+    MkProduct xs -> Json.list xs
     MkSum n xs -> Json.list [Json.int (fromIntegral n), Json.list (xs)]
 
 -- |
@@ -116,35 +187,35 @@ class Elm (a :: *) where
   fromWire = fmap to . fromWireG
 
 instance Elm Int32 where
-  wireType _ = Int
+  wireType _ = primitive Int
   toWire = Fix . MkInt
   fromWire (Fix (MkInt int)) = Just int
   fromWire _ = Nothing
 
 instance Elm Double where
-  wireType _ = Float
+  wireType _ = primitive Float
   toWire = Fix . MkFloat
   fromWire (Fix (MkFloat float)) = Just float
   fromWire _ = Nothing
 
 instance Elm Text where
-  wireType _ = String
+  wireType _ = primitive String
   toWire = Fix . MkString
   fromWire (Fix (MkString string)) = Just string
   fromWire _ = Nothing
 
 instance Elm () where
-  wireType _ = Unit
-  toWire () = Fix MkUnit
+  wireType _ = Fix $ Product []
+  toWire () = Fix (MkProduct [])
   fromWire _ = pure ()
 
 instance Elm Void where
-  wireType _ = Sum "" []
+  wireType _ = Fix $ Sum "" []
   toWire = absurd
   fromWire _ = Nothing
 
 instance Elm a => Elm [a] where
-  wireType _ = List (wireType (Proxy @a))
+  wireType _ = primitive $ List (wireType (Proxy @a))
   toWire = Fix . MkList . fmap toWire
   fromWire (Fix (MkList xs)) = traverse fromWire xs
   fromWire _ = Nothing
@@ -153,39 +224,53 @@ instance Elm a => Elm [a] where
 -- The 7-tuple is the largest one that has a Generics instance, so we'll support
 -- up to that number here too.
 instance (Elm a, Elm b) => Elm (a, b) where
-  wireType _ = Tuple (wireType (Proxy @a), wireType (Proxy @b), [])
-  toWire (a, b) = Fix $ MkTuple (toWire a, toWire b, [])
-  fromWire (Fix (MkTuple (a, b, []))) = (,) <$> fromWire a <*> fromWire b
+  wireType _ =
+    Fix $
+    Product [("", Rec $ wireType (Proxy @a)), ("", Rec $ wireType (Proxy @b))]
+  toWire (a, b) = Fix $ MkProduct [toWire a, toWire b]
+  fromWire (Fix (MkProduct [a, b])) = (,) <$> fromWire a <*> fromWire b
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
   wireType _ =
-    Tuple (wireType (Proxy @a), wireType (Proxy @b), [wireType (Proxy @c)])
-  toWire (a, b, c) = Fix $ MkTuple (toWire a, toWire b, [toWire c])
-  fromWire (Fix (MkTuple (a, b, [c]))) =
+    Fix $
+    Product
+      [ ("", Rec $ wireType (Proxy @a))
+      , ("", Rec $ wireType (Proxy @b))
+      , ("", Rec $ wireType (Proxy @c))
+      ]
+  toWire (a, b, c) = Fix $ MkProduct [toWire a, toWire b, toWire c]
+  fromWire (Fix (MkProduct [a, b, c])) =
     (,,) <$> fromWire a <*> fromWire b <*> fromWire c
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
   wireType _ =
-    Tuple
-      ( wireType (Proxy @a)
-      , wireType (Proxy @b)
-      , [wireType (Proxy @c), wireType (Proxy @d)])
-  toWire (a, b, c, d) = Fix $ MkTuple (toWire a, toWire b, [toWire c, toWire d])
-  fromWire (Fix (MkTuple (a, b, [c, d]))) =
+    Fix $
+    Product
+      [ ("", Rec $ wireType (Proxy @a))
+      , ("", Rec $ wireType (Proxy @b))
+      , ("", Rec $ wireType (Proxy @c))
+      , ("", Rec $ wireType (Proxy @d))
+      ]
+  toWire (a, b, c, d) = Fix $ MkProduct [toWire a, toWire b, toWire c, toWire d]
+  fromWire (Fix (MkProduct [a, b, c, d])) =
     (,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
   wireType _ =
-    Tuple
-      ( wireType (Proxy @a)
-      , wireType (Proxy @b)
-      , [wireType (Proxy @c), wireType (Proxy @d), wireType (Proxy @e)])
+    Fix $
+    Product
+      [ ("", Rec $ wireType (Proxy @a))
+      , ("", Rec $ wireType (Proxy @b))
+      , ("", Rec $ wireType (Proxy @c))
+      , ("", Rec $ wireType (Proxy @d))
+      , ("", Rec $ wireType (Proxy @e))
+      ]
   toWire (a, b, c, d, e) =
-    Fix $ MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e])
-  fromWire (Fix (MkTuple (a, b, [c, d, e]))) =
+    Fix $ MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e]
+  fromWire (Fix (MkProduct [a, b, c, d, e])) =
     (,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e
   fromWire _ = Nothing
@@ -193,17 +278,18 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
 instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
          Elm (a, b, c, d, e, f) where
   wireType _ =
-    Tuple
-      ( wireType (Proxy @a)
-      , wireType (Proxy @b)
-      , [ wireType (Proxy @c)
-        , wireType (Proxy @d)
-        , wireType (Proxy @e)
-        , wireType (Proxy @f)
-        ])
+    Fix $
+    Product
+      [ ("", Rec $ wireType (Proxy @a))
+      , ("", Rec $ wireType (Proxy @b))
+      , ("", Rec $ wireType (Proxy @c))
+      , ("", Rec $ wireType (Proxy @d))
+      , ("", Rec $ wireType (Proxy @e))
+      , ("", Rec $ wireType (Proxy @f))
+      ]
   toWire (a, b, c, d, e, f) =
-    Fix $ MkTuple (toWire a, toWire b, [toWire c, toWire d, toWire e, toWire f])
-  fromWire (Fix (MkTuple (a, b, [c, d, e, f]))) =
+    Fix $ MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
+  fromWire (Fix (MkProduct [a, b, c, d, e, f])) =
     (,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f
@@ -212,20 +298,21 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
 instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
          Elm (a, b, c, d, e, f, g) where
   wireType _ =
-    Tuple
-      ( wireType (Proxy @a)
-      , wireType (Proxy @b)
-      , [ wireType (Proxy @c)
-        , wireType (Proxy @d)
-        , wireType (Proxy @e)
-        , wireType (Proxy @f)
-        , wireType (Proxy @g)
-        ])
+    Fix $
+    Product
+      [ ("", Rec $ wireType (Proxy @a))
+      , ("", Rec $ wireType (Proxy @b))
+      , ("", Rec $ wireType (Proxy @c))
+      , ("", Rec $ wireType (Proxy @d))
+      , ("", Rec $ wireType (Proxy @e))
+      , ("", Rec $ wireType (Proxy @f))
+      , ("", Rec $ wireType (Proxy @g))
+      ]
   toWire (a, b, c, d, e, f, g) =
     Fix $
-    MkTuple
-      (toWire a, toWire b, [toWire c, toWire d, toWire e, toWire f, toWire g])
-  fromWire (Fix (MkTuple (a, b, [c, d, e, f, g]))) =
+    MkProduct
+      [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f, toWire g]
+  fromWire (Fix (MkProduct [a, b, c, d, e, f, g])) =
     (,,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f <*>
@@ -246,7 +333,7 @@ instance (Elm c) => ElmG (K1 i c) where
   fromWireG = fmap K1 . fromWire
 
 instance (HasName m, SumsG f) => ElmG (M1 D m f) where
-  wireTypeG _ = Sum (name (Proxy @m)) (sumsG (Proxy @f))
+  wireTypeG _ = Fix $ Sum (name (Proxy @m)) (sumsG (Proxy @f))
   toWireG = Fix . uncurry MkSum . toSumsG . unM1
   fromWireG (Fix (MkSum n x)) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
@@ -254,7 +341,7 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
-  sumsG :: Proxy f -> [Product]
+  sumsG :: Proxy f -> [(Text, WireType)]
   toSumsG :: f p -> (NthConstructor, [WireValue])
   fromSumsG :: NthConstructor -> [WireValue] -> Maybe (f p)
 
@@ -266,7 +353,8 @@ instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   fromSumsG n x = fmap R1 (fromSumsG (n - 1) x)
 
 instance (HasName m, ProductG f) => SumsG (M1 C m f) where
-  sumsG _ = [Product (name (Proxy @m), productG (Proxy @f))]
+  sumsG _ =
+    [(name (Proxy @m), Fix . Product . (fmap . fmap) Rec $ productG (Proxy @f))]
   toSumsG = (0, ) . toProductG . unM1
   fromSumsG 0 x = fmap M1 (fromProductG x)
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
@@ -279,7 +367,7 @@ instance SumsG V1 where
 -- |
 -- Helper class for constructing products.
 class ProductG (f :: * -> *) where
-  productG :: Proxy f -> [Field]
+  productG :: Proxy f -> [(Text, WireType)]
   toProductG :: f p -> [WireValue]
   fromProductG :: [WireValue] -> Maybe (f p)
 
@@ -291,7 +379,7 @@ instance (ProductG f, ProductG g) => ProductG (f :*: g) where
       (x, y) = splitAt (length . productG $ Proxy @f) z
 
 instance (HasName m, ElmG f) => ProductG (M1 S m f) where
-  productG _ = [Field (name (Proxy @m), wireTypeG (Proxy @f))]
+  productG _ = [(name (Proxy @m), wireTypeG (Proxy @f))]
   toProductG = pure . toWireG . unM1
   fromProductG [x] = M1 <$> fromWireG x
   fromProductG _ = Nothing -- ^ We got the wrong number of constructors.

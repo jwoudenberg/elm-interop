@@ -10,10 +10,10 @@ module Elm
   , printValue
   ) where
 
-import Control.Monad.Free (Free(Free))
-import Data.Coerce (coerce)
+import Control.Comonad (extract)
+import Control.Comonad.Cofree (Cofree, unwrap)
 import Data.Foldable (toList)
-import Data.Functor.Foldable (Fix, cata, futu, para, unfix, zygo)
+import Data.Functor.Foldable (Fix(Fix), cata, histo, para, unfix, zygo)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy (Proxy)
@@ -242,33 +242,62 @@ printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
 -- |
 -- Get the Elm-representation of a type.
 elmType :: Wire.Elm a => Proxy a -> ElmType
-elmType = futu go . Wire.wireType
+elmType = histo go . Wire.wireType
   where
-    go :: Wire.WireType -> ElmTypeF (Free ElmTypeF Wire.WireType)
+    go :: Wire.WireTypeF (Cofree Wire.WireTypeF ElmType) -> ElmType
     go =
       \case
-        Wire.Int -> Int
-        Wire.Float -> Float
-        Wire.String -> String
-        Wire.Unit -> Unit
-        Wire.List x -> List (pure x)
-        Wire.Tuple xs -> pure <$> mkElmTuple xs
-        Wire.Sum _ [] -> Never
-        Wire.Sum name (x:xs) -> Defined $ Custom name constructors
-          where constructors = fmap toElmConstructor (x :| xs)
-                toElmConstructor = fmap toParamsList . coerce
+        Wire.Product xs -> mkElmProduct mkElmTuple id $ (fmap . fmap) unRec xs
+        Wire.Sum _ [] -> Fix Never
+        Wire.Sum name (x:xs) -> Fix . Defined $ Custom name constructors
+          where constructors :: NonEmpty (Text, [ElmType])
+                constructors = (fmap . fmap) (mkElmParams . unwrap) (x :| xs)
+    unRec :: Wire.WireTypePrimitiveF (Cofree Wire.WireTypeF ElmType) -> ElmType
+    unRec =
+      \case
+        Wire.Int -> Fix Int
+        Wire.Float -> Fix Float
+        Wire.String -> Fix String
+        Wire.List x -> Fix $ List (extract x)
+        Wire.Rec x -> extract x
+    -- Parameters for a construction come in the form of either a single record
+    -- or a parameter list of types. Elm also allows a constructor with multiple
+    -- record-parameters but Haskell doesn't, and so we don't have to deal with
+    -- that eventuality. Either way we expect a product of types.
+    --
+    -- Because the `Product` constructor is itself a constructor of `WireTypeF`
+    -- we will have iterated over it at this point and interpreted it as a
+    -- stand-alone Elm type: Either a record or a tuple. Only in this next
+    -- iteration does the context of this product become clear: we're inside
+    -- the constructor of a sum type and so we should interpret the product as
+    -- a parameter list. We need to rewind the interpretation of the type as a
+    -- stand-alone Elm type.
+    --
+    -- This ability to revisit pas choices is the reason we're using a
+    -- histomorphism recursion scheme here rather than a catamorphism. It allows
+    -- us to take a step back to get our hands on the original raw product and
+    -- interpret it as a parameter list this time.
+    mkElmParams :: Wire.WireTypeF (Cofree Wire.WireTypeF ElmType) -> [ElmType]
+    mkElmParams =
+      \case
+        Wire.Product xs -> mkElmProduct id pure $ (fmap . fmap) unRec xs
+        sum'@(Wire.Sum _ _) -> [go sum']
+        -- ^ We don't expect a sum type here, but should we get one we'll assume
+        -- it's a single parameter to the constructor.
 
 -- |
--- Build a params list for a constructor.
-toParamsList :: [(Text, a)] -> [Free ElmTypeF a]
-toParamsList [] = []
-toParamsList params =
+-- Construct an Elm product. There's two possible products: A record (if we know
+-- names for all the fields), or otherwise a tuple. You need to provide a
+-- function for handling either scenario, and then the list of name,value pairs.
+mkElmProduct :: ([ElmType] -> a) -> (ElmType -> a) -> [(Text, ElmType)] -> a
+mkElmProduct mkTuple _ [] = mkTuple []
+mkElmProduct mkTuple mkRecord params =
   case traverse (nonNull . fst) params of
-    Just names -> pure . Free . fmap pure . Record $ zip names (map snd params)
+    Just names -> mkRecord . Fix . Record $ zip names (map snd params)
     -- ^ All params are named. This is a record.
     --
     --     type Thing = Constructor { number : Int, message : String }
-    Nothing -> pure . snd <$> params
+    Nothing -> mkTuple $ snd <$> params
     -- ^ At least one param is not named. This is an argument list.
     --
     --     type Thing = Constructor Int String
@@ -281,14 +310,16 @@ nonNull =
 
 -- |
 -- Build an Elm type representing a 'tuple' of different types.
-mkElmTuple :: (a, a, [a]) -> ElmTypeF a
+mkElmTuple :: [ElmType] -> ElmType
 mkElmTuple values =
   case values of
-    (x, y, []) -> Tuple2 (x) (y)
+    [] -> Fix Unit
+    [x] -> x
+    [x, y] -> Fix $ Tuple2 (x) (y)
     -- ^ A 2-tuple. Example: `(Int, Text)`.
-    (x, y, [z]) -> Tuple3 (x) (y) (z)
+    [x, y, z] -> Fix $ Tuple3 (x) (y) (z)
     -- ^ A 3-tuple. Example: `(Int, Text, Bool)`.
-    (x, y, zs) -> Record $ zip anonFields (x : y : zs)
+    xs -> Fix . Record $ zip anonFields xs
     -- ^ Elm only has tuples with 2 or 3 elements. If we have more values
     -- than that we have to use a record.
       where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
