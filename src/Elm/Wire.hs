@@ -390,8 +390,8 @@ instance ProductG U1 where
 class HasName (a :: Meta) where
   name :: Proxy a -> Text
 
-instance (KnownSymbol n) => HasName ('MetaData n m p nt) where
-  name _ = Text.pack $ symbolVal (Proxy @n)
+instance (KnownSymbol n, KnownSymbol m) => HasName ('MetaData n m p nt) where
+  name _ = Text.pack $ symbolVal (Proxy @m) <> "." <> symbolVal (Proxy @n)
 
 instance (KnownSymbol n) => HasName ('MetaCons n f s) where
   name _ = Text.pack $ symbolVal (Proxy @n)

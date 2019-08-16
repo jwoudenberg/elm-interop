@@ -114,10 +114,11 @@ printTypeDefinition :: ElmTypeDefinition -> PP.Doc
 printTypeDefinition =
   \case
     Custom name constructors ->
-      "type" <+> PP.textStrict name <++> printedConstructors
+      "type" <+> PP.textStrict unqualifiedName <++> printedConstructors
       where printedConstructors =
               PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
               printConstructor <$> toList constructors
+            unqualifiedName = last $ Text.splitOn "." name
     Alias name base ->
       "type alias" <+>
       PP.textStrict name <+> "=" <++> PP.indent elmIndent (printType base)
