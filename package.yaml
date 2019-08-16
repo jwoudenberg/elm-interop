@@ -27,6 +27,7 @@ library:
   - comonad
   - free
   - http-types
+  - http-media
   - recursion-schemes
   - servant
   - text

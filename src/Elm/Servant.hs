@@ -3,6 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -21,6 +22,7 @@ import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text, pack)
 import Elm
 import GHC.TypeLits (KnownSymbol, symbolVal)
+import Network.HTTP.Media ((//))
 import Network.HTTP.Types.Method (Method)
 import Servant.API
 import Servant.API.Modifiers (RequiredArgument)
@@ -56,6 +58,9 @@ data Path
   | Root
 
 data ELM
+
+instance Accept ELM where
+  contentType _ = "application" // "elm-interop-json"
 
 class HasElm api where
   hasElm :: Proxy api -> [Endpoint]
