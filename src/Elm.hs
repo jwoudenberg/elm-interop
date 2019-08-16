@@ -5,6 +5,7 @@
 
 module Elm
   ( Wire.Elm
+  , ElmType
   , elmType
   , printTypes
   , printValue
