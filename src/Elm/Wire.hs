@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -18,14 +19,13 @@ module Elm.Wire
   , WireTypeF(..)
   , WireTypePrimitive
   , WireTypePrimitiveF(..)
-  , WireValue
-  , WireValueF(..)
+  , WireValue(..)
   , Elm(..)
   , ElmJson(ElmJson)
   ) where
 
 import Data.Bifunctor (first)
-import Data.Functor.Foldable (Fix(Fix), cata)
+import Data.Functor.Foldable (Fix(Fix))
 import Data.Int (Int32)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
@@ -36,7 +36,6 @@ import Numeric.Natural (Natural)
 
 import qualified Data.Aeson
 import qualified Data.Text as Text
-import qualified Elm.Json as Json
 
 -- |
 -- A type to describe the shape of data flowing between the front- and backend.
@@ -126,35 +125,31 @@ primitive = Fix . Product . pure . ("", )
 --   names of types and constructors) without affecting encoding and decoding
 --   logic. This is important because we need flexibility in renaming to prevent
 --   naming collisions in generated code.
-data WireValueF a
+data WireValue
   = MkInt Int32
   | MkFloat Double
   | MkString Text
-  | MkList [a]
-  | MkProduct [a]
+  | MkList [WireValue]
+  | MkProduct [WireValue]
   | MkSum NthConstructor
-          [a]
-  deriving (Functor)
+          [WireValue]
+  deriving (Generic)
 
-type WireValue = Fix WireValueF
+instance Data.Aeson.ToJSON WireValue
+
+instance Data.Aeson.FromJSON WireValue
 
 newtype NthConstructor =
   NthConstructor Natural
-  deriving (Enum, Eq, Integral, Num, Ord, Real)
-
-instance Data.Aeson.ToJSON WireValue where
-  toJSON = Data.Aeson.toJSON . encode
-  toEncoding = Data.Aeson.toEncoding . encode
-
-encode :: WireValue -> Json.Encoded
-encode =
-  cata $ \case
-    MkInt int -> Json.int int
-    MkFloat float -> Json.float float
-    MkString string -> Json.string string
-    MkList xs -> Json.list xs
-    MkProduct xs -> Json.list xs
-    MkSum n xs -> Json.list [Json.int (fromIntegral n), Json.list (xs)]
+  deriving ( Data.Aeson.ToJSON
+           , Data.Aeson.FromJSON
+           , Enum
+           , Eq
+           , Integral
+           , Num
+           , Ord
+           , Real
+           )
 
 -- |
 -- Provide Aeson instances for any type that implements `Elm`.
@@ -188,25 +183,25 @@ class Elm (a :: *) where
 
 instance Elm Int32 where
   wireType _ = primitive Int
-  toWire = Fix . MkInt
-  fromWire (Fix (MkInt int)) = Just int
+  toWire = MkInt
+  fromWire (MkInt int) = Just int
   fromWire _ = Nothing
 
 instance Elm Double where
   wireType _ = primitive Float
-  toWire = Fix . MkFloat
-  fromWire (Fix (MkFloat float)) = Just float
+  toWire = MkFloat
+  fromWire (MkFloat float) = Just float
   fromWire _ = Nothing
 
 instance Elm Text where
   wireType _ = primitive String
-  toWire = Fix . MkString
-  fromWire (Fix (MkString string)) = Just string
+  toWire = MkString
+  fromWire (MkString string) = Just string
   fromWire _ = Nothing
 
 instance Elm () where
   wireType _ = Fix $ Product []
-  toWire () = Fix (MkProduct [])
+  toWire () = MkProduct []
   fromWire _ = pure ()
 
 instance Elm Void where
@@ -216,8 +211,8 @@ instance Elm Void where
 
 instance Elm a => Elm [a] where
   wireType _ = primitive $ List (wireType (Proxy @a))
-  toWire = Fix . MkList . fmap toWire
-  fromWire (Fix (MkList xs)) = traverse fromWire xs
+  toWire = MkList . fmap toWire
+  fromWire (MkList xs) = traverse fromWire xs
   fromWire _ = Nothing
 
 -- Instances for tuples.
@@ -227,8 +222,8 @@ instance (Elm a, Elm b) => Elm (a, b) where
   wireType _ =
     Fix $
     Product [("", Rec $ wireType (Proxy @a)), ("", Rec $ wireType (Proxy @b))]
-  toWire (a, b) = Fix $ MkProduct [toWire a, toWire b]
-  fromWire (Fix (MkProduct [a, b])) = (,) <$> fromWire a <*> fromWire b
+  toWire (a, b) = MkProduct [toWire a, toWire b]
+  fromWire (MkProduct [a, b]) = (,) <$> fromWire a <*> fromWire b
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
@@ -239,8 +234,8 @@ instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
       , ("", Rec $ wireType (Proxy @b))
       , ("", Rec $ wireType (Proxy @c))
       ]
-  toWire (a, b, c) = Fix $ MkProduct [toWire a, toWire b, toWire c]
-  fromWire (Fix (MkProduct [a, b, c])) =
+  toWire (a, b, c) = MkProduct [toWire a, toWire b, toWire c]
+  fromWire (MkProduct [a, b, c]) =
     (,,) <$> fromWire a <*> fromWire b <*> fromWire c
   fromWire _ = Nothing
 
@@ -253,8 +248,8 @@ instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
       , ("", Rec $ wireType (Proxy @c))
       , ("", Rec $ wireType (Proxy @d))
       ]
-  toWire (a, b, c, d) = Fix $ MkProduct [toWire a, toWire b, toWire c, toWire d]
-  fromWire (Fix (MkProduct [a, b, c, d])) =
+  toWire (a, b, c, d) = MkProduct [toWire a, toWire b, toWire c, toWire d]
+  fromWire (MkProduct [a, b, c, d]) =
     (,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
   fromWire _ = Nothing
 
@@ -269,8 +264,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
       , ("", Rec $ wireType (Proxy @e))
       ]
   toWire (a, b, c, d, e) =
-    Fix $ MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e]
-  fromWire (Fix (MkProduct [a, b, c, d, e])) =
+    MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e]
+  fromWire (MkProduct [a, b, c, d, e]) =
     (,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e
   fromWire _ = Nothing
@@ -288,8 +283,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
       , ("", Rec $ wireType (Proxy @f))
       ]
   toWire (a, b, c, d, e, f) =
-    Fix $ MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
-  fromWire (Fix (MkProduct [a, b, c, d, e, f])) =
+    MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
+  fromWire (MkProduct [a, b, c, d, e, f]) =
     (,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f
@@ -309,10 +304,9 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
       , ("", Rec $ wireType (Proxy @g))
       ]
   toWire (a, b, c, d, e, f, g) =
-    Fix $
     MkProduct
       [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f, toWire g]
-  fromWire (Fix (MkProduct [a, b, c, d, e, f, g])) =
+  fromWire (MkProduct [a, b, c, d, e, f, g]) =
     (,,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f <*>
@@ -334,8 +328,8 @@ instance (Elm c) => ElmG (K1 i c) where
 
 instance (HasName m, SumsG f) => ElmG (M1 D m f) where
   wireTypeG _ = Fix $ Sum (name (Proxy @m)) (sumsG (Proxy @f))
-  toWireG = Fix . uncurry MkSum . toSumsG . unM1
-  fromWireG (Fix (MkSum n x)) = fmap M1 $ fromSumsG n x
+  toWireG = uncurry MkSum . toSumsG . unM1
+  fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
 
 -- |
