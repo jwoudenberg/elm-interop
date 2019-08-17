@@ -28,9 +28,11 @@ library:
   - free
   - http-types
   - http-media
+  - mtl
   - recursion-schemes
   - servant
   - text
+  - unordered-containers
   - wl-pprint-text
   exposed-modules:
   - Elm

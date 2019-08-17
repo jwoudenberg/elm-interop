@@ -20,12 +20,15 @@ module Elm.Wire
   , WireTypePrimitive
   , WireTypePrimitiveF(..)
   , WireValue(..)
-  , Elm(..)
+  , Elm
+  , wireType
   , ElmJson(ElmJson)
   ) where
 
+import Control.Monad.Reader (Reader, runReader)
 import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix))
+import Data.HashSet (HashSet)
 import Data.Int (Int32)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
@@ -161,19 +164,22 @@ instance Elm a => Data.Aeson.ToJSON (ElmJson a) where
   toJSON = Data.Aeson.toJSON . toWire . unElmJson
   toEncoding = Data.Aeson.toEncoding . toWire . unElmJson
 
+wireType :: Elm a => Proxy a -> WireType
+wireType = flip runReader mempty . wireType'
+
 -- |
 -- Class of types that have a wire format representation. The class is named
 -- 'Elm' because it is user facing, and so rather than naming it after the
 -- exact thing it does (something like `HasWireFormat`), we name it after the
 -- thing the wire formats it produces are used for.
 class Elm (a :: *) where
-  wireType :: Proxy a -> WireType
+  wireType' :: Proxy a -> Builder WireType
   toWire :: a -> WireValue
   fromWire :: WireValue -> Maybe a
   -- Default Generics-based implementations.
-  default wireType :: (ElmG (Rep a)) =>
-    Proxy a -> WireType
-  wireType _ = wireTypeG (Proxy @(Rep a))
+  default wireType' :: (ElmG (Rep a)) =>
+    Proxy a -> Builder WireType
+  wireType' _ = wireTypeG (Proxy @(Rep a))
   default toWire :: (Generic a, ElmG (Rep a)) =>
     a -> WireValue
   toWire = toWireG . from
@@ -181,36 +187,38 @@ class Elm (a :: *) where
     WireValue -> Maybe a
   fromWire = fmap to . fromWireG
 
+type Builder a = Reader (HashSet Text) a
+
 instance Elm Int32 where
-  wireType _ = primitive Int
+  wireType' _ = pure $ primitive Int
   toWire = MkInt
   fromWire (MkInt int) = Just int
   fromWire _ = Nothing
 
 instance Elm Double where
-  wireType _ = primitive Float
+  wireType' _ = pure $ primitive Float
   toWire = MkFloat
   fromWire (MkFloat float) = Just float
   fromWire _ = Nothing
 
 instance Elm Text where
-  wireType _ = primitive String
+  wireType' _ = pure $ primitive String
   toWire = MkString
   fromWire (MkString string) = Just string
   fromWire _ = Nothing
 
 instance Elm () where
-  wireType _ = Fix $ Product []
+  wireType' _ = pure . Fix $ Product []
   toWire () = MkProduct []
   fromWire _ = pure ()
 
 instance Elm Void where
-  wireType _ = Fix $ Sum "" []
+  wireType' _ = pure . Fix $ Sum "" []
   toWire = absurd
   fromWire _ = Nothing
 
 instance Elm a => Elm [a] where
-  wireType _ = primitive $ List (wireType (Proxy @a))
+  wireType' _ = primitive . List <$> wireType' (Proxy @a)
   toWire = MkList . fmap toWire
   fromWire (MkList xs) = traverse fromWire xs
   fromWire _ = Nothing
@@ -219,34 +227,26 @@ instance Elm a => Elm [a] where
 -- The 7-tuple is the largest one that has a Generics instance, so we'll support
 -- up to that number here too.
 instance (Elm a, Elm b) => Elm (a, b) where
-  wireType _ =
-    Fix $
-    Product [("", Rec $ wireType (Proxy @a)), ("", Rec $ wireType (Proxy @b))]
+  wireType' _ = tupleType [wireType' (Proxy @a), wireType' (Proxy @b)]
   toWire (a, b) = MkProduct [toWire a, toWire b]
   fromWire (MkProduct [a, b]) = (,) <$> fromWire a <*> fromWire b
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
-  wireType _ =
-    Fix $
-    Product
-      [ ("", Rec $ wireType (Proxy @a))
-      , ("", Rec $ wireType (Proxy @b))
-      , ("", Rec $ wireType (Proxy @c))
-      ]
+  wireType' _ =
+    tupleType [wireType' (Proxy @a), wireType' (Proxy @b), wireType' (Proxy @c)]
   toWire (a, b, c) = MkProduct [toWire a, toWire b, toWire c]
   fromWire (MkProduct [a, b, c]) =
     (,,) <$> fromWire a <*> fromWire b <*> fromWire c
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
-  wireType _ =
-    Fix $
-    Product
-      [ ("", Rec $ wireType (Proxy @a))
-      , ("", Rec $ wireType (Proxy @b))
-      , ("", Rec $ wireType (Proxy @c))
-      , ("", Rec $ wireType (Proxy @d))
+  wireType' _ =
+    tupleType
+      [ wireType' (Proxy @a)
+      , wireType' (Proxy @b)
+      , wireType' (Proxy @c)
+      , wireType' (Proxy @d)
       ]
   toWire (a, b, c, d) = MkProduct [toWire a, toWire b, toWire c, toWire d]
   fromWire (MkProduct [a, b, c, d]) =
@@ -254,14 +254,13 @@ instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
-  wireType _ =
-    Fix $
-    Product
-      [ ("", Rec $ wireType (Proxy @a))
-      , ("", Rec $ wireType (Proxy @b))
-      , ("", Rec $ wireType (Proxy @c))
-      , ("", Rec $ wireType (Proxy @d))
-      , ("", Rec $ wireType (Proxy @e))
+  wireType' _ =
+    tupleType
+      [ wireType' (Proxy @a)
+      , wireType' (Proxy @b)
+      , wireType' (Proxy @c)
+      , wireType' (Proxy @d)
+      , wireType' (Proxy @e)
       ]
   toWire (a, b, c, d, e) =
     MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e]
@@ -272,15 +271,14 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
 
 instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
          Elm (a, b, c, d, e, f) where
-  wireType _ =
-    Fix $
-    Product
-      [ ("", Rec $ wireType (Proxy @a))
-      , ("", Rec $ wireType (Proxy @b))
-      , ("", Rec $ wireType (Proxy @c))
-      , ("", Rec $ wireType (Proxy @d))
-      , ("", Rec $ wireType (Proxy @e))
-      , ("", Rec $ wireType (Proxy @f))
+  wireType' _ =
+    tupleType
+      [ wireType' (Proxy @a)
+      , wireType' (Proxy @b)
+      , wireType' (Proxy @c)
+      , wireType' (Proxy @d)
+      , wireType' (Proxy @e)
+      , wireType' (Proxy @f)
       ]
   toWire (a, b, c, d, e, f) =
     MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
@@ -292,16 +290,15 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
 
 instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
          Elm (a, b, c, d, e, f, g) where
-  wireType _ =
-    Fix $
-    Product
-      [ ("", Rec $ wireType (Proxy @a))
-      , ("", Rec $ wireType (Proxy @b))
-      , ("", Rec $ wireType (Proxy @c))
-      , ("", Rec $ wireType (Proxy @d))
-      , ("", Rec $ wireType (Proxy @e))
-      , ("", Rec $ wireType (Proxy @f))
-      , ("", Rec $ wireType (Proxy @g))
+  wireType' _ =
+    tupleType
+      [ wireType' (Proxy @a)
+      , wireType' (Proxy @b)
+      , wireType' (Proxy @c)
+      , wireType' (Proxy @d)
+      , wireType' (Proxy @e)
+      , wireType' (Proxy @f)
+      , wireType' (Proxy @g)
       ]
   toWire (a, b, c, d, e, f, g) =
     MkProduct
@@ -313,21 +310,24 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
     fromWire g
   fromWire _ = Nothing
 
+tupleType :: Applicative f => [f WireType] -> f WireType
+tupleType xs = Fix . Product . fmap (("", ) . Rec) <$> sequenceA xs
+
 -- |
 -- Helper class for constructing write types from generic representations of
 -- types.
 class ElmG (f :: * -> *) where
-  wireTypeG :: Proxy f -> WireType
+  wireTypeG :: Proxy f -> Builder WireType
   toWireG :: f p -> WireValue
   fromWireG :: WireValue -> Maybe (f p)
 
 instance (Elm c) => ElmG (K1 i c) where
-  wireTypeG _ = wireType (Proxy @c)
+  wireTypeG _ = wireType' (Proxy @c)
   toWireG = toWire . unK1
   fromWireG = fmap K1 . fromWire
 
 instance (HasName m, SumsG f) => ElmG (M1 D m f) where
-  wireTypeG _ = Fix $ Sum (name (Proxy @m)) (sumsG (Proxy @f))
+  wireTypeG _ = Fix . Sum (name (Proxy @m)) <$> sumsG (Proxy @f)
   toWireG = uncurry MkSum . toSumsG . unM1
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
@@ -335,12 +335,12 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
-  sumsG :: Proxy f -> [(Text, WireType)]
+  sumsG :: Proxy f -> Builder [(Text, WireType)]
   toSumsG :: f p -> (NthConstructor, [WireValue])
   fromSumsG :: NthConstructor -> [WireValue] -> Maybe (f p)
 
 instance (SumsG f, SumsG g) => SumsG (f :+: g) where
-  sumsG _ = sumsG (Proxy @f) <> sumsG (Proxy @g)
+  sumsG _ = (<>) <$> sumsG (Proxy @f) <*> sumsG (Proxy @g)
   toSumsG (L1 x) = toSumsG x
   toSumsG (R1 x) = first (+ 1) $ toSumsG x
   fromSumsG 0 x = fmap L1 (fromSumsG 0 x)
@@ -348,38 +348,43 @@ instance (SumsG f, SumsG g) => SumsG (f :+: g) where
 
 instance (HasName m, ProductG f) => SumsG (M1 C m f) where
   sumsG _ =
-    [(name (Proxy @m), Fix . Product . (fmap . fmap) Rec $ productG (Proxy @f))]
+    pure . (name (Proxy @m), ) . Fix . Product . (fmap . fmap) Rec <$>
+    productG (Proxy @f)
   toSumsG = (0, ) . toProductG . unM1
   fromSumsG 0 x = fmap M1 (fromProductG x)
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
 
 instance SumsG V1 where
-  sumsG _ = []
+  sumsG _ = pure []
   toSumsG = \case {}
   fromSumsG _ _ = Nothing
 
 -- |
 -- Helper class for constructing products.
 class ProductG (f :: * -> *) where
-  productG :: Proxy f -> [(Text, WireType)]
+  productG :: Proxy f -> Builder [(Text, WireType)]
+  productLengthG :: Proxy f -> Int
   toProductG :: f p -> [WireValue]
   fromProductG :: [WireValue] -> Maybe (f p)
 
 instance (ProductG f, ProductG g) => ProductG (f :*: g) where
-  productG _ = productG (Proxy @f) <> productG (Proxy @g)
+  productG _ = (<>) <$> productG (Proxy @f) <*> productG (Proxy @g)
+  productLengthG _ = productLengthG (Proxy @f) + productLengthG (Proxy @f)
   toProductG (x :*: y) = toProductG x <> toProductG y
   fromProductG z = (:*:) <$> fromProductG x <*> fromProductG y
     where
-      (x, y) = splitAt (length . productG $ Proxy @f) z
+      (x, y) = splitAt (productLengthG (Proxy @f)) z
 
 instance (HasName m, ElmG f) => ProductG (M1 S m f) where
-  productG _ = [(name (Proxy @m), wireTypeG (Proxy @f))]
+  productG _ = pure . (name (Proxy @m), ) <$> wireTypeG (Proxy @f)
+  productLengthG _ = 1
   toProductG = pure . toWireG . unM1
   fromProductG [x] = M1 <$> fromWireG x
   fromProductG _ = Nothing -- ^ We got the wrong number of constructors.
 
 instance ProductG U1 where
-  productG _ = []
+  productG _ = pure []
+  productLengthG _ = 0
   toProductG U1 = []
   fromProductG [] = Just U1
   fromProductG _ = Nothing
