@@ -25,7 +25,7 @@ module Elm.Wire
   , ElmJson(ElmJson)
   ) where
 
-import Control.Monad.Reader (Reader, runReader)
+import Control.Monad.Reader (Reader, ask, local, runReader)
 import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.HashSet (HashSet)
@@ -38,6 +38,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Numeric.Natural (Natural)
 
 import qualified Data.Aeson
+import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
 -- |
@@ -77,6 +78,7 @@ data WireTypeF a
   --         ^^^^         ^^^^               ^
   --         Type name    constructor name   constructor params
   --
+  | Rec2 Text
   deriving (Functor)
 
 type WireType = Fix WireTypeF
@@ -327,7 +329,12 @@ instance (Elm c) => ElmG (K1 i c) where
   fromWireG = fmap K1 . fromWire
 
 instance (HasName m, SumsG f) => ElmG (M1 D m f) where
-  wireTypeG _ = Fix . Sum (name (Proxy @m)) <$> sumsG (Proxy @f)
+  wireTypeG _ = do
+    let name' = name (Proxy @m)
+    namesSeen <- ask
+    if HashSet.member name' namesSeen
+      then pure . Fix $ Rec2 name'
+      else local (HashSet.insert name') $ Fix . Sum name' <$> sumsG (Proxy @f)
   toWireG = uncurry MkSum . toSumsG . unM1
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing

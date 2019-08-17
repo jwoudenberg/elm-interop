@@ -43,6 +43,7 @@ data ElmTypeF a
   | Lambda a
            a
   | Defined (ElmTypeDefinitionF a)
+  | Ref Text
   deriving (Functor)
 
 type ElmType = Fix ElmTypeF
@@ -109,19 +110,23 @@ printType =
                 SingleWord -> i
                 MultipleWord -> i
                 MultipleWordLambda -> PP.parens i
+    Ref name -> PP.textStrict (unqualifiedName name)
 
 printTypeDefinition :: ElmTypeDefinition -> PP.Doc
 printTypeDefinition =
   \case
     Custom name constructors ->
-      "type" <+> PP.textStrict unqualifiedName <++> printedConstructors
+      "type" <+> PP.textStrict (unqualifiedName name) <++> printedConstructors
       where printedConstructors =
               PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
               printConstructor <$> toList constructors
-            unqualifiedName = last $ Text.splitOn "." name
     Alias name base ->
       "type alias" <+>
       PP.textStrict name <+> "=" <++> PP.indent elmIndent (printType base)
+
+unqualifiedName :: Text -> Text
+unqualifiedName "" = ""
+unqualifiedName name = last $ Text.splitOn "." name
 
 printConstructor :: (Text, [ElmType]) -> PP.Doc
 printConstructor (name, params) =
@@ -177,6 +182,7 @@ typeDefinitions =
       Custom n (fmap (fmap fst) <$> x) :
       (mconcat . fmap snd . mconcat . fmap snd $ toList x)
     Lambda (_, x) (_, y) -> x <> y
+    Ref _ -> mempty
 
 -- |
 -- Version of `encloseSep` that puts the closing delimiter on a new line, and
@@ -230,6 +236,7 @@ appearance =
     Record _ -> SingleWord
     Defined _ -> SingleWord
     Lambda _ _ -> MultipleWordLambda
+    Ref _ -> SingleWord
 
 parens :: TypeAppearance -> PP.Doc -> PP.Doc
 parens a doc =
@@ -254,6 +261,7 @@ elmType = histo go . Wire.wireType
         Wire.Sum name (x:xs) -> Fix . Defined $ Custom name constructors
           where constructors :: NonEmpty (Text, [ElmType])
                 constructors = (fmap . fmap) (mkElmParams . unwrap) (x :| xs)
+        Wire.Rec2 name -> Fix $ Ref name
     unRec :: Wire.WireTypePrimitiveF (Cofree Wire.WireTypeF ElmType) -> ElmType
     unRec =
       \case
@@ -283,9 +291,10 @@ elmType = histo go . Wire.wireType
     mkElmParams =
       \case
         Wire.Product xs -> mkElmProduct id pure $ (fmap . fmap) unRec xs
+        -- | We don't expect anything but a product here, but should we get one
+        -- we'll assume it's a single parameter to the constructor.
         sum'@(Wire.Sum _ _) -> [go sum']
-        -- ^ We don't expect a sum type here, but should we get one we'll assume
-        -- it's a single parameter to the constructor.
+        rec'@(Wire.Rec2 _) -> [go rec']
 
 -- |
 -- Construct an Elm product. There's two possible products: A record (if we know
