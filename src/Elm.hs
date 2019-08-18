@@ -264,18 +264,19 @@ printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
 printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
 
 -- |
--- Get the Elm-representation of a type.
+-- Get the Elm-representation of a type. The Elm representation might make
+-- reference to custom types which you get as well.
 elmType :: Wire.Elm a => Proxy a -> (UserTypes, ElmType)
-elmType = bimap fromWireCustomTypes fromWireType . Wire.wireType
+elmType = bimap fromWireUserTypes fromWireType . Wire.wireType
 
-fromWireCustomTypes :: Wire.CustomTypes -> UserTypes
-fromWireCustomTypes = UserTypes . fmap fromWireCustomType . Wire.unCustomTypes
+fromWireUserTypes :: Wire.UserTypes -> UserTypes
+fromWireUserTypes = UserTypes . fmap fromWireUserType . Wire.unUserTypes
 
-fromWireCustomType :: [(Text, Wire.WireType)] -> ElmTypeDefinition
-fromWireCustomType [] = Alias (Fix Never)
-fromWireCustomType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
+fromWireUserType :: [(Text, Wire.PrimitiveType)] -> ElmTypeDefinition
+fromWireUserType [] = Alias (Fix Never)
+fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
   where
-    mkConstructors :: Wire.WireType -> [ElmType]
+    mkConstructors :: Wire.PrimitiveType -> [ElmType]
     mkConstructors =
       \case
         Fix (Wire.Product xs) ->
@@ -284,11 +285,11 @@ fromWireCustomType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
         -- we'll assume it's a single parameter to the constructor.
         param -> [fromWireType param]
 
-fromWireType :: Wire.WireType -> ElmType
+fromWireType :: Wire.PrimitiveType -> ElmType
 fromWireType =
   cata $ \case
     Wire.Product xs -> mkElmProduct mkElmTuple id xs
-    Wire.Rec name -> Fix $ Defined name
+    Wire.User name -> Fix $ Defined name
     Wire.Void -> Fix Never
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float

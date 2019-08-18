@@ -15,10 +15,10 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Elm.Wire
-  ( WireType
-  , WireTypeF(..)
-  , WireValue(..)
-  , CustomTypes(..)
+  ( PrimitiveType
+  , PrimitiveTypeF(..)
+  , Value(..)
+  , UserTypes(..)
   , Elm
   , wireType
   , ElmJson(ElmJson)
@@ -48,13 +48,13 @@ import qualified Data.Text as Text
 -- |
 -- A type to describe the shape of data flowing between the front- and backend.
 --
--- We generate Elm types based on descriptions of types expressed in `WireType`
+-- We generate Elm types based on descriptions of types expressed in `PrimitiveType`
 -- so there's enough information there for that, but otherwise the intention is
 -- for this type to be as small as possible, which is to say having the least
 -- amount of constructors.
 --
 -- Having a small type here contributes to simplifying other parts of the code:
--- - Using `GHC.Generics` we produce `WireType` representations of all Haskell
+-- - Using `GHC.Generics` we produce `PrimitiveType` representations of all Haskell
 --   types. Generics code by its nature is spread out across a large number of
 --   type class instances. The more high end-user concepts like 'records' or
 --   'tuple we add to this type the more we have to perform the construction of
@@ -65,7 +65,7 @@ import qualified Data.Text as Text
 --   to have compatible implementations for encoding/decoding it. The smaller
 --   the type the fewer opportunities there are for these implementations to be
 --   misaligned.
-data WireTypeF a
+data PrimitiveTypeF a
   = Product [(Text, a)]
   -- ^ A product type, like a tuple or a record.
   --
@@ -74,13 +74,8 @@ data WireTypeF a
   --               Field name (       Field type
   --               "" for tuples")
   --
-  | Rec Text
-  -- ^ A 'data type' (Haskell) or 'custom type' (Elm).
-  --
-  --     Sum Text      [( Text             , a)]
-  --         ^^^^         ^^^^               ^
-  --         Type name    constructor name   constructor params
-  --
+  | User Text
+  -- ^ A reference to a non-primitive type, for example a user defined types.
   | Void
   -- ^ A type without any values. Goes by `Never` in Elm.
   | List a
@@ -93,17 +88,27 @@ data WireTypeF a
   | String
   deriving (Functor)
 
-type WireType = Fix WireTypeF
+type PrimitiveType = Fix PrimitiveTypeF
 
 -- |
--- The `WireType` describes the types of the things going over the wire between
--- Haskell and Elm. This `WireValue` type describes the values of those types
+-- Everything that isn't a primitive type is a user type. We always keep their
+-- definitions together in a map to avoid duplicates.
+--
+-- A user type is a Haskell sum type or Elm custom type. It can have multiple
+-- constructors, each with one or more parameters.
+newtype UserTypes = UserTypes
+  { unUserTypes :: Map Text [(Text, PrimitiveType)]
+  } deriving (Semigroup, Monoid)
+
+-- |
+-- The `PrimitiveType` describes the types of the things going over the wire between
+-- Haskell and Elm. This `Value` type describes the values of those types
 -- we're going to encode and decode.
 --
--- As you can see the `WireValue` constructors make no mention of field names or
+-- As you can see the `Value` constructors make no mention of field names or
 -- constructor names. Instead we use the order of fields in products and
 -- constructors in sums to indicate which value belongs where. This means you
--- need the `WireType` to be able to decode a `WireValue`, and also that the
+-- need the `PrimitiveType` to be able to decode a `Value`, and also that the
 -- data going over the wire will be hard for humans to grok.
 --
 -- There's reasons we do it this way regardless:
@@ -113,19 +118,19 @@ type WireType = Fix WireTypeF
 --   names of types and constructors) without affecting encoding and decoding
 --   logic. This is important because we need flexibility in renaming to prevent
 --   naming collisions in generated code.
-data WireValue
+data Value
   = MkInt Int32
   | MkFloat Double
   | MkString Text
-  | MkList [WireValue]
-  | MkProduct [WireValue]
+  | MkList [Value]
+  | MkProduct [Value]
   | MkSum NthConstructor
-          [WireValue]
+          [Value]
   deriving (Generic)
 
-instance Data.Aeson.ToJSON WireValue
+instance Data.Aeson.ToJSON Value
 
-instance Data.Aeson.FromJSON WireValue
+instance Data.Aeson.FromJSON Value
 
 newtype NthConstructor =
   NthConstructor Natural
@@ -149,11 +154,7 @@ instance Elm a => Data.Aeson.ToJSON (ElmJson a) where
   toJSON = Data.Aeson.toJSON . toWire . unElmJson
   toEncoding = Data.Aeson.toEncoding . toWire . unElmJson
 
-newtype CustomTypes = CustomTypes
-  { unCustomTypes :: Map Text [(Text, WireType)]
-  } deriving (Semigroup, Monoid)
-
-wireType :: Elm a => Proxy a -> (CustomTypes, WireType)
+wireType :: Elm a => Proxy a -> (UserTypes, PrimitiveType)
 wireType = swap . flip runReader mempty . runWriterT . wireType'
 
 -- |
@@ -162,21 +163,21 @@ wireType = swap . flip runReader mempty . runWriterT . wireType'
 -- exact thing it does (something like `HasWireFormat`), we name it after the
 -- thing the wire formats it produces are used for.
 class Elm (a :: *) where
-  wireType' :: Proxy a -> Builder WireType
-  toWire :: a -> WireValue
-  fromWire :: WireValue -> Maybe a
+  wireType' :: Proxy a -> Builder PrimitiveType
+  toWire :: a -> Value
+  fromWire :: Value -> Maybe a
   -- Default Generics-based implementations.
   default wireType' :: (ElmG (Rep a)) =>
-    Proxy a -> Builder WireType
+    Proxy a -> Builder PrimitiveType
   wireType' _ = wireTypeG (Proxy @(Rep a))
   default toWire :: (Generic a, ElmG (Rep a)) =>
-    a -> WireValue
+    a -> Value
   toWire = toWireG . from
   default fromWire :: (Generic a, ElmG (Rep a)) =>
-    WireValue -> Maybe a
+    Value -> Maybe a
   fromWire = fmap to . fromWireG
 
-type Builder a = WriterT CustomTypes (Reader (Set Text)) a
+type Builder a = WriterT UserTypes (Reader (Set Text)) a
 
 instance Elm Int32 where
   wireType' _ = pure $ Fix Int
@@ -299,16 +300,16 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
     fromWire g
   fromWire _ = Nothing
 
-tupleType :: Applicative f => [f WireType] -> f WireType
+tupleType :: Applicative f => [f PrimitiveType] -> f PrimitiveType
 tupleType xs = Fix . Product . fmap ("", ) <$> sequenceA xs
 
 -- |
 -- Helper class for constructing write types from generic representations of
 -- types.
 class ElmG (f :: * -> *) where
-  wireTypeG :: Proxy f -> Builder WireType
-  toWireG :: f p -> WireValue
-  fromWireG :: WireValue -> Maybe (f p)
+  wireTypeG :: Proxy f -> Builder PrimitiveType
+  toWireG :: f p -> Value
+  fromWireG :: Value -> Maybe (f p)
 
 instance (Elm c) => ElmG (K1 i c) where
   wireTypeG _ = wireType' (Proxy @c)
@@ -321,8 +322,8 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
     namesSeen <- ask
     unless (Set.member name' namesSeen) $ do
       constructors <- local (Set.insert name') $ sumsG (Proxy @f)
-      tell . CustomTypes $ Map.singleton name' constructors
-    pure . Fix $ Rec name'
+      tell . UserTypes $ Map.singleton name' constructors
+    pure . Fix $ User name'
   toWireG = uncurry MkSum . toSumsG . unM1
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
@@ -330,9 +331,9 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
-  sumsG :: Proxy f -> Builder [(Text, WireType)]
-  toSumsG :: f p -> (NthConstructor, [WireValue])
-  fromSumsG :: NthConstructor -> [WireValue] -> Maybe (f p)
+  sumsG :: Proxy f -> Builder [(Text, PrimitiveType)]
+  toSumsG :: f p -> (NthConstructor, [Value])
+  fromSumsG :: NthConstructor -> [Value] -> Maybe (f p)
 
 instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   sumsG _ = (<>) <$> sumsG (Proxy @f) <*> sumsG (Proxy @g)
@@ -355,10 +356,10 @@ instance SumsG V1 where
 -- |
 -- Helper class for constructing products.
 class ProductG (f :: * -> *) where
-  productG :: Proxy f -> Builder [(Text, WireType)]
+  productG :: Proxy f -> Builder [(Text, PrimitiveType)]
   productLengthG :: Proxy f -> Int
-  toProductG :: f p -> [WireValue]
-  fromProductG :: [WireValue] -> Maybe (f p)
+  toProductG :: f p -> [Value]
+  fromProductG :: [Value] -> Maybe (f p)
 
 instance (ProductG f, ProductG g) => ProductG (f :*: g) where
   productG _ = (<>) <$> productG (Proxy @f) <*> productG (Proxy @g)
