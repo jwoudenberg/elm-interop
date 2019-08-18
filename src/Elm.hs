@@ -16,14 +16,15 @@ module Elm
 import Data.Bifunctor (bimap)
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), cata, unfix, zygo)
-import Data.Map (Map)
 import Data.Int (Int32)
 import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.Map (Map)
 import Data.Proxy (Proxy)
 import Data.Text (Text)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
+import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Elm.Wire as Wire
@@ -47,7 +48,6 @@ data ElmTypeF a
   | Lambda a
            a
   | Defined Text
-  | Ref Text
   deriving (Functor)
 
 type ElmType = Fix ElmTypeF
@@ -84,8 +84,40 @@ printModule :: UserTypes -> Text
 printModule =
   printDoc .
   PP.vcat .
-  intersperse PP.linebreak .
-  fmap (uncurry printTypeDefinition) . Map.toList . unUserTypes
+  intersperse PP.linebreak . fmap (uncurry printTypeDefinition) . sortUserTypes
+
+sortUserTypes :: UserTypes -> [(Text, ElmTypeDefinition)]
+sortUserTypes =
+  reverse .
+  Graph.flattenSCCs .
+  Graph.stronglyConnComp . fmap toNode . Map.toList . unUserTypes
+  where
+    toNode ::
+         (Text, ElmTypeDefinition) -> ((Text, ElmTypeDefinition), Text, [Text])
+    toNode (name, t) = ((name, t), name, namesInTypeDefinition t)
+
+namesInTypeDefinition :: ElmTypeDefinition -> [Text]
+namesInTypeDefinition =
+  \case
+    Alias t -> namesInType t
+    Custom xs -> foldMap namesInType . foldMap snd $ toList xs
+
+namesInType :: ElmType -> [Text]
+namesInType =
+  cata $ \case
+    Unit -> mempty
+    Never -> mempty
+    Bool -> mempty
+    Int -> mempty
+    Float -> mempty
+    String -> mempty
+    List x -> x
+    Maybe x -> x
+    Tuple2 x y -> x <> y
+    Tuple3 x y z -> x <> y <> z
+    Record x -> foldMap snd x
+    Defined n -> [n]
+    Lambda x y -> x <> y
 
 printDoc :: PP.Doc -> Text
 printDoc = PP.displayTStrict . PP.renderPretty 1 80
@@ -116,7 +148,6 @@ printType =
                 SingleWord -> i
                 MultipleWord -> i
                 MultipleWordLambda -> PP.parens i
-    Ref name -> PP.textStrict (unqualifiedName name)
 
 printTypeDefinition :: Text -> ElmTypeDefinition -> PP.Doc
 printTypeDefinition name =
@@ -221,7 +252,6 @@ appearance =
     Record _ -> SingleWord
     Defined _ -> SingleWord
     Lambda _ _ -> MultipleWordLambda
-    Ref _ -> SingleWord
 
 parens :: TypeAppearance -> PP.Doc -> PP.Doc
 parens a doc =
@@ -260,7 +290,7 @@ fromWireType =
   cata $ \case
     Wire.Product xs ->
       mkElmProduct mkElmTuple id $ (fmap . fmap) fromWirePrimitive xs
-    Wire.Rec2 name -> Fix $ Ref name
+    Wire.Rec2 name -> Fix $ Defined name
     Wire.Void -> Fix Never
 
 fromWirePrimitive :: Wire.WireTypePrimitiveF ElmType -> ElmType
