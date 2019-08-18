@@ -26,7 +26,7 @@ main
   -- putStrLn . Text.unpack . printTypes $ elmType (Proxy :: Proxy Foo)
  = do
   putStrLn . Text.unpack . Text.unlines $
-    printTypes <$> elmTypes (Proxy :: Proxy Api)
+    (printDoc . printType) <$> elmTypes (Proxy :: Proxy Api)
   putStrLn . show . Data.Aeson.encode . Elm.Wire.ElmJson $
     Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
 

@@ -75,15 +75,15 @@ data WireTypeF a
   --               Field name (       Field type
   --               "" for tuples")
   --
-  | Sum Text
-        [(Text, a)]
+  | Rec2 Text
   -- ^ A 'data type' (Haskell) or 'custom type' (Elm).
   --
   --     Sum Text      [( Text             , a)]
   --         ^^^^         ^^^^               ^
   --         Type name    constructor name   constructor params
   --
-  | Rec2 Text
+  | Void
+  -- ^ A type without any values. Goes by `Never` in Elm.
   deriving (Functor)
 
 type WireType = Fix WireTypeF
@@ -171,9 +171,9 @@ instance Elm a => Data.Aeson.ToJSON (ElmJson a) where
   toJSON = Data.Aeson.toJSON . toWire . unElmJson
   toEncoding = Data.Aeson.toEncoding . toWire . unElmJson
 
-newtype CustomTypes =
-  CustomTypes (HashMap Text [(Text, WireType)])
-  deriving (Semigroup, Monoid)
+newtype CustomTypes = CustomTypes
+  { unCustomTypes :: HashMap Text [(Text, WireType)]
+  } deriving (Semigroup, Monoid)
 
 wireType :: Elm a => Proxy a -> (WireType, CustomTypes)
 wireType = flip runReader mempty . runWriterT . wireType'
@@ -224,7 +224,7 @@ instance Elm () where
   fromWire _ = pure ()
 
 instance Elm Void where
-  wireType' _ = pure . Fix $ Sum "" []
+  wireType' _ = pure . Fix $ Void
   toWire = absurd
   fromWire _ = Nothing
 

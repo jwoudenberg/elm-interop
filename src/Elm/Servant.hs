@@ -98,7 +98,7 @@ instance (BoolVal (InList ELM list), Elm a, HasElm api) =>
          HasElm (ReqBody' mods list a :> api) where
   hasElm _ =
     if boolVal (Proxy @(InList ELM list))
-      then let addBody e = e {body = Just (elmType (Proxy @a))}
+      then let addBody e = e {body = Just (fst $ elmType (Proxy @a))}
             in addBody <$> hasElm (Proxy @api)
       else []
 
@@ -115,7 +115,7 @@ instance (KnownSymbol sym, Elm [a], HasElm api) =>
       addQueryFlag e =
         e
           { query =
-              (pack (symbolVal (Proxy @sym)), Just (elmType (Proxy @[a]))) :
+              (pack (symbolVal (Proxy @sym)), Just (fst $ elmType (Proxy @[a]))) :
               query e
           }
 
@@ -127,7 +127,7 @@ instance (KnownSymbol sym, Elm (RequiredArgument mods a), HasElm api) =>
         e
           { query =
               ( pack (symbolVal (Proxy @sym))
-              , Just (elmType (Proxy @(RequiredArgument mods a)))) :
+              , Just (fst $ elmType (Proxy @(RequiredArgument mods a)))) :
               query e
           }
 
@@ -139,7 +139,7 @@ instance (KnownSymbol sym, Elm (RequiredArgument mods a), HasElm api) =>
         e
           { headers =
               ( pack (symbolVal (Proxy @sym))
-              , elmType (Proxy @(RequiredArgument mods a))) :
+              , fst (elmType (Proxy @(RequiredArgument mods a)))) :
               headers e
           }
 
@@ -147,13 +147,13 @@ instance (KnownSymbol sym, Elm [t], HasElm api) =>
          HasElm (CaptureAll sym t :> api) where
   hasElm _ = setPath <$> hasElm (Proxy @api)
     where
-      setPath e = e {path = CaptureAll (elmType (Proxy @[t]))}
+      setPath e = e {path = CaptureAll (fst $ elmType (Proxy @[t]))}
 
 instance (KnownSymbol sym, Elm t, HasElm api) =>
          HasElm (Capture' mods sym t :> api) where
   hasElm _ = addSegment <$> hasElm (Proxy @api)
     where
-      addSegment e = e {path = Capture (elmType (Proxy @[t])) (path e)}
+      addSegment e = e {path = Capture (fst $ elmType (Proxy @[t])) (path e)}
 
 instance (BoolVal (InList ELM list), Elm a, ReflectMethod method) =>
          HasElm (Verb method status list a) where
@@ -166,7 +166,7 @@ instance (BoolVal (InList ELM list), Elm a, ReflectMethod method) =>
              , method = reflectMethod (Proxy @method)
              , headers = []
              , body = Nothing
-             , responseBody = Just (elmType (Proxy @a))
+             , responseBody = Just (fst $ elmType (Proxy @a))
              }
       else []
 
@@ -181,7 +181,7 @@ instance (BoolVal (InList ELM '[ ct]), Elm a, ReflectMethod method) =>
              , method = reflectMethod (Proxy @method)
              , headers = []
              , body = Nothing
-             , responseBody = Just (elmType (Proxy @a))
+             , responseBody = Just (fst $ elmType (Proxy @a))
              }
       else []
 

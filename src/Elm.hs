@@ -7,20 +7,23 @@ module Elm
   ( Wire.Elm
   , ElmType
   , elmType
-  , printTypes
+  , printModule
   , printValue
+  -- * Temporary exports, for tests.
+  , printType
+  , printDoc
   ) where
 
-import Control.Comonad (extract)
-import Control.Comonad.Cofree (Cofree, unwrap)
+import Data.Bifunctor (bimap)
 import Data.Foldable (toList)
-import Data.Functor.Foldable (Fix(Fix), cata, histo, para, unfix, zygo)
+import Data.Functor.Foldable (Fix(Fix), cata, unfix, zygo)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy (Proxy)
 import Data.Text (Text)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Elm.Wire as Wire
 import qualified Text.PrettyPrint.Leijen.Text as PP
@@ -42,20 +45,17 @@ data ElmTypeF a
   | Record [(Text, a)]
   | Lambda a
            a
-  | Defined (ElmTypeDefinitionF a)
+  | Defined Text
   | Ref Text
   deriving (Functor)
 
 type ElmType = Fix ElmTypeF
 
-data ElmTypeDefinitionF a
+data ElmTypeDefinition
   = Custom Text
-           (NonEmpty (Text, [a]))
+           (NonEmpty (Text, [ElmType]))
   | Alias Text
-          a
-  deriving (Functor)
-
-type ElmTypeDefinition = ElmTypeDefinitionF ElmType
+          ElmType
 
 data ElmValueF a
   = MkUnit
@@ -77,8 +77,8 @@ data ElmValueF a
 
 type ElmValue = Fix ElmValueF
 
-printTypes :: ElmType -> Text
-printTypes = printDoc . PP.vcat . fmap printTypeDefinition . typeDefinitions
+printModule :: [ElmTypeDefinition] -> Text
+printModule = printDoc . PP.vcat . fmap printTypeDefinition
 
 printDoc :: PP.Doc -> Text
 printDoc = PP.displayTStrict . PP.renderPretty 1 80
@@ -99,8 +99,7 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined (Custom n _) -> PP.textStrict n
-    Defined (Alias n _) -> PP.textStrict n
+    Defined name -> PP.textStrict name
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
       -- |
       -- We only need to parenthesize the input argument if it is a
@@ -162,27 +161,6 @@ infixr 5 <++>
 
 elmIndent :: Int
 elmIndent = 4
-
-typeDefinitions :: ElmType -> [ElmTypeDefinition]
-typeDefinitions =
-  para $ \case
-    Unit -> mempty
-    Never -> mempty
-    Bool -> mempty
-    Int -> mempty
-    Float -> mempty
-    String -> mempty
-    List (_, x) -> x
-    Maybe (_, x) -> x
-    Tuple2 (_, x) (_, y) -> x <> y
-    Tuple3 (_, x) (_, y) (_, z) -> x <> y <> z
-    Record x -> mconcat $ snd . snd <$> x
-    Defined (Alias n (t, x)) -> Alias n t : x
-    Defined (Custom n x) ->
-      Custom n (fmap (fmap fst) <$> x) :
-      (mconcat . fmap snd . mconcat . fmap snd $ toList x)
-    Lambda (_, x) (_, y) -> x <> y
-    Ref _ -> mempty
 
 -- |
 -- Version of `encloseSep` that puts the closing delimiter on a new line, and
@@ -250,51 +228,44 @@ printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
 
 -- |
 -- Get the Elm-representation of a type.
-elmType :: Wire.Elm a => Proxy a -> ElmType
-elmType = histo go . fst . Wire.wireType
+elmType :: Wire.Elm a => Proxy a -> (ElmType, [ElmTypeDefinition])
+elmType = bimap fromWireType fromWireCustomTypes . Wire.wireType
+
+fromWireCustomTypes :: Wire.CustomTypes -> [ElmTypeDefinition]
+fromWireCustomTypes =
+  fmap (uncurry fromWireCustomType) . HashMap.toList . Wire.unCustomTypes
+
+fromWireCustomType :: Text -> [(Text, Wire.WireType)] -> ElmTypeDefinition
+fromWireCustomType name [] = Alias name (Fix Never)
+fromWireCustomType name (c:cs) =
+  Custom name . (fmap . fmap) mkConstructors $ c :| cs
   where
-    go :: Wire.WireTypeF (Cofree Wire.WireTypeF ElmType) -> ElmType
-    go =
+    mkConstructors :: Wire.WireType -> [ElmType]
+    mkConstructors =
       \case
-        Wire.Product xs -> mkElmProduct mkElmTuple id $ (fmap . fmap) unRec xs
-        Wire.Sum _ [] -> Fix Never
-        Wire.Sum name (x:xs) -> Fix . Defined $ Custom name constructors
-          where constructors :: NonEmpty (Text, [ElmType])
-                constructors = (fmap . fmap) (mkElmParams . unwrap) (x :| xs)
-        Wire.Rec2 name -> Fix $ Ref name
-    unRec :: Wire.WireTypePrimitiveF (Cofree Wire.WireTypeF ElmType) -> ElmType
-    unRec =
-      \case
-        Wire.Int -> Fix Int
-        Wire.Float -> Fix Float
-        Wire.String -> Fix String
-        Wire.List x -> Fix $ List (extract x)
-        Wire.Rec x -> extract x
-    -- Parameters for a construction come in the form of either a single record
-    -- or a parameter list of types. Elm also allows a constructor with multiple
-    -- record-parameters but Haskell doesn't, and so we don't have to deal with
-    -- that eventuality. Either way we expect a product of types.
-    --
-    -- Because the `Product` constructor is itself a constructor of `WireTypeF`
-    -- we will have iterated over it at this point and interpreted it as a
-    -- stand-alone Elm type: Either a record or a tuple. Only in this next
-    -- iteration does the context of this product become clear: we're inside
-    -- the constructor of a sum type and so we should interpret the product as
-    -- a parameter list. We need to rewind the interpretation of the type as a
-    -- stand-alone Elm type.
-    --
-    -- This ability to revisit pas choices is the reason we're using a
-    -- histomorphism recursion scheme here rather than a catamorphism. It allows
-    -- us to take a step back to get our hands on the original raw product and
-    -- interpret it as a parameter list this time.
-    mkElmParams :: Wire.WireTypeF (Cofree Wire.WireTypeF ElmType) -> [ElmType]
-    mkElmParams =
-      \case
-        Wire.Product xs -> mkElmProduct id pure $ (fmap . fmap) unRec xs
+        Fix (Wire.Product xs) ->
+          mkElmProduct id pure $
+          (fmap . fmap) (fromWirePrimitive . (fmap fromWireType)) xs
         -- | We don't expect anything but a product here, but should we get one
         -- we'll assume it's a single parameter to the constructor.
-        sum'@(Wire.Sum _ _) -> [go sum']
-        rec'@(Wire.Rec2 _) -> [go rec']
+        param -> [fromWireType param]
+
+fromWireType :: Wire.WireType -> ElmType
+fromWireType =
+  cata $ \case
+    Wire.Product xs ->
+      mkElmProduct mkElmTuple id $ (fmap . fmap) fromWirePrimitive xs
+    Wire.Rec2 name -> Fix $ Ref name
+    Wire.Void -> Fix Never
+
+fromWirePrimitive :: Wire.WireTypePrimitiveF ElmType -> ElmType
+fromWirePrimitive =
+  \case
+    Wire.Int -> Fix Int
+    Wire.Float -> Fix Float
+    Wire.String -> Fix String
+    Wire.List x -> Fix $ List x
+    Wire.Rec x -> x
 
 -- |
 -- Construct an Elm product. There's two possible products: A record (if we know

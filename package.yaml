@@ -24,8 +24,6 @@ library:
   dependencies:
   - aeson
   - base
-  - comonad
-  - free
   - http-types
   - http-media
   - mtl
