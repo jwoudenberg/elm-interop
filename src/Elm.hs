@@ -251,7 +251,7 @@ printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
 -- |
 -- Get the Elm-representation of a type.
 elmType :: Wire.Elm a => Proxy a -> ElmType
-elmType = histo go . Wire.wireType
+elmType = histo go . fst . Wire.wireType
   where
     go :: Wire.WireTypeF (Cofree Wire.WireTypeF ElmType) -> ElmType
     go =

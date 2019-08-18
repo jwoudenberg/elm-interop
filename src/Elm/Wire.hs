@@ -20,14 +20,18 @@ module Elm.Wire
   , WireTypePrimitive
   , WireTypePrimitiveF(..)
   , WireValue(..)
+  , CustomTypes(..)
   , Elm
   , wireType
   , ElmJson(ElmJson)
   ) where
 
+import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
+import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
 import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix))
+import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Int (Int32)
 import Data.Proxy (Proxy(Proxy))
@@ -38,6 +42,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Numeric.Natural (Natural)
 
 import qualified Data.Aeson
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
@@ -166,8 +171,12 @@ instance Elm a => Data.Aeson.ToJSON (ElmJson a) where
   toJSON = Data.Aeson.toJSON . toWire . unElmJson
   toEncoding = Data.Aeson.toEncoding . toWire . unElmJson
 
-wireType :: Elm a => Proxy a -> WireType
-wireType = flip runReader mempty . wireType'
+newtype CustomTypes =
+  CustomTypes (HashMap Text [(Text, WireType)])
+  deriving (Semigroup, Monoid)
+
+wireType :: Elm a => Proxy a -> (WireType, CustomTypes)
+wireType = flip runReader mempty . runWriterT . wireType'
 
 -- |
 -- Class of types that have a wire format representation. The class is named
@@ -189,7 +198,7 @@ class Elm (a :: *) where
     WireValue -> Maybe a
   fromWire = fmap to . fromWireG
 
-type Builder a = Reader (HashSet Text) a
+type Builder a = WriterT CustomTypes (Reader (HashSet Text)) a
 
 instance Elm Int32 where
   wireType' _ = pure $ primitive Int
@@ -332,9 +341,10 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
   wireTypeG _ = do
     let name' = name (Proxy @m)
     namesSeen <- ask
-    if HashSet.member name' namesSeen
-      then pure . Fix $ Rec2 name'
-      else local (HashSet.insert name') $ Fix . Sum name' <$> sumsG (Proxy @f)
+    unless (HashSet.member name' namesSeen) $ do
+      constructors <- local (HashSet.insert name') $ sumsG (Proxy @f)
+      tell . CustomTypes $ HashMap.singleton name' constructors
+    pure . Fix $ Rec2 name'
   toWireG = uncurry MkSum . toSumsG . unM1
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
