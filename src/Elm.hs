@@ -8,11 +8,9 @@ module Elm
   ( Wire.Elm
   , ElmType
   , elmType
+  , UserTypes
   , printModule
   , printValue
-  -- * Temporary exports, for tests.
-  , printType
-  , printDoc
   ) where
 
 import Data.Bifunctor (bimap)
@@ -20,6 +18,7 @@ import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), cata, unfix, zygo)
 import Data.HashMap.Strict (HashMap)
 import Data.Int (Int32)
+import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy (Proxy)
 import Data.Text (Text)
@@ -84,7 +83,9 @@ type ElmValue = Fix ElmValueF
 printModule :: UserTypes -> Text
 printModule =
   printDoc .
-  PP.vcat . fmap (uncurry printTypeDefinition) . HashMap.toList . unUserTypes
+  PP.vcat .
+  intersperse PP.linebreak .
+  fmap (uncurry printTypeDefinition) . HashMap.toList . unUserTypes
 
 printDoc :: PP.Doc -> Text
 printDoc = PP.displayTStrict . PP.renderPretty 1 80
@@ -234,8 +235,8 @@ printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
 
 -- |
 -- Get the Elm-representation of a type.
-elmType :: Wire.Elm a => Proxy a -> (ElmType, UserTypes)
-elmType = bimap fromWireType fromWireCustomTypes . Wire.wireType
+elmType :: Wire.Elm a => Proxy a -> (UserTypes, ElmType)
+elmType = bimap fromWireCustomTypes fromWireType . Wire.wireType
 
 fromWireCustomTypes :: Wire.CustomTypes -> UserTypes
 fromWireCustomTypes = UserTypes . fmap fromWireCustomType . Wire.unCustomTypes

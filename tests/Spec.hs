@@ -25,8 +25,7 @@ main :: IO ()
 main
   -- putStrLn . Text.unpack . printTypes $ elmType (Proxy :: Proxy Foo)
  = do
-  putStrLn . Text.unpack . Text.unlines $
-    (printDoc . printType) <$> elmTypes (Proxy :: Proxy Api)
+  putStrLn . Text.unpack . printModule $ elmTypes (Proxy :: Proxy Api)
   putStrLn . show . Data.Aeson.encode . Elm.Wire.ElmJson $
     Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
 
@@ -42,7 +41,7 @@ instance Elm Foo
 data Bar
   = Bar Void
         Int32
-        Text
+        Foo
   | Baz
   deriving (Generic)
 

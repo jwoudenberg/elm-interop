@@ -36,6 +36,7 @@ import Data.HashSet (HashSet)
 import Data.Int (Int32)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
+import Data.Tuple (swap)
 import Data.Void (Void, absurd)
 import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
@@ -175,8 +176,8 @@ newtype CustomTypes = CustomTypes
   { unCustomTypes :: HashMap Text [(Text, WireType)]
   } deriving (Semigroup, Monoid)
 
-wireType :: Elm a => Proxy a -> (WireType, CustomTypes)
-wireType = flip runReader mempty . runWriterT . wireType'
+wireType :: Elm a => Proxy a -> (CustomTypes, WireType)
+wireType = swap . flip runReader mempty . runWriterT . wireType'
 
 -- |
 -- Class of types that have a wire format representation. The class is named
