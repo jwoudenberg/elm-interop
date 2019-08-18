@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -17,6 +18,7 @@ module Elm
 import Data.Bifunctor (bimap)
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), cata, unfix, zygo)
+import Data.HashMap.Strict (HashMap)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy (Proxy)
@@ -51,11 +53,13 @@ data ElmTypeF a
 
 type ElmType = Fix ElmTypeF
 
+newtype UserTypes = UserTypes
+  { unUserTypes :: HashMap Text ElmTypeDefinition
+  } deriving (Monoid, Semigroup)
+
 data ElmTypeDefinition
-  = Custom Text
-           (NonEmpty (Text, [ElmType]))
-  | Alias Text
-          ElmType
+  = Custom (NonEmpty (Text, [ElmType]))
+  | Alias ElmType
 
 data ElmValueF a
   = MkUnit
@@ -77,8 +81,10 @@ data ElmValueF a
 
 type ElmValue = Fix ElmValueF
 
-printModule :: [ElmTypeDefinition] -> Text
-printModule = printDoc . PP.vcat . fmap printTypeDefinition
+printModule :: UserTypes -> Text
+printModule =
+  printDoc .
+  PP.vcat . fmap (uncurry printTypeDefinition) . HashMap.toList . unUserTypes
 
 printDoc :: PP.Doc -> Text
 printDoc = PP.displayTStrict . PP.renderPretty 1 80
@@ -111,15 +117,15 @@ printType =
                 MultipleWordLambda -> PP.parens i
     Ref name -> PP.textStrict (unqualifiedName name)
 
-printTypeDefinition :: ElmTypeDefinition -> PP.Doc
-printTypeDefinition =
+printTypeDefinition :: Text -> ElmTypeDefinition -> PP.Doc
+printTypeDefinition name =
   \case
-    Custom name constructors ->
+    Custom constructors ->
       "type" <+> PP.textStrict (unqualifiedName name) <++> printedConstructors
       where printedConstructors =
               PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
               printConstructor <$> toList constructors
-    Alias name base ->
+    Alias base ->
       "type alias" <+>
       PP.textStrict name <+> "=" <++> PP.indent elmIndent (printType base)
 
@@ -228,17 +234,15 @@ printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
 
 -- |
 -- Get the Elm-representation of a type.
-elmType :: Wire.Elm a => Proxy a -> (ElmType, [ElmTypeDefinition])
+elmType :: Wire.Elm a => Proxy a -> (ElmType, UserTypes)
 elmType = bimap fromWireType fromWireCustomTypes . Wire.wireType
 
-fromWireCustomTypes :: Wire.CustomTypes -> [ElmTypeDefinition]
-fromWireCustomTypes =
-  fmap (uncurry fromWireCustomType) . HashMap.toList . Wire.unCustomTypes
+fromWireCustomTypes :: Wire.CustomTypes -> UserTypes
+fromWireCustomTypes = UserTypes . fmap fromWireCustomType . Wire.unCustomTypes
 
-fromWireCustomType :: Text -> [(Text, Wire.WireType)] -> ElmTypeDefinition
-fromWireCustomType name [] = Alias name (Fix Never)
-fromWireCustomType name (c:cs) =
-  Custom name . (fmap . fmap) mkConstructors $ c :| cs
+fromWireCustomType :: [(Text, Wire.WireType)] -> ElmTypeDefinition
+fromWireCustomType [] = Alias (Fix Never)
+fromWireCustomType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
   where
     mkConstructors :: Wire.WireType -> [ElmType]
     mkConstructors =
