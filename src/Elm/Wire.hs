@@ -31,8 +31,8 @@ import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
 import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix))
-import Data.HashMap.Strict (HashMap)
-import Data.HashSet (HashSet)
+import Data.Map (Map)
+import Data.Set (Set)
 import Data.Int (Int32)
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
@@ -43,8 +43,8 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Numeric.Natural (Natural)
 
 import qualified Data.Aeson
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 -- |
@@ -173,7 +173,7 @@ instance Elm a => Data.Aeson.ToJSON (ElmJson a) where
   toEncoding = Data.Aeson.toEncoding . toWire . unElmJson
 
 newtype CustomTypes = CustomTypes
-  { unCustomTypes :: HashMap Text [(Text, WireType)]
+  { unCustomTypes :: Map Text [(Text, WireType)]
   } deriving (Semigroup, Monoid)
 
 wireType :: Elm a => Proxy a -> (CustomTypes, WireType)
@@ -199,7 +199,7 @@ class Elm (a :: *) where
     WireValue -> Maybe a
   fromWire = fmap to . fromWireG
 
-type Builder a = WriterT CustomTypes (Reader (HashSet Text)) a
+type Builder a = WriterT CustomTypes (Reader (Set Text)) a
 
 instance Elm Int32 where
   wireType' _ = pure $ primitive Int
@@ -342,9 +342,9 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
   wireTypeG _ = do
     let name' = name (Proxy @m)
     namesSeen <- ask
-    unless (HashSet.member name' namesSeen) $ do
-      constructors <- local (HashSet.insert name') $ sumsG (Proxy @f)
-      tell . CustomTypes $ HashMap.singleton name' constructors
+    unless (Set.member name' namesSeen) $ do
+      constructors <- local (Set.insert name') $ sumsG (Proxy @f)
+      tell . CustomTypes $ Map.singleton name' constructors
     pure . Fix $ Rec2 name'
   toWireG = uncurry MkSum . toSumsG . unM1
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x

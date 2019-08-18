@@ -30,7 +30,7 @@ library:
   - recursion-schemes
   - servant
   - text
-  - unordered-containers
+  - containers
   - wl-pprint-text
   exposed-modules:
   - Elm

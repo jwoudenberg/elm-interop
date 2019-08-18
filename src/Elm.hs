@@ -16,7 +16,7 @@ module Elm
 import Data.Bifunctor (bimap)
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), cata, unfix, zygo)
-import Data.HashMap.Strict (HashMap)
+import Data.Map (Map)
 import Data.Int (Int32)
 import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -24,7 +24,7 @@ import Data.Proxy (Proxy)
 import Data.Text (Text)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Elm.Wire as Wire
 import qualified Text.PrettyPrint.Leijen.Text as PP
@@ -53,7 +53,7 @@ data ElmTypeF a
 type ElmType = Fix ElmTypeF
 
 newtype UserTypes = UserTypes
-  { unUserTypes :: HashMap Text ElmTypeDefinition
+  { unUserTypes :: Map Text ElmTypeDefinition
   } deriving (Monoid, Semigroup)
 
 data ElmTypeDefinition
@@ -85,7 +85,7 @@ printModule =
   printDoc .
   PP.vcat .
   intersperse PP.linebreak .
-  fmap (uncurry printTypeDefinition) . HashMap.toList . unUserTypes
+  fmap (uncurry printTypeDefinition) . Map.toList . unUserTypes
 
 printDoc :: PP.Doc -> Text
 printDoc = PP.displayTStrict . PP.renderPretty 1 80
