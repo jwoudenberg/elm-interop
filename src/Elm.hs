@@ -279,8 +279,7 @@ fromWireCustomType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
     mkConstructors =
       \case
         Fix (Wire.Product xs) ->
-          mkElmProduct id pure $
-          (fmap . fmap) (fromWirePrimitive . (fmap fromWireType)) xs
+          mkElmProduct id pure $ (fmap . fmap) fromWireType xs
         -- | We don't expect anything but a product here, but should we get one
         -- we'll assume it's a single parameter to the constructor.
         param -> [fromWireType param]
@@ -288,19 +287,13 @@ fromWireCustomType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
 fromWireType :: Wire.WireType -> ElmType
 fromWireType =
   cata $ \case
-    Wire.Product xs ->
-      mkElmProduct mkElmTuple id $ (fmap . fmap) fromWirePrimitive xs
-    Wire.Rec2 name -> Fix $ Defined name
+    Wire.Product xs -> mkElmProduct mkElmTuple id xs
+    Wire.Rec name -> Fix $ Defined name
     Wire.Void -> Fix Never
-
-fromWirePrimitive :: Wire.WireTypePrimitiveF ElmType -> ElmType
-fromWirePrimitive =
-  \case
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float
     Wire.String -> Fix String
     Wire.List x -> Fix $ List x
-    Wire.Rec x -> x
 
 -- |
 -- Construct an Elm product. There's two possible products: A record (if we know

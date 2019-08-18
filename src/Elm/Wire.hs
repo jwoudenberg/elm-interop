@@ -17,8 +17,6 @@
 module Elm.Wire
   ( WireType
   , WireTypeF(..)
-  , WireTypePrimitive
-  , WireTypePrimitiveF(..)
   , WireValue(..)
   , CustomTypes(..)
   , Elm
@@ -31,10 +29,10 @@ import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
 import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix))
-import Data.Map (Map)
-import Data.Set (Set)
 import Data.Int (Int32)
+import Data.Map (Map)
 import Data.Proxy (Proxy(Proxy))
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Tuple (swap)
 import Data.Void (Void, absurd)
@@ -68,15 +66,15 @@ import qualified Data.Text as Text
 --   the type the fewer opportunities there are for these implementations to be
 --   misaligned.
 data WireTypeF a
-  = Product [(Text, WireTypePrimitiveF a)]
+  = Product [(Text, a)]
   -- ^ A product type, like a tuple or a record.
   --
-  --     Product [(Text             , WireTypePrimitiveF a)]
-  --               ^^^^               ^^^^^^^^^^^^^^^^^^^^
+  --     Product [(Text             , a)]
+  --               ^^^^               ^
   --               Field name (       Field type
   --               "" for tuples")
   --
-  | Rec2 Text
+  | Rec Text
   -- ^ A 'data type' (Haskell) or 'custom type' (Elm).
   --
   --     Sum Text      [( Text             , a)]
@@ -85,38 +83,17 @@ data WireTypeF a
   --
   | Void
   -- ^ A type without any values. Goes by `Never` in Elm.
-  deriving (Functor)
-
-type WireType = Fix WireTypeF
-
--- |
--- Represents a 'primitive' wire type value, except it doesn't really (see
--- exceptions mentioned in comments below).
-data WireTypePrimitiveF a
-  = Int
-  | Float
-  | String
   | List a
   -- ^ Not really a primitive and we could scrap this, treating lists as just
   -- another data type using `Nil` and `Cons` constructors. That would be a pain
   -- to work with though and probably not terribly efficient over the wire, so
   -- we're making an exception.
-  | Rec a
-  -- ^ A non-primitive nested type, to support types within types. Elm example:
-  --
-  --     type alias Room = { windows : Int, curtains : Flowery }
-  --     ^^^^^^^^^^^^^^^                               ^^^^^^^
-  --     A record type                                 A nested type
-  --
+  | Int
+  | Float
+  | String
   deriving (Functor)
 
-type WireTypePrimitive = WireTypePrimitiveF WireType
-
--- |
--- Helper function for creating primitives as products containing only a single
--- type.
-primitive :: WireTypePrimitive -> WireType
-primitive = Fix . Product . pure . ("", )
+type WireType = Fix WireTypeF
 
 -- |
 -- The `WireType` describes the types of the things going over the wire between
@@ -202,19 +179,19 @@ class Elm (a :: *) where
 type Builder a = WriterT CustomTypes (Reader (Set Text)) a
 
 instance Elm Int32 where
-  wireType' _ = pure $ primitive Int
+  wireType' _ = pure $ Fix Int
   toWire = MkInt
   fromWire (MkInt int) = Just int
   fromWire _ = Nothing
 
 instance Elm Double where
-  wireType' _ = pure $ primitive Float
+  wireType' _ = pure $ Fix Float
   toWire = MkFloat
   fromWire (MkFloat float) = Just float
   fromWire _ = Nothing
 
 instance Elm Text where
-  wireType' _ = pure $ primitive String
+  wireType' _ = pure $ Fix String
   toWire = MkString
   fromWire (MkString string) = Just string
   fromWire _ = Nothing
@@ -230,7 +207,7 @@ instance Elm Void where
   fromWire _ = Nothing
 
 instance Elm a => Elm [a] where
-  wireType' _ = primitive . List <$> wireType' (Proxy @a)
+  wireType' _ = Fix . List <$> wireType' (Proxy @a)
   toWire = MkList . fmap toWire
   fromWire (MkList xs) = traverse fromWire xs
   fromWire _ = Nothing
@@ -323,7 +300,7 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
   fromWire _ = Nothing
 
 tupleType :: Applicative f => [f WireType] -> f WireType
-tupleType xs = Fix . Product . fmap (("", ) . Rec) <$> sequenceA xs
+tupleType xs = Fix . Product . fmap ("", ) <$> sequenceA xs
 
 -- |
 -- Helper class for constructing write types from generic representations of
@@ -345,7 +322,7 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
     unless (Set.member name' namesSeen) $ do
       constructors <- local (Set.insert name') $ sumsG (Proxy @f)
       tell . CustomTypes $ Map.singleton name' constructors
-    pure . Fix $ Rec2 name'
+    pure . Fix $ Rec name'
   toWireG = uncurry MkSum . toSumsG . unM1
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
@@ -365,9 +342,7 @@ instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   fromSumsG n x = fmap R1 (fromSumsG (n - 1) x)
 
 instance (HasName m, ProductG f) => SumsG (M1 C m f) where
-  sumsG _ =
-    pure . (name (Proxy @m), ) . Fix . Product . (fmap . fmap) Rec <$>
-    productG (Proxy @f)
+  sumsG _ = pure . (name (Proxy @m), ) . Fix . Product <$> productG (Proxy @f)
   toSumsG = (0, ) . toProductG . unM1
   fromSumsG 0 x = fmap M1 (fromProductG x)
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
