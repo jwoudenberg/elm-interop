@@ -276,7 +276,8 @@ elmType :: Wire.Rep a => Proxy a -> (UserTypes, ElmType)
 elmType = bimap fromWireUserTypes fromWireType . Wire.wireType
 
 fromWireUserTypes :: Wire.UserTypes -> UserTypes
-fromWireUserTypes = UserTypes . fmap fromWireUserType . Wire.unUserTypes
+fromWireUserTypes =
+  UserTypes . fmap (fromWireUserType . toList) . Wire.unUserTypes
 
 fromWireUserType ::
      [(Wire.ConstructorName, Wire.PrimitiveType)] -> ElmTypeDefinition
@@ -286,9 +287,9 @@ fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
     mkConstructors :: Wire.PrimitiveType -> [ElmType]
     mkConstructors =
       \case
-        Fix (Wire.Tuple params) -> fmap fromWireType params
+        Fix (Wire.Tuple params) -> toList $ fmap fromWireType params
         Fix (Wire.Record fields) ->
-          pure . Fix . Record $ (fmap . fmap) fromWireType fields
+          pure . Fix . Record . (fmap . fmap) fromWireType $ toList fields
         -- | We don't expect anything but a product here, but should we get one
         -- we'll assume it's a single parameter to the constructor.
         param -> [fromWireType param]
@@ -296,8 +297,8 @@ fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
 fromWireType :: Wire.PrimitiveType -> ElmType
 fromWireType =
   cata $ \case
-    Wire.Tuple xs -> mkElmTuple xs
-    Wire.Record xs -> Fix $ Record xs
+    Wire.Tuple xs -> mkElmTuple $ toList xs
+    Wire.Record xs -> Fix . Record $ toList xs
     Wire.User name -> Fix $ Defined name
     Wire.Void -> Fix Never
     Wire.Int -> Fix Int

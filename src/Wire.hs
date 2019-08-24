@@ -8,6 +8,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -33,10 +34,13 @@ import Control.Applicative ((<|>))
 import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
+import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.Int (Int32)
 import Data.Map.Strict (Map)
 import Data.Proxy (Proxy(Proxy))
+import Data.Sequence (Seq)
+import Data.Sequence.Extra (mapFromFoldable, mapToSeq)
 import Data.Set (Set)
 import Data.String (IsString)
 import Data.Text (Text)
@@ -46,6 +50,7 @@ import GHC.Generics hiding (Rep)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified GHC.Generics as Generics
@@ -73,9 +78,9 @@ type Type_ = (UserTypes, PrimitiveType)
 --   the type the fewer opportunities there are for these implementations to be
 --   misaligned.
 data PrimitiveTypeF a
-  = Record [(FieldName, a)]
+  = Record (Seq (FieldName, a))
   -- ^ A record consisting of name-value pairs.
-  | Tuple [a]
+  | Tuple (Seq a)
   -- ^ A tuple or constructor parameter list.
   | User TypeName
   -- ^ A reference to a non-primitive type, for example a user defined types.
@@ -100,7 +105,7 @@ type PrimitiveType = Fix PrimitiveTypeF
 -- A user type is a Haskell sum type or Elm custom type. It can have multiple
 -- constructors, each with one or more parameters.
 newtype UserTypes = UserTypes
-  { unUserTypes :: Map TypeName [(ConstructorName, PrimitiveType)]
+  { unUserTypes :: Map TypeName (Seq (ConstructorName, PrimitiveType))
   } deriving (Semigroup, Monoid)
 
 -- |
@@ -125,9 +130,9 @@ data Value
   = MkInt Int32
   | MkFloat Double
   | MkString Text
-  | MkList [Value]
+  | MkList (Seq Value)
   | MkRecord (Map FieldName Value)
-  | MkTuple [Value]
+  | MkTuple (Seq Value)
   | MkSum ConstructorName
           Value
   deriving (Generic)
@@ -185,7 +190,7 @@ instance Rep Text where
   fromWire _ = Nothing
 
 instance Rep () where
-  wireType' _ = pure . Fix $ Tuple []
+  wireType' _ = pure . Fix $ Tuple mempty
   toWire () = MkTuple []
   fromWire _ = pure ()
 
@@ -196,8 +201,8 @@ instance Rep Void where
 
 instance Rep a => Rep [a] where
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
-  toWire = MkList . fmap toWire
-  fromWire (MkList xs) = traverse fromWire xs
+  toWire = MkList . Seq.fromList . fmap toWire
+  fromWire (MkList xs) = traverse fromWire $ toList xs
   fromWire _ = Nothing
 
 -- Instances for tuples.
@@ -287,7 +292,7 @@ instance (Rep a, Rep b, Rep c, Rep d, Rep e, Rep f, Rep g) =>
     fromWire g
   fromWire _ = Nothing
 
-tupleType :: Applicative f => [f PrimitiveType] -> f PrimitiveType
+tupleType :: Applicative f => Seq (f PrimitiveType) -> f PrimitiveType
 tupleType xs = Fix . Tuple <$> sequenceA xs
 
 -- |
@@ -318,7 +323,7 @@ instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
-  sumsG :: Proxy f -> Builder [(ConstructorName, PrimitiveType)]
+  sumsG :: Proxy f -> Builder (Seq (ConstructorName, PrimitiveType))
   toSumsG :: f p -> (ConstructorName, Value)
   fromSumsG :: ConstructorName -> Value -> Maybe (f p)
 
@@ -334,9 +339,10 @@ instance (KnownSymbol n, ProductG f) =>
     where
       name = constructorName (Proxy @n)
   toSumsG =
-    (constructorName (Proxy @n), ) . MkRecord . Map.fromList . toProductG . unM1
+    (constructorName (Proxy @n), ) .
+    MkRecord . mapFromFoldable . toProductG . unM1
   fromSumsG n (MkRecord x)
-    | n == constructorName (Proxy @n) = fmap M1 (fromProductG (Map.toList x))
+    | n == constructorName (Proxy @n) = fmap M1 (fromProductG (mapToSeq x))
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
 
 instance (KnownSymbol n, ProductG f) =>
@@ -358,10 +364,10 @@ instance SumsG V1 where
 -- |
 -- Helper class for constructing products.
 class ProductG (f :: * -> *) where
-  productG :: Proxy f -> Builder [(FieldName, PrimitiveType)]
+  productG :: Proxy f -> Builder (Seq (FieldName, PrimitiveType))
   productLengthG :: Proxy f -> Int
-  toProductG :: f p -> [(FieldName, Value)]
-  fromProductG :: [(FieldName, Value)] -> Maybe (f p)
+  toProductG :: f p -> (Seq (FieldName, Value))
+  fromProductG :: (Seq (FieldName, Value)) -> Maybe (f p)
 
 instance (ProductG f, ProductG g) => ProductG (f :*: g) where
   productG _ = (<>) <$> productG (Proxy @f) <*> productG (Proxy @g)
@@ -369,7 +375,7 @@ instance (ProductG f, ProductG g) => ProductG (f :*: g) where
   toProductG (x :*: y) = toProductG x <> toProductG y
   fromProductG z = (:*:) <$> fromProductG x <*> fromProductG y
     where
-      (x, y) = splitAt (productLengthG (Proxy @f)) z
+      (x, y) = Seq.splitAt (productLengthG (Proxy @f)) z
 
 instance (HasFieldName m, WireG f) => ProductG (M1 S m f) where
   productG _ = pure . (name, ) <$> wireTypeG (Proxy @f)

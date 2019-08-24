@@ -21,6 +21,9 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
+import qualified Data.Sequence as Seq
+import Data.Sequence (Seq)
+import Data.Sequence.Extra (foldableToSeq, mapFromFoldable)
 import Wire
 
 data Coder = Coder
@@ -42,11 +45,12 @@ coderForType :: (UserTypes, Wire.PrimitiveType) -> Coder
 coderForType (userTypes, type_) =
   flip cata type_ $ \case
     Tuple xs -> tuple xs
-    Record xs -> record (Map.fromList xs)
+    Record xs -> record $ mapFromFoldable xs
     User name ->
       fromMaybe void $ do
         constructors <- Map.lookup name (unUserTypes userTypes)
-        pure . sum' $ coderForType . (userTypes, ) <$> Map.fromList constructors
+        pure . sum' $
+          coderForType . (userTypes, ) <$> mapFromFoldable constructors
     Void -> void
     List el -> list el
     Int -> int
@@ -100,11 +104,11 @@ list el =
   Coder
     { encode =
         \case
-          MkList xs -> Encoding.list id <$> traverse (encode el) xs
+          MkList xs -> Encoding.list id <$> traverse (encode el) (toList xs)
           _ -> Nothing
     , decode =
         \case
-          Aeson.Array xs -> MkList <$> traverse (decode el) (toList xs)
+          Aeson.Array xs -> MkList <$> traverse (decode el) (foldableToSeq xs)
           _ -> Nothing
     }
 
@@ -131,20 +135,22 @@ record fields =
           _ -> Nothing
     }
 
-tuple :: [Coder] -> Coder
+tuple :: Seq Coder -> Coder
 tuple params =
   Coder
     { encode =
         \case
           MkTuple xs
             | length xs == length params ->
-              Encoding.list id <$> zipWithM ($) (encode <$> params) xs
+              Encoding.list id <$>
+              zipWithM ($) (encode <$> toList params) (toList xs)
           _ -> Nothing
     , decode =
         \case
           Aeson.Array xs
             | length xs == length params ->
-              MkTuple <$> zipWithM ($) (decode <$> params) (toList xs)
+              fmap MkTuple . sequenceA $
+              Seq.zipWith ($) (decode <$> params) (foldableToSeq xs)
           _ -> Nothing
     }
 
