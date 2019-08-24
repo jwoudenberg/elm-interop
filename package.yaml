@@ -32,7 +32,6 @@ library:
   - servant
   - text
   - containers
-  - safe
   - scientific
   - unordered-containers
   - wl-pprint-text

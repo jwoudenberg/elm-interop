@@ -29,10 +29,10 @@ module Elm.Wire
   , fromWire
   ) where
 
+import Control.Applicative ((<|>))
 import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
-import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.Int (Int32)
 import Data.Map.Strict (Map)
@@ -44,7 +44,6 @@ import Data.Tuple (swap)
 import Data.Void (Void, absurd)
 import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
-import Numeric.Natural (Natural)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -128,13 +127,9 @@ data Value
   | MkList [Value]
   | MkRecord (Map FieldName Value)
   | MkTuple [Value]
-  | MkSum NthConstructor
+  | MkSum ConstructorName
           Value
   deriving (Generic)
-
-newtype NthConstructor =
-  NthConstructor Natural
-  deriving (Enum, Eq, Integral, Num, Ord, Real)
 
 newtype TypeName = TypeName
   { unTypeName :: Text
@@ -326,23 +321,24 @@ instance (HasTypeName m, SumsG f) => ElmG (M1 D m f) where
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
   sumsG :: Proxy f -> Builder [(ConstructorName, PrimitiveType)]
-  toSumsG :: f p -> (NthConstructor, Value)
-  fromSumsG :: NthConstructor -> Value -> Maybe (f p)
+  toSumsG :: f p -> (ConstructorName, Value)
+  fromSumsG :: ConstructorName -> Value -> Maybe (f p)
 
 instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   sumsG _ = (<>) <$> sumsG (Proxy @f) <*> sumsG (Proxy @g)
   toSumsG (L1 x) = toSumsG x
-  toSumsG (R1 x) = first (+ 1) $ toSumsG x
-  fromSumsG 0 x = fmap L1 (fromSumsG 0 x)
-  fromSumsG n x = fmap R1 (fromSumsG (n - 1) x)
+  toSumsG (R1 x) = toSumsG x
+  fromSumsG n x = fmap L1 (fromSumsG n x) <|> fmap R1 (fromSumsG n x)
 
 instance (KnownSymbol n, ProductG f) =>
          SumsG (M1 C ('MetaCons n fi 'True) f) where
   sumsG _ = pure . (name, ) . Fix . Record <$> productG (Proxy @f)
     where
       name = constructorName (Proxy @n)
-  toSumsG = (0, ) . MkRecord . Map.fromList . toProductG . unM1
-  fromSumsG 0 (MkRecord x) = fmap M1 (fromProductG (Map.toList x))
+  toSumsG =
+    (constructorName (Proxy @n), ) . MkRecord . Map.fromList . toProductG . unM1
+  fromSumsG n (MkRecord x)
+    | n == constructorName (Proxy @n) = fmap M1 (fromProductG (Map.toList x))
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
 
 instance (KnownSymbol n, ProductG f) =>
@@ -350,8 +346,10 @@ instance (KnownSymbol n, ProductG f) =>
   sumsG _ = pure . (name, ) . Fix . Tuple . fmap snd <$> productG (Proxy @f)
     where
       name = constructorName (Proxy @n)
-  toSumsG = (0, ) . MkTuple . fmap snd . toProductG . unM1
-  fromSumsG 0 (MkTuple xs) = fmap M1 (fromProductG $ ("", ) <$> xs)
+  toSumsG =
+    (constructorName (Proxy @n), ) . MkTuple . fmap snd . toProductG . unM1
+  fromSumsG n (MkTuple xs)
+    | n == constructorName (Proxy @n) = fmap M1 (fromProductG $ ("", ) <$> xs)
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
 
 instance SumsG V1 where

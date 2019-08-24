@@ -22,7 +22,6 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
 import Elm.Wire as Wire
-import Safe (atMay)
 
 data Coder = Coder
   { encode :: Wire.Value -> Maybe Aeson.Encoding
@@ -47,7 +46,7 @@ coderForType (userTypes, type_) =
     User name ->
       fromMaybe void $ do
         constructors <- Map.lookup name (unUserTypes userTypes)
-        pure . sum' $ coderForType . (userTypes, ) . snd <$> constructors
+        pure . sum' $ coderForType . (userTypes, ) <$> Map.fromList constructors
     Void -> void
     List el -> list el
     Int -> int
@@ -64,7 +63,10 @@ int =
         \case
           MkInt int32 -> Just (Encoding.int32 int32)
           _ -> Nothing
-    , decode = fmap MkInt . parseInt
+    , decode =
+        \case
+          Aeson.Number n -> MkInt <$> Scientific.toBoundedInteger n
+          _ -> Nothing
     }
 
 float :: Coder
@@ -146,30 +148,28 @@ tuple params =
           _ -> Nothing
     }
 
-sum' :: [Coder] -> Coder
+sum' :: Map Wire.ConstructorName Coder -> Coder
 sum' constructors =
   Coder
     { encode =
         \case
           MkSum n x -> do
-            constructor <- atMay constructors (fromIntegral n)
-            value <- encode constructor x
+            constructor <- Map.lookup n constructors
+            val <- encode constructor x
+            let ctor = Encoding.text (Wire.unConstructorName n)
             pure . Encoding.pairs $
-              (Encoding.pair "ctor" (Encoding.int32 (fromIntegral n))) <>
-              (Encoding.pair "val" value)
+              (Encoding.pair "ctor" ctor) <> (Encoding.pair "val" val)
           _ -> Nothing
     , decode =
         \case
           Aeson.Object object -> do
-            n <- parseInt =<< HashMap.lookup "ctor" object
-            value <- HashMap.lookup "val" object
-            constructor <- atMay constructors n
-            decode constructor value
+            ctorValue <- HashMap.lookup "ctor" object
+            ctor <-
+              case ctorValue of
+                Aeson.String text -> Just (Wire.ConstructorName text)
+                _ -> Nothing
+            val <- HashMap.lookup "val" object
+            constructor <- Map.lookup ctor constructors
+            decode constructor val
           _ -> Nothing
     }
-
-parseInt :: (Integral n, Bounded n) => Aeson.Value -> Maybe n
-parseInt =
-  \case
-    Aeson.Number n -> Scientific.toBoundedInteger n
-    _ -> Nothing
