@@ -15,6 +15,7 @@ import Elm.Servant
 import GHC.Generics (Generic)
 import Servant.API
 
+import qualified Data.ByteString.Lazy.Char8 as ByteString
 import Data.Text as Text
 import qualified Wire
 import qualified Wire.Json
@@ -25,7 +26,8 @@ main :: IO ()
 main = do
   putStrLn . Text.unpack . printModule $ elmTypes (Proxy :: Proxy Api)
   let coder = Wire.Json.coderForType $ Wire.wireType (Proxy :: Proxy Foo)
-  putStrLn . show . Wire.Json.encodeJson coder . Wire.toWire $
+  putStrLn .
+    maybe "" ByteString.unpack . Wire.Json.encodeJson coder . Wire.toWire $
     Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
 
 data Foo = Foo
