@@ -27,7 +27,7 @@ import Text.PrettyPrint.Leijen.Text ((<+>))
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified Elm.Wire as Wire
+import qualified Wire 
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 data ElmTypeF a

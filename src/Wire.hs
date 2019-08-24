@@ -14,7 +14,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Elm.Wire
+module Wire
   ( Type_
   , TypeName(..)
   , ConstructorName(..)

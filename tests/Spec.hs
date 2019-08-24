@@ -16,8 +16,8 @@ import GHC.Generics (Generic)
 import Servant.API
 
 import Data.Text as Text
-import qualified Elm.Wire
-import qualified Elm.Wire.Json
+import qualified Wire
+import qualified Wire.Json
 
 -- |
 -- Small test of functionality in this library. Will be removed before release.
@@ -25,8 +25,8 @@ main :: IO ()
 main = do
   putStrLn . Text.unpack . printModule $ elmTypes (Proxy :: Proxy Api)
   let coder =
-        Elm.Wire.Json.coderForType $ Elm.Wire.wireType (Proxy :: Proxy Foo)
-  putStrLn . show . Elm.Wire.Json.encodeJson coder . Elm.Wire.toWire $
+        Wire.Json.coderForType $ Wire.wireType (Proxy :: Proxy Foo)
+  putStrLn . show . Wire.Json.encodeJson coder . Wire.toWire $
     Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
 
 data Foo = Foo

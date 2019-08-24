@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Elm.Wire.Json
+module Wire.Json
   ( Coder
   , coderForType
   , encodeJson
@@ -21,7 +21,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
-import Elm.Wire as Wire
+import Wire 
 
 data Coder = Coder
   { encode :: Wire.Value -> Maybe Aeson.Encoding

@@ -37,6 +37,9 @@ library:
   - wl-pprint-text
   exposed-modules:
   - Elm
+  - Elm.Servant
+  - Wire
+  - Wire.Json
   source-dirs: src
 
 tests:
