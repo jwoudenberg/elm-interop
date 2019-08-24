@@ -73,14 +73,10 @@ type Type_ = (UserTypes, PrimitiveType)
 --   the type the fewer opportunities there are for these implementations to be
 --   misaligned.
 data PrimitiveTypeF a
-  = Product [(FieldName, a)]
-  -- ^ A product type, like a tuple or a record.
-  --
-  --     Product [(FieldName             , a)]
-  --               ^^^^                    ^
-  --               Field name (            Field type
-  --               "" for tuples")
-  --
+  = Record [(FieldName, a)]
+  -- ^ A record consisting of name-value pairs.
+  | Tuple [a]
+  -- ^ A tuple or constructor parameter list.
   | User TypeName
   -- ^ A reference to a non-primitive type, for example a user defined types.
   | Void
@@ -130,7 +126,8 @@ data Value
   | MkFloat Double
   | MkString Text
   | MkList [Value]
-  | MkProduct [Value]
+  | MkRecord (Map FieldName Value)
+  | MkTuple [Value]
   | MkSum NthConstructor
           Value
   deriving (Generic)
@@ -195,8 +192,8 @@ instance Elm Text where
   fromWire _ = Nothing
 
 instance Elm () where
-  wireType' _ = pure . Fix $ Product []
-  toWire () = MkProduct []
+  wireType' _ = pure . Fix $ Tuple []
+  toWire () = MkTuple []
   fromWire _ = pure ()
 
 instance Elm Void where
@@ -215,15 +212,15 @@ instance Elm a => Elm [a] where
 -- up to that number here too.
 instance (Elm a, Elm b) => Elm (a, b) where
   wireType' _ = tupleType [wireType' (Proxy @a), wireType' (Proxy @b)]
-  toWire (a, b) = MkProduct [toWire a, toWire b]
-  fromWire (MkProduct [a, b]) = (,) <$> fromWire a <*> fromWire b
+  toWire (a, b) = MkTuple [toWire a, toWire b]
+  fromWire (MkTuple [a, b]) = (,) <$> fromWire a <*> fromWire b
   fromWire _ = Nothing
 
 instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
   wireType' _ =
     tupleType [wireType' (Proxy @a), wireType' (Proxy @b), wireType' (Proxy @c)]
-  toWire (a, b, c) = MkProduct [toWire a, toWire b, toWire c]
-  fromWire (MkProduct [a, b, c]) =
+  toWire (a, b, c) = MkTuple [toWire a, toWire b, toWire c]
+  fromWire (MkTuple [a, b, c]) =
     (,,) <$> fromWire a <*> fromWire b <*> fromWire c
   fromWire _ = Nothing
 
@@ -235,8 +232,8 @@ instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
       , wireType' (Proxy @c)
       , wireType' (Proxy @d)
       ]
-  toWire (a, b, c, d) = MkProduct [toWire a, toWire b, toWire c, toWire d]
-  fromWire (MkProduct [a, b, c, d]) =
+  toWire (a, b, c, d) = MkTuple [toWire a, toWire b, toWire c, toWire d]
+  fromWire (MkTuple [a, b, c, d]) =
     (,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
   fromWire _ = Nothing
 
@@ -250,8 +247,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
       , wireType' (Proxy @e)
       ]
   toWire (a, b, c, d, e) =
-    MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e]
-  fromWire (MkProduct [a, b, c, d, e]) =
+    MkTuple [toWire a, toWire b, toWire c, toWire d, toWire e]
+  fromWire (MkTuple [a, b, c, d, e]) =
     (,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e
   fromWire _ = Nothing
@@ -268,8 +265,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
       , wireType' (Proxy @f)
       ]
   toWire (a, b, c, d, e, f) =
-    MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
-  fromWire (MkProduct [a, b, c, d, e, f]) =
+    MkTuple [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
+  fromWire (MkTuple [a, b, c, d, e, f]) =
     (,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f
@@ -288,9 +285,9 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
       , wireType' (Proxy @g)
       ]
   toWire (a, b, c, d, e, f, g) =
-    MkProduct
+    MkTuple
       [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f, toWire g]
-  fromWire (MkProduct [a, b, c, d, e, f, g]) =
+  fromWire (MkTuple [a, b, c, d, e, f, g]) =
     (,,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d <*>
     fromWire e <*>
     fromWire f <*>
@@ -298,7 +295,7 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
   fromWire _ = Nothing
 
 tupleType :: Applicative f => [f PrimitiveType] -> f PrimitiveType
-tupleType xs = Fix . Product . fmap ("", ) <$> sequenceA xs
+tupleType xs = Fix . Tuple <$> sequenceA xs
 
 -- |
 -- Helper class for constructing write types from generic representations of
@@ -321,17 +318,16 @@ instance (HasTypeName m, SumsG f) => ElmG (M1 D m f) where
       constructors <- local (Set.insert name) $ sumsG (Proxy @f)
       tell . UserTypes $ Map.singleton name constructors
     pure . Fix $ User name
-  toWireG = uncurry MkSum . fmap MkProduct . toSumsG . unM1
-  fromWireG (MkSum n (MkProduct xs)) = fmap M1 $ fromSumsG n xs
-  fromWireG (MkSum n x) = fmap M1 $ fromSumsG n [x]
+  toWireG = uncurry MkSum . toSumsG . unM1
+  fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
 
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
   sumsG :: Proxy f -> Builder [(ConstructorName, PrimitiveType)]
-  toSumsG :: f p -> (NthConstructor, [Value])
-  fromSumsG :: NthConstructor -> [Value] -> Maybe (f p)
+  toSumsG :: f p -> (NthConstructor, Value)
+  fromSumsG :: NthConstructor -> Value -> Maybe (f p)
 
 instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   sumsG _ = (<>) <$> sumsG (Proxy @f) <*> sumsG (Proxy @g)
@@ -340,12 +336,22 @@ instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   fromSumsG 0 x = fmap L1 (fromSumsG 0 x)
   fromSumsG n x = fmap R1 (fromSumsG (n - 1) x)
 
-instance (HasConstructorName m, ProductG f) => SumsG (M1 C m f) where
-  sumsG _ = pure . (name, ) . Fix . Product <$> productG (Proxy @f)
+instance (KnownSymbol n, ProductG f) =>
+         SumsG (M1 C ('MetaCons n fi 'True) f) where
+  sumsG _ = pure . (name, ) . Fix . Record <$> productG (Proxy @f)
     where
-      name = constructorName (Proxy @m)
-  toSumsG = (0, ) . toProductG . unM1
-  fromSumsG 0 x = fmap M1 (fromProductG x)
+      name = constructorName (Proxy @n)
+  toSumsG = (0, ) . MkRecord . Map.fromList . toProductG . unM1
+  fromSumsG 0 (MkRecord x) = fmap M1 (fromProductG (Map.toList x))
+  fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
+
+instance (KnownSymbol n, ProductG f) =>
+         SumsG (M1 C ('MetaCons n fi 'False) f) where
+  sumsG _ = pure . (name, ) . Fix . Tuple . fmap snd <$> productG (Proxy @f)
+    where
+      name = constructorName (Proxy @n)
+  toSumsG = (0, ) . MkTuple . fmap snd . toProductG . unM1
+  fromSumsG 0 (MkTuple xs) = fmap M1 (fromProductG $ ("", ) <$> xs)
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
 
 instance SumsG V1 where
@@ -358,8 +364,8 @@ instance SumsG V1 where
 class ProductG (f :: * -> *) where
   productG :: Proxy f -> Builder [(FieldName, PrimitiveType)]
   productLengthG :: Proxy f -> Int
-  toProductG :: f p -> [Value]
-  fromProductG :: [Value] -> Maybe (f p)
+  toProductG :: f p -> [(FieldName, Value)]
+  fromProductG :: [(FieldName, Value)] -> Maybe (f p)
 
 instance (ProductG f, ProductG g) => ProductG (f :*: g) where
   productG _ = (<>) <$> productG (Proxy @f) <*> productG (Proxy @g)
@@ -374,8 +380,8 @@ instance (HasFieldName m, ElmG f) => ProductG (M1 S m f) where
     where
       name = fieldName (Proxy @m)
   productLengthG _ = 1
-  toProductG = pure . toWireG . unM1
-  fromProductG [x] = M1 <$> fromWireG x
+  toProductG = pure . (fieldName (Proxy @m), ) . toWireG . unM1
+  fromProductG [(_, x)] = M1 <$> fromWireG x
   fromProductG _ = Nothing -- ^ We got the wrong number of constructors.
 
 instance ProductG U1 where
@@ -396,11 +402,11 @@ instance (KnownSymbol n, KnownSymbol m) =>
   typeName _ =
     TypeName . Text.pack $ symbolVal (Proxy @m) <> "." <> symbolVal (Proxy @n)
 
-class HasConstructorName (a :: Meta) where
-  constructorName :: Proxy a -> ConstructorName
-
-instance (KnownSymbol n) => HasConstructorName ('MetaCons n f s) where
-  constructorName _ = ConstructorName . Text.pack $ symbolVal (Proxy @n)
+constructorName ::
+     forall n. (KnownSymbol n)
+  => Proxy n
+  -> ConstructorName
+constructorName _ = ConstructorName . Text.pack $ symbolVal (Proxy @n)
 
 class HasFieldName (a :: Meta) where
   fieldName :: Proxy a -> FieldName

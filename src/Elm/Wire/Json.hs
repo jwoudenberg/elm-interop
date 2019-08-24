@@ -17,6 +17,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.Foldable (toList)
 import Data.Functor.Foldable (cata)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
@@ -41,7 +42,8 @@ decodeJson coder =
 coderForType :: (UserTypes, Wire.PrimitiveType) -> Coder
 coderForType (userTypes, type_) =
   flip cata type_ $ \case
-    Product xs -> product' (snd <$> xs)
+    Tuple xs -> tuple xs
+    Record xs -> record (Map.fromList xs)
     User name ->
       fromMaybe void $ do
         constructors <- Map.lookup name (unUserTypes userTypes)
@@ -104,20 +106,43 @@ list el =
           _ -> Nothing
     }
 
-product' :: [Coder] -> Coder
-product' fields =
+record :: Map FieldName Coder -> Coder
+record fields =
   Coder
     { encode =
         \case
-          MkProduct xs
-            | length xs == length fields ->
-              Encoding.list id <$> zipWithM ($) (encode <$> fields) xs
+          MkRecord xs ->
+            let encodeField :: FieldName -> Wire.Value -> Maybe Aeson.Series
+                encodeField name value = do
+                  field <- Map.lookup name fields
+                  Encoding.pair (Wire.unFieldName name) <$> encode field value
+             in Encoding.pairs <$> Map.foldMapWithKey encodeField xs
+          _ -> Nothing
+    , decode =
+        \case
+          Aeson.Object xs ->
+            let decodeField :: FieldName -> Coder -> Maybe (Map FieldName Value)
+                decodeField name coder = do
+                  value <- HashMap.lookup (Wire.unFieldName name) xs
+                  Map.singleton name <$> decode coder value
+             in MkRecord <$> Map.foldMapWithKey decodeField fields
+          _ -> Nothing
+    }
+
+tuple :: [Coder] -> Coder
+tuple params =
+  Coder
+    { encode =
+        \case
+          MkTuple xs
+            | length xs == length params ->
+              Encoding.list id <$> zipWithM ($) (encode <$> params) xs
           _ -> Nothing
     , decode =
         \case
           Aeson.Array xs
-            | length xs == length fields ->
-              MkProduct <$> zipWithM ($) (decode <$> fields) (toList xs)
+            | length xs == length params ->
+              MkTuple <$> zipWithM ($) (decode <$> params) (toList xs)
           _ -> Nothing
     }
 

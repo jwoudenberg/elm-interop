@@ -286,8 +286,9 @@ fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
     mkConstructors :: Wire.PrimitiveType -> [ElmType]
     mkConstructors =
       \case
-        Fix (Wire.Product xs) ->
-          mkElmProduct id pure $ (fmap . fmap) fromWireType xs
+        Fix (Wire.Tuple params) -> fmap fromWireType params
+        Fix (Wire.Record fields) ->
+          pure . Fix . Record $ (fmap . fmap) fromWireType fields
         -- | We don't expect anything but a product here, but should we get one
         -- we'll assume it's a single parameter to the constructor.
         param -> [fromWireType param]
@@ -295,37 +296,14 @@ fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
 fromWireType :: Wire.PrimitiveType -> ElmType
 fromWireType =
   cata $ \case
-    Wire.Product xs -> mkElmProduct mkElmTuple id xs
+    Wire.Tuple xs -> mkElmTuple xs
+    Wire.Record xs -> Fix $ Record xs
     Wire.User name -> Fix $ Defined name
     Wire.Void -> Fix Never
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float
     Wire.String -> Fix String
     Wire.List x -> Fix $ List x
-
--- |
--- Construct an Elm product. There's two possible products: A record (if we know
--- names for all the fields), or otherwise a tuple. You need to provide a
--- function for handling either scenario, and then the list of name,value pairs.
-mkElmProduct ::
-     ([ElmType] -> a) -> (ElmType -> a) -> [(Wire.FieldName, ElmType)] -> a
-mkElmProduct mkTuple _ [] = mkTuple []
-mkElmProduct mkTuple mkRecord params =
-  case traverse (nonNull . fst) params of
-    Just names -> mkRecord . Fix . Record $ zip names (map snd params)
-    -- ^ All params are named. This is a record.
-    --
-    --     type Thing = Constructor { number : Int, message : String }
-    Nothing -> mkTuple $ snd <$> params
-    -- ^ At least one param is not named. This is an argument list.
-    --
-    --     type Thing = Constructor Int String
-
-nonNull :: Wire.FieldName -> Maybe Wire.FieldName
-nonNull =
-  \case
-    "" -> Nothing
-    x -> Just x
 
 -- |
 -- Build an Elm type representing a 'tuple' of different types.
