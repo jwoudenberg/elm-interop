@@ -21,7 +21,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
-import Wire 
+import Wire
 
 data Coder = Coder
   { encode :: Wire.Value -> Maybe Aeson.Encoding
@@ -150,26 +150,37 @@ tuple params =
 
 sum' :: Map Wire.ConstructorName Coder -> Coder
 sum' constructors =
-  Coder
-    { encode =
-        \case
-          MkSum n x -> do
-            constructor <- Map.lookup n constructors
-            val <- encode constructor x
-            let ctor = Encoding.text (Wire.unConstructorName n)
-            pure . Encoding.pairs $
-              (Encoding.pair "ctor" ctor) <> (Encoding.pair "val" val)
-          _ -> Nothing
-    , decode =
-        \case
-          Aeson.Object object -> do
-            ctorValue <- HashMap.lookup "ctor" object
-            ctor <-
-              case ctorValue of
-                Aeson.String text -> Just (Wire.ConstructorName text)
-                _ -> Nothing
-            val <- HashMap.lookup "val" object
-            constructor <- Map.lookup ctor constructors
-            decode constructor val
-          _ -> Nothing
-    }
+  case Map.toList constructors of
+    [(name, single)] ->
+      Coder
+        { encode =
+            \case
+              MkSum name' x
+                | name == name' -> encode single x
+              _ -> Nothing
+        , decode = fmap (MkSum name) . decode single
+        }
+    _ ->
+      Coder
+        { encode =
+            \case
+              MkSum n x -> do
+                constructor <- Map.lookup n constructors
+                val <- encode constructor x
+                let ctor = Encoding.text (Wire.unConstructorName n)
+                pure . Encoding.pairs $
+                  (Encoding.pair "ctor" ctor) <> (Encoding.pair "val" val)
+              _ -> Nothing
+        , decode =
+            \case
+              Aeson.Object object -> do
+                ctorValue <- HashMap.lookup "ctor" object
+                ctor <-
+                  case ctorValue of
+                    Aeson.String text -> Just (Wire.ConstructorName text)
+                    _ -> Nothing
+                val <- HashMap.lookup "val" object
+                constructor <- Map.lookup ctor constructors
+                decode constructor val
+              _ -> Nothing
+        }
