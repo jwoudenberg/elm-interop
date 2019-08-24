@@ -44,20 +44,20 @@ data ElmTypeF a
   | Tuple3 a
            a
            a
-  | Record [(Text, a)]
+  | Record [(Wire.FieldName, a)]
   | Lambda a
            a
-  | Defined Text
+  | Defined Wire.TypeName
   deriving (Functor)
 
 type ElmType = Fix ElmTypeF
 
 newtype UserTypes = UserTypes
-  { unUserTypes :: Map Text ElmTypeDefinition
+  { unUserTypes :: Map Wire.TypeName ElmTypeDefinition
   } deriving (Monoid, Semigroup)
 
 data ElmTypeDefinition
-  = Custom (NonEmpty (Text, [ElmType]))
+  = Custom (NonEmpty (Wire.ConstructorName, [ElmType]))
   | Alias ElmType
 
 data ElmValueF a
@@ -86,23 +86,24 @@ printModule =
   PP.vcat .
   intersperse PP.linebreak . fmap (uncurry printTypeDefinition) . sortUserTypes
 
-sortUserTypes :: UserTypes -> [(Text, ElmTypeDefinition)]
+sortUserTypes :: UserTypes -> [(Wire.TypeName, ElmTypeDefinition)]
 sortUserTypes =
   reverse .
   Graph.flattenSCCs .
   Graph.stronglyConnComp . fmap toNode . Map.toList . unUserTypes
   where
     toNode ::
-         (Text, ElmTypeDefinition) -> ((Text, ElmTypeDefinition), Text, [Text])
+         (Wire.TypeName, ElmTypeDefinition)
+      -> ((Wire.TypeName, ElmTypeDefinition), Wire.TypeName, [Wire.TypeName])
     toNode (name, t) = ((name, t), name, namesInTypeDefinition t)
 
-namesInTypeDefinition :: ElmTypeDefinition -> [Text]
+namesInTypeDefinition :: ElmTypeDefinition -> [Wire.TypeName]
 namesInTypeDefinition =
   \case
     Alias t -> namesInType t
     Custom xs -> foldMap namesInType . foldMap snd $ toList xs
 
-namesInType :: ElmType -> [Text]
+namesInType :: ElmType -> [Wire.TypeName]
 namesInType =
   cata $ \case
     Unit -> mempty
@@ -138,7 +139,7 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined name -> PP.textStrict name
+    Defined name -> PP.textStrict $ Wire.unTypeName name
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
       -- |
       -- We only need to parenthesize the input argument if it is a
@@ -149,7 +150,7 @@ printType =
                 MultipleWord -> i
                 MultipleWordLambda -> PP.parens i
 
-printTypeDefinition :: Text -> ElmTypeDefinition -> PP.Doc
+printTypeDefinition :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
 printTypeDefinition name =
   \case
     Custom constructors ->
@@ -159,15 +160,19 @@ printTypeDefinition name =
               printConstructor <$> toList constructors
     Alias base ->
       "type alias" <+>
-      PP.textStrict name <+> "=" <++> PP.indent elmIndent (printType base)
+      PP.textStrict (unqualifiedName name) <+>
+      "=" <++> PP.indent elmIndent (printType base)
 
-unqualifiedName :: Text -> Text
+unqualifiedName :: Wire.TypeName -> Text
 unqualifiedName "" = ""
-unqualifiedName name = last $ Text.splitOn "." name
+unqualifiedName name = last . Text.splitOn "." $ Wire.unTypeName name
 
-printConstructor :: (Text, [ElmType]) -> PP.Doc
+printConstructor :: (Wire.ConstructorName, [ElmType]) -> PP.Doc
 printConstructor (name, params) =
-  PP.nest elmIndent (PP.sep (PP.textStrict name : (printParam <$> params)))
+  PP.nest
+    elmIndent
+    (PP.sep
+       (PP.textStrict (Wire.unConstructorName name) : (printParam <$> params)))
   where
     printParam :: ElmType -> PP.Doc
     printParam t = parens (appearance (unfix t)) (printType t)
@@ -260,8 +265,9 @@ parens a doc =
     MultipleWord -> PP.parens doc
     MultipleWordLambda -> PP.parens doc
 
-printRecordField :: (Text, (a, PP.Doc)) -> PP.Doc
-printRecordField (k, (_, v)) = hangCollapse $ PP.textStrict k <+> ":" <++> v
+printRecordField :: (Wire.FieldName, (a, PP.Doc)) -> PP.Doc
+printRecordField (k, (_, v)) =
+  hangCollapse $ PP.textStrict (Wire.unFieldName k) <+> ":" <++> v
 
 -- |
 -- Get the Elm-representation of a type. The Elm representation might make
@@ -272,7 +278,8 @@ elmType = bimap fromWireUserTypes fromWireType . Wire.wireType
 fromWireUserTypes :: Wire.UserTypes -> UserTypes
 fromWireUserTypes = UserTypes . fmap fromWireUserType . Wire.unUserTypes
 
-fromWireUserType :: [(Text, Wire.PrimitiveType)] -> ElmTypeDefinition
+fromWireUserType ::
+     [(Wire.ConstructorName, Wire.PrimitiveType)] -> ElmTypeDefinition
 fromWireUserType [] = Alias (Fix Never)
 fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
   where
@@ -300,7 +307,8 @@ fromWireType =
 -- Construct an Elm product. There's two possible products: A record (if we know
 -- names for all the fields), or otherwise a tuple. You need to provide a
 -- function for handling either scenario, and then the list of name,value pairs.
-mkElmProduct :: ([ElmType] -> a) -> (ElmType -> a) -> [(Text, ElmType)] -> a
+mkElmProduct ::
+     ([ElmType] -> a) -> (ElmType -> a) -> [(Wire.FieldName, ElmType)] -> a
 mkElmProduct mkTuple _ [] = mkTuple []
 mkElmProduct mkTuple mkRecord params =
   case traverse (nonNull . fst) params of
@@ -313,7 +321,7 @@ mkElmProduct mkTuple mkRecord params =
     --
     --     type Thing = Constructor Int String
 
-nonNull :: Text -> Maybe Text
+nonNull :: Wire.FieldName -> Maybe Wire.FieldName
 nonNull =
   \case
     "" -> Nothing
@@ -333,4 +341,6 @@ mkElmTuple values =
     xs -> Fix . Record $ zip anonFields xs
     -- ^ Elm only has tuples with 2 or 3 elements. If we have more values
     -- than that we have to use a record.
-      where anonFields = ("field" <>) . Text.pack . show <$> ([1 ..] :: [Int])
+      where anonFields =
+              Wire.FieldName . ("field" <>) . Text.pack . show <$>
+              ([1 ..] :: [Int])

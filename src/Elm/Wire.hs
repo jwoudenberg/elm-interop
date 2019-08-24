@@ -16,6 +16,9 @@
 
 module Elm.Wire
   ( Type_
+  , TypeName(..)
+  , ConstructorName(..)
+  , FieldName(..)
   , PrimitiveType
   , PrimitiveTypeF(..)
   , UserTypes(..)
@@ -35,6 +38,7 @@ import Data.Int (Int32)
 import Data.Map.Strict (Map)
 import Data.Proxy (Proxy(Proxy))
 import Data.Set (Set)
+import Data.String (IsString)
 import Data.Text (Text)
 import Data.Tuple (swap)
 import Data.Void (Void, absurd)
@@ -69,15 +73,15 @@ type Type_ = (UserTypes, PrimitiveType)
 --   the type the fewer opportunities there are for these implementations to be
 --   misaligned.
 data PrimitiveTypeF a
-  = Product [(Text, a)]
+  = Product [(FieldName, a)]
   -- ^ A product type, like a tuple or a record.
   --
-  --     Product [(Text             , a)]
-  --               ^^^^               ^
-  --               Field name (       Field type
+  --     Product [(FieldName             , a)]
+  --               ^^^^                    ^
+  --               Field name (            Field type
   --               "" for tuples")
   --
-  | User Text
+  | User TypeName
   -- ^ A reference to a non-primitive type, for example a user defined types.
   | Void
   -- ^ A type without any values. Goes by `Never` in Elm.
@@ -100,7 +104,7 @@ type PrimitiveType = Fix PrimitiveTypeF
 -- A user type is a Haskell sum type or Elm custom type. It can have multiple
 -- constructors, each with one or more parameters.
 newtype UserTypes = UserTypes
-  { unUserTypes :: Map Text [(Text, PrimitiveType)]
+  { unUserTypes :: Map TypeName [(ConstructorName, PrimitiveType)]
   } deriving (Semigroup, Monoid)
 
 -- |
@@ -135,6 +139,18 @@ newtype NthConstructor =
   NthConstructor Natural
   deriving (Enum, Eq, Integral, Num, Ord, Real)
 
+newtype TypeName = TypeName
+  { unTypeName :: Text
+  } deriving (Eq, Ord, IsString)
+
+newtype ConstructorName = ConstructorName
+  { unConstructorName :: Text
+  } deriving (Eq, Ord, IsString)
+
+newtype FieldName = FieldName
+  { unFieldName :: Text
+  } deriving (Eq, Ord, IsString)
+
 wireType :: Elm a => Proxy a -> Type_
 wireType = swap . flip runReader mempty . runWriterT . wireType'
 
@@ -158,7 +174,7 @@ class Elm (a :: *) where
     Value -> Maybe a
   fromWire = fmap to . fromWireG
 
-type Builder a = WriterT UserTypes (Reader (Set Text)) a
+type Builder a = WriterT UserTypes (Reader (Set TypeName)) a
 
 instance Elm Int32 where
   wireType' _ = pure $ Fix Int
@@ -297,14 +313,14 @@ instance (Elm c) => ElmG (K1 i c) where
   toWireG = toWire . unK1
   fromWireG = fmap K1 . fromWire
 
-instance (HasName m, SumsG f) => ElmG (M1 D m f) where
+instance (HasTypeName m, SumsG f) => ElmG (M1 D m f) where
   wireTypeG _ = do
-    let name' = name (Proxy @m)
+    let name = typeName (Proxy @m)
     namesSeen <- ask
-    unless (Set.member name' namesSeen) $ do
-      constructors <- local (Set.insert name') $ sumsG (Proxy @f)
-      tell . UserTypes $ Map.singleton name' constructors
-    pure . Fix $ User name'
+    unless (Set.member name namesSeen) $ do
+      constructors <- local (Set.insert name) $ sumsG (Proxy @f)
+      tell . UserTypes $ Map.singleton name constructors
+    pure . Fix $ User name
   toWireG = uncurry MkSum . fmap MkProduct . toSumsG . unM1
   fromWireG (MkSum n (MkProduct xs)) = fmap M1 $ fromSumsG n xs
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n [x]
@@ -313,7 +329,7 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
-  sumsG :: Proxy f -> Builder [(Text, PrimitiveType)]
+  sumsG :: Proxy f -> Builder [(ConstructorName, PrimitiveType)]
   toSumsG :: f p -> (NthConstructor, [Value])
   fromSumsG :: NthConstructor -> [Value] -> Maybe (f p)
 
@@ -324,8 +340,10 @@ instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   fromSumsG 0 x = fmap L1 (fromSumsG 0 x)
   fromSumsG n x = fmap R1 (fromSumsG (n - 1) x)
 
-instance (HasName m, ProductG f) => SumsG (M1 C m f) where
-  sumsG _ = pure . (name (Proxy @m), ) . Fix . Product <$> productG (Proxy @f)
+instance (HasConstructorName m, ProductG f) => SumsG (M1 C m f) where
+  sumsG _ = pure . (name, ) . Fix . Product <$> productG (Proxy @f)
+    where
+      name = constructorName (Proxy @m)
   toSumsG = (0, ) . toProductG . unM1
   fromSumsG 0 x = fmap M1 (fromProductG x)
   fromSumsG _ _ = Nothing -- ^ We picked a constructor that doesn't exist.
@@ -338,7 +356,7 @@ instance SumsG V1 where
 -- |
 -- Helper class for constructing products.
 class ProductG (f :: * -> *) where
-  productG :: Proxy f -> Builder [(Text, PrimitiveType)]
+  productG :: Proxy f -> Builder [(FieldName, PrimitiveType)]
   productLengthG :: Proxy f -> Int
   toProductG :: f p -> [Value]
   fromProductG :: [Value] -> Maybe (f p)
@@ -351,8 +369,10 @@ instance (ProductG f, ProductG g) => ProductG (f :*: g) where
     where
       (x, y) = splitAt (productLengthG (Proxy @f)) z
 
-instance (HasName m, ElmG f) => ProductG (M1 S m f) where
-  productG _ = pure . (name (Proxy @m), ) <$> wireTypeG (Proxy @f)
+instance (HasFieldName m, ElmG f) => ProductG (M1 S m f) where
+  productG _ = pure . (name, ) <$> wireTypeG (Proxy @f)
+    where
+      name = fieldName (Proxy @m)
   productLengthG _ = 1
   toProductG = pure . toWireG . unM1
   fromProductG [x] = M1 <$> fromWireG x
@@ -366,19 +386,27 @@ instance ProductG U1 where
   fromProductG _ = Nothing
 
 -- |
--- Helper class for extracting the type-level name of a `Meta` kind.
+-- Helper classes for extracting the type-level names of a `Meta` kind.
 -- Used to recover names of types, constructors, and fields.
-class HasName (a :: Meta) where
-  name :: Proxy a -> Text
+class HasTypeName (a :: Meta) where
+  typeName :: Proxy a -> TypeName
 
-instance (KnownSymbol n, KnownSymbol m) => HasName ('MetaData n m p nt) where
-  name _ = Text.pack $ symbolVal (Proxy @m) <> "." <> symbolVal (Proxy @n)
+instance (KnownSymbol n, KnownSymbol m) =>
+         HasTypeName ('MetaData n m p nt) where
+  typeName _ =
+    TypeName . Text.pack $ symbolVal (Proxy @m) <> "." <> symbolVal (Proxy @n)
 
-instance (KnownSymbol n) => HasName ('MetaCons n f s) where
-  name _ = Text.pack $ symbolVal (Proxy @n)
+class HasConstructorName (a :: Meta) where
+  constructorName :: Proxy a -> ConstructorName
 
-instance (KnownSymbol n) => HasName ('MetaSel ('Just n) m p nt) where
-  name _ = Text.pack $ symbolVal (Proxy @n)
+instance (KnownSymbol n) => HasConstructorName ('MetaCons n f s) where
+  constructorName _ = ConstructorName . Text.pack $ symbolVal (Proxy @n)
 
-instance HasName ('MetaSel 'Nothing m p nt) where
-  name _ = ""
+class HasFieldName (a :: Meta) where
+  fieldName :: Proxy a -> FieldName
+
+instance (KnownSymbol n) => HasFieldName ('MetaSel ('Just n) m p nt) where
+  fieldName _ = FieldName . Text.pack $ symbolVal (Proxy @n)
+
+instance HasFieldName ('MetaSel 'Nothing m p nt) where
+  fieldName _ = ""
