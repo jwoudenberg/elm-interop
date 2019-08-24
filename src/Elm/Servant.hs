@@ -84,7 +84,7 @@ instance (KnownSymbol path, HasElm api) => HasElm (path :> api) where
     where
       addSegment e = e {path = Static (pack $ symbolVal (Proxy @path)) (path e)}
 
-instance (BoolVal (InList ELM list), Elm a, HasElm api) =>
+instance (BoolVal (InList ELM list), Rep a, HasElm api) =>
          HasElm (ReqBody' mods list a :> api) where
   hasElm _ =
     if boolVal (Proxy @(InList ELM list))
@@ -100,7 +100,7 @@ instance (KnownSymbol sym, HasElm api) => HasElm (QueryFlag sym :> api) where
       addQueryFlag e =
         e {query = (pack (symbolVal (Proxy @sym)), Nothing) : query e}
 
-instance (KnownSymbol sym, Elm [a], HasElm api) =>
+instance (KnownSymbol sym, Rep [a], HasElm api) =>
          HasElm (QueryParams sym a :> api) where
   hasElm _ = do
     t <- elmType (Proxy @[a])
@@ -109,7 +109,7 @@ instance (KnownSymbol sym, Elm [a], HasElm api) =>
       addQueryFlag t e =
         e {query = (pack (symbolVal (Proxy @sym)), Just t) : query e}
 
-instance (KnownSymbol sym, Elm (RequiredArgument mods a), HasElm api) =>
+instance (KnownSymbol sym, Rep (RequiredArgument mods a), HasElm api) =>
          HasElm (QueryParam' mods sym a :> api) where
   hasElm _ = do
     t <- elmType (Proxy @(RequiredArgument mods a))
@@ -118,7 +118,7 @@ instance (KnownSymbol sym, Elm (RequiredArgument mods a), HasElm api) =>
       addQueryFlag t e =
         e {query = (pack (symbolVal (Proxy @sym)), Just t) : query e}
 
-instance (KnownSymbol sym, Elm (RequiredArgument mods a), HasElm api) =>
+instance (KnownSymbol sym, Rep (RequiredArgument mods a), HasElm api) =>
          HasElm (Header' mods sym a :> api) where
   hasElm _ = do
     t <- elmType (Proxy @(RequiredArgument mods a))
@@ -127,7 +127,7 @@ instance (KnownSymbol sym, Elm (RequiredArgument mods a), HasElm api) =>
       addHeader' t e =
         e {headers = (pack (symbolVal (Proxy @sym)), t) : headers e}
 
-instance (KnownSymbol sym, Elm [t], HasElm api) =>
+instance (KnownSymbol sym, Rep [t], HasElm api) =>
          HasElm (CaptureAll sym t :> api) where
   hasElm _ = do
     t <- elmType (Proxy @[t])
@@ -135,7 +135,7 @@ instance (KnownSymbol sym, Elm [t], HasElm api) =>
     where
       setPath t e = e {path = CaptureAll t}
 
-instance (KnownSymbol sym, Elm t, HasElm api) =>
+instance (KnownSymbol sym, Rep t, HasElm api) =>
          HasElm (Capture' mods sym t :> api) where
   hasElm _ = do
     t <- elmType (Proxy @[t])
@@ -143,7 +143,7 @@ instance (KnownSymbol sym, Elm t, HasElm api) =>
     where
       addSegment t e = e {path = Capture t (path e)}
 
-instance (BoolVal (InList ELM list), Elm a, ReflectMethod method) =>
+instance (BoolVal (InList ELM list), Rep a, ReflectMethod method) =>
          HasElm (Verb method status list a) where
   hasElm _ =
     if boolVal (Proxy @(InList ELM list))
@@ -160,7 +160,7 @@ instance (BoolVal (InList ELM list), Elm a, ReflectMethod method) =>
             }
       else pure []
 
-instance (BoolVal (InList ELM '[ ct]), Elm a, ReflectMethod method) =>
+instance (BoolVal (InList ELM '[ ct]), Rep a, ReflectMethod method) =>
          HasElm (Stream method status framing ct a) where
   hasElm _ =
     if boolVal (Proxy @(InList ELM '[ ct]))

@@ -24,8 +24,7 @@ import qualified Wire.Json
 main :: IO ()
 main = do
   putStrLn . Text.unpack . printModule $ elmTypes (Proxy :: Proxy Api)
-  let coder =
-        Wire.Json.coderForType $ Wire.wireType (Proxy :: Proxy Foo)
+  let coder = Wire.Json.coderForType $ Wire.wireType (Proxy :: Proxy Foo)
   putStrLn . show . Wire.Json.encodeJson coder . Wire.toWire $
     Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
 
@@ -36,7 +35,7 @@ data Foo = Foo
   , four :: Bar
   } deriving (Generic)
 
-instance Elm Foo
+instance Rep Foo
 
 data Bar
   = Bar Void
@@ -45,12 +44,12 @@ data Bar
   | Baz
   deriving (Generic)
 
-instance Elm Bar
+instance Rep Bar
 
 data Unicorn
   deriving (Generic)
 
-instance Elm Unicorn
+instance Rep Unicorn
 
 type Api
    = "api" :> Capture "hi" Int32 :> ReqBody '[ ELM] Bar :> Post '[ ELM] Foo

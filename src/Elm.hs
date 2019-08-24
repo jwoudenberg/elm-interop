@@ -5,7 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Elm
-  ( Wire.Elm
+  ( Wire.Rep
   , ElmType
   , elmType
   , UserTypes
@@ -27,8 +27,8 @@ import Text.PrettyPrint.Leijen.Text ((<+>))
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified Wire 
 import qualified Text.PrettyPrint.Leijen.Text as PP
+import qualified Wire
 
 data ElmTypeF a
   = Unit
@@ -272,7 +272,7 @@ printRecordField (k, (_, v)) =
 -- |
 -- Get the Elm-representation of a type. The Elm representation might make
 -- reference to custom types which you get as well.
-elmType :: Wire.Elm a => Proxy a -> (UserTypes, ElmType)
+elmType :: Wire.Rep a => Proxy a -> (UserTypes, ElmType)
 elmType = bimap fromWireUserTypes fromWireType . Wire.wireType
 
 fromWireUserTypes :: Wire.UserTypes -> UserTypes

@@ -23,7 +23,7 @@ module Wire
   , PrimitiveTypeF(..)
   , UserTypes(..)
   , Value(..)
-  , Elm
+  , Rep
   , wireType
   , toWire
   , fromWire
@@ -42,12 +42,13 @@ import Data.String (IsString)
 import Data.Text (Text)
 import Data.Tuple (swap)
 import Data.Void (Void, absurd)
-import GHC.Generics
+import GHC.Generics hiding (Rep)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified GHC.Generics as Generics
 
 type Type_ = (UserTypes, PrimitiveType)
 
@@ -103,9 +104,9 @@ newtype UserTypes = UserTypes
   } deriving (Semigroup, Monoid)
 
 -- |
--- The `PrimitiveType` describes the types of the things going over the wire between
--- Haskell and Elm. This `Value` type describes the values of those types
--- we're going to encode and decode.
+-- The `PrimitiveType` describes the types of the things going over the wire
+-- between Haskell and a language like Elm. This `Value` type describes the
+-- values of those types we're going to encode and decode.
 --
 -- As you can see the `Value` constructors make no mention of field names or
 -- constructor names. Instead we use the order of fields in products and
@@ -143,60 +144,57 @@ newtype FieldName = FieldName
   { unFieldName :: Text
   } deriving (Eq, Ord, IsString)
 
-wireType :: Elm a => Proxy a -> Type_
+wireType :: Rep a => Proxy a -> Type_
 wireType = swap . flip runReader mempty . runWriterT . wireType'
 
 -- |
--- Class of types that have a wire format representation. The class is named
--- 'Elm' because it is user facing, and so rather than naming it after the
--- exact thing it does (something like `HasWireFormat`), we name it after the
--- thing the wire formats it produces are used for.
-class Elm (a :: *) where
+-- Class of types that have a wire format representation.
+class Rep (a :: *) where
   wireType' :: Proxy a -> Builder PrimitiveType
   toWire :: a -> Value
   fromWire :: Value -> Maybe a
   -- Default Generics-based implementations.
-  default wireType' :: (ElmG (Rep a)) =>
+  default wireType' :: (WireG (Generics.Rep a)) =>
     Proxy a -> Builder PrimitiveType
-  wireType' _ = wireTypeG (Proxy @(Rep a))
-  default toWire :: (Generic a, ElmG (Rep a)) =>
+  wireType' _ = wireTypeG (Proxy @(Generics.Rep a))
+  default toWire :: (Generic a, WireG (Generics.Rep a)) =>
     a -> Value
   toWire = toWireG . from
-  default fromWire :: (Generic a, ElmG (Rep a)) =>
+  default fromWire :: (Generic a, WireG (Generics.Rep a)) =>
     Value -> Maybe a
   fromWire = fmap to . fromWireG
 
 type Builder a = WriterT UserTypes (Reader (Set TypeName)) a
 
-instance Elm Int32 where
+instance Rep Int32 where
   wireType' _ = pure $ Fix Int
   toWire = MkInt
   fromWire (MkInt int) = Just int
   fromWire _ = Nothing
 
-instance Elm Double where
+instance Rep Double where
   wireType' _ = pure $ Fix Float
   toWire = MkFloat
   fromWire (MkFloat float) = Just float
   fromWire _ = Nothing
 
-instance Elm Text where
+instance Rep Text where
   wireType' _ = pure $ Fix String
   toWire = MkString
   fromWire (MkString string) = Just string
   fromWire _ = Nothing
 
-instance Elm () where
+instance Rep () where
   wireType' _ = pure . Fix $ Tuple []
   toWire () = MkTuple []
   fromWire _ = pure ()
 
-instance Elm Void where
+instance Rep Void where
   wireType' _ = pure . Fix $ Void
   toWire = absurd
   fromWire _ = Nothing
 
-instance Elm a => Elm [a] where
+instance Rep a => Rep [a] where
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
   toWire = MkList . fmap toWire
   fromWire (MkList xs) = traverse fromWire xs
@@ -205,13 +203,13 @@ instance Elm a => Elm [a] where
 -- Instances for tuples.
 -- The 7-tuple is the largest one that has a Generics instance, so we'll support
 -- up to that number here too.
-instance (Elm a, Elm b) => Elm (a, b) where
+instance (Rep a, Rep b) => Rep (a, b) where
   wireType' _ = tupleType [wireType' (Proxy @a), wireType' (Proxy @b)]
   toWire (a, b) = MkTuple [toWire a, toWire b]
   fromWire (MkTuple [a, b]) = (,) <$> fromWire a <*> fromWire b
   fromWire _ = Nothing
 
-instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
+instance (Rep a, Rep b, Rep c) => Rep (a, b, c) where
   wireType' _ =
     tupleType [wireType' (Proxy @a), wireType' (Proxy @b), wireType' (Proxy @c)]
   toWire (a, b, c) = MkTuple [toWire a, toWire b, toWire c]
@@ -219,7 +217,7 @@ instance (Elm a, Elm b, Elm c) => Elm (a, b, c) where
     (,,) <$> fromWire a <*> fromWire b <*> fromWire c
   fromWire _ = Nothing
 
-instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
+instance (Rep a, Rep b, Rep c, Rep d) => Rep (a, b, c, d) where
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a)
@@ -232,7 +230,7 @@ instance (Elm a, Elm b, Elm c, Elm d) => Elm (a, b, c, d) where
     (,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
   fromWire _ = Nothing
 
-instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
+instance (Rep a, Rep b, Rep c, Rep d, Rep e) => Rep (a, b, c, d, e) where
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a)
@@ -248,8 +246,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e) => Elm (a, b, c, d, e) where
     fromWire e
   fromWire _ = Nothing
 
-instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
-         Elm (a, b, c, d, e, f) where
+instance (Rep a, Rep b, Rep c, Rep d, Rep e, Rep f) =>
+         Rep (a, b, c, d, e, f) where
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a)
@@ -267,8 +265,8 @@ instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f) =>
     fromWire f
   fromWire _ = Nothing
 
-instance (Elm a, Elm b, Elm c, Elm d, Elm e, Elm f, Elm g) =>
-         Elm (a, b, c, d, e, f, g) where
+instance (Rep a, Rep b, Rep c, Rep d, Rep e, Rep f, Rep g) =>
+         Rep (a, b, c, d, e, f, g) where
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a)
@@ -295,17 +293,17 @@ tupleType xs = Fix . Tuple <$> sequenceA xs
 -- |
 -- Helper class for constructing write types from generic representations of
 -- types.
-class ElmG (f :: * -> *) where
+class WireG (f :: * -> *) where
   wireTypeG :: Proxy f -> Builder PrimitiveType
   toWireG :: f p -> Value
   fromWireG :: Value -> Maybe (f p)
 
-instance (Elm c) => ElmG (K1 i c) where
+instance (Rep c) => WireG (K1 i c) where
   wireTypeG _ = wireType' (Proxy @c)
   toWireG = toWire . unK1
   fromWireG = fmap K1 . fromWire
 
-instance (HasTypeName m, SumsG f) => ElmG (M1 D m f) where
+instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
   wireTypeG _ = do
     let name = typeName (Proxy @m)
     namesSeen <- ask
@@ -373,7 +371,7 @@ instance (ProductG f, ProductG g) => ProductG (f :*: g) where
     where
       (x, y) = splitAt (productLengthG (Proxy @f)) z
 
-instance (HasFieldName m, ElmG f) => ProductG (M1 S m f) where
+instance (HasFieldName m, WireG f) => ProductG (M1 S m f) where
   productG _ = pure . (name, ) <$> wireTypeG (Proxy @f)
     where
       name = fieldName (Proxy @m)
