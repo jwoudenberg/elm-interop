@@ -125,7 +125,7 @@ data Value
   | MkList [Value]
   | MkProduct [Value]
   | MkSum NthConstructor
-          [Value]
+          Value
   deriving (Generic)
 
 instance Data.Aeson.ToJSON Value
@@ -324,8 +324,9 @@ instance (HasName m, SumsG f) => ElmG (M1 D m f) where
       constructors <- local (Set.insert name') $ sumsG (Proxy @f)
       tell . UserTypes $ Map.singleton name' constructors
     pure . Fix $ User name'
-  toWireG = uncurry MkSum . toSumsG . unM1
-  fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
+  toWireG = uncurry MkSum . fmap MkProduct . toSumsG . unM1
+  fromWireG (MkSum n (MkProduct xs)) = fmap M1 $ fromSumsG n xs
+  fromWireG (MkSum n x) = fmap M1 $ fromSumsG n [x]
   fromWireG _ = Nothing
 
 -- |
