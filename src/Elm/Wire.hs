@@ -15,13 +15,15 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Elm.Wire
-  ( PrimitiveType
+  ( Type_
+  , PrimitiveType
   , PrimitiveTypeF(..)
-  , Value(..)
   , UserTypes(..)
+  , Value(..)
   , Elm
   , wireType
-  , ElmJson(ElmJson)
+  , toWire
+  , fromWire
   ) where
 
 import Control.Monad (unless)
@@ -40,10 +42,11 @@ import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Numeric.Natural (Natural)
 
-import qualified Data.Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+
+type Type_ = (UserTypes, PrimitiveType)
 
 -- |
 -- A type to describe the shape of data flowing between the front- and backend.
@@ -128,33 +131,11 @@ data Value
           Value
   deriving (Generic)
 
-instance Data.Aeson.ToJSON Value
-
-instance Data.Aeson.FromJSON Value
-
 newtype NthConstructor =
   NthConstructor Natural
-  deriving ( Data.Aeson.ToJSON
-           , Data.Aeson.FromJSON
-           , Enum
-           , Eq
-           , Integral
-           , Num
-           , Ord
-           , Real
-           )
+  deriving (Enum, Eq, Integral, Num, Ord, Real)
 
--- |
--- Provide Aeson instances for any type that implements `Elm`.
-newtype ElmJson a = ElmJson
-  { unElmJson :: a
-  }
-
-instance Elm a => Data.Aeson.ToJSON (ElmJson a) where
-  toJSON = Data.Aeson.toJSON . toWire . unElmJson
-  toEncoding = Data.Aeson.toEncoding . toWire . unElmJson
-
-wireType :: Elm a => Proxy a -> (UserTypes, PrimitiveType)
+wireType :: Elm a => Proxy a -> Type_
 wireType = swap . flip runReader mempty . runWriterT . wireType'
 
 -- |

@@ -24,6 +24,7 @@ library:
   dependencies:
   - aeson
   - base
+  - bytestring
   - http-types
   - http-media
   - mtl
@@ -31,6 +32,9 @@ library:
   - servant
   - text
   - containers
+  - safe
+  - scientific
+  - unordered-containers
   - wl-pprint-text
   exposed-modules:
   - Elm

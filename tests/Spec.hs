@@ -15,18 +15,18 @@ import Elm.Servant
 import GHC.Generics (Generic)
 import Servant.API
 
-import qualified Data.Aeson
 import Data.Text as Text
 import qualified Elm.Wire
+import qualified Elm.Wire.Json
 
 -- |
 -- Small test of functionality in this library. Will be removed before release.
 main :: IO ()
-main
-  -- putStrLn . Text.unpack . printTypes $ elmType (Proxy :: Proxy Foo)
- = do
+main = do
   putStrLn . Text.unpack . printModule $ elmTypes (Proxy :: Proxy Api)
-  putStrLn . show . Data.Aeson.encode . Elm.Wire.ElmJson $
+  let coder =
+        Elm.Wire.Json.coderForType $ Elm.Wire.wireType (Proxy :: Proxy Foo)
+  putStrLn . show . Elm.Wire.Json.encodeJson coder . Elm.Wire.toWire $
     Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
 
 data Foo = Foo
