@@ -30,7 +30,7 @@ import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
 import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.Int (Int32)
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import Data.Proxy (Proxy(Proxy))
 import Data.Set (Set)
 import Data.Text (Text)
@@ -41,7 +41,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Numeric.Natural (Natural)
 
 import qualified Data.Aeson
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
