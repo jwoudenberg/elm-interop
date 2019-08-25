@@ -94,6 +94,7 @@ data PrimitiveTypeF a
   | Int
   | Float
   | String
+  | Bool
   deriving (Functor)
 
 type PrimitiveType = Fix PrimitiveTypeF
@@ -130,6 +131,7 @@ data Value
   = MkInt Int32
   | MkFloat Double
   | MkString Text
+  | MkBool Bool
   | MkList (Seq Value)
   | MkRecord (Map FieldName Value)
   | MkTuple (Seq Value)
@@ -187,6 +189,12 @@ instance Rep Text where
   wireType' _ = pure $ Fix String
   toWire = MkString
   fromWire (MkString string) = Just string
+  fromWire _ = Nothing
+
+instance Rep Bool where
+  wireType' _ = pure $ Fix Bool
+  toWire = MkBool
+  fromWire (MkBool bool) = Just bool
   fromWire _ = Nothing
 
 instance Rep () where

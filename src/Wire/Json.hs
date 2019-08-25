@@ -56,6 +56,7 @@ coderForType (userTypes, type_) =
     Int -> int
     Float -> float
     String -> string
+    Bool -> bool
 
 void :: Coder
 void = Coder {encode = const Nothing, decode = const Nothing}
@@ -96,6 +97,19 @@ string =
     , decode =
         \case
           Aeson.String text -> Just (MkString text)
+          _ -> Nothing
+    }
+
+bool :: Coder
+bool =
+  Coder
+    { encode =
+        \case
+          MkBool bool' -> Just (Encoding.bool bool')
+          _ -> Nothing
+    , decode =
+        \case
+          Aeson.Bool bool' -> Just (MkBool bool')
           _ -> Nothing
     }
 

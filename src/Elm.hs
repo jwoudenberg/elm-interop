@@ -304,6 +304,7 @@ fromWireType =
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float
     Wire.String -> Fix String
+    Wire.Bool -> Fix Bool
     Wire.List x -> Fix $ List x
 
 -- |
