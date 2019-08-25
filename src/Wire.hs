@@ -36,13 +36,20 @@ import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
 import Data.Foldable (foldl', toList)
 import Data.Functor.Foldable (Fix(Fix))
+import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable)
 import Data.Int (Int32)
 import Data.Map.Strict (Map)
 import Data.Proxy (Proxy(Proxy))
 import Data.Sequence (Seq)
-import Data.Sequence.Extra (foldableToSeq, mapFromFoldable, mapToSeq)
+import Data.Sequence.Extra
+  ( foldableToSeq
+  , hashMapFromFoldable
+  , hashMapToSeq
+  , mapFromFoldable
+  , mapToSeq
+  )
 import Data.Set (Set)
 import Data.String (IsString)
 import Data.Text (Text)
@@ -242,6 +249,29 @@ instance (Eq a, Hashable a, Rep a) => Rep (HashSet a) where
   toWire = MkList . fmap toWire . foldableToSeq
   fromWire (MkList xs) =
     fmap (foldl' (flip HashSet.insert) mempty) $ traverse fromWire xs
+  fromWire _ = Nothing
+
+instance (Ord k, Rep k, Rep v) => Rep (Map k v) where
+  wireType' _ =
+    Fix . List <$> tupleType [wireType' (Proxy @k), wireType' (Proxy @v)]
+  toWire = MkList . fmap (\(k, v) -> MkTuple [toWire k, toWire v]) . mapToSeq
+  fromWire (MkList xs) = mapFromFoldable <$> traverse toTuple xs
+    where
+      toTuple :: Value -> Maybe (k, v)
+      toTuple (MkTuple [k, v]) = (,) <$> fromWire k <*> fromWire v
+      toTuple _ = Nothing
+  fromWire _ = Nothing
+
+instance (Eq k, Hashable k, Rep k, Rep v) => Rep (HashMap k v) where
+  wireType' _ =
+    Fix . List <$> tupleType [wireType' (Proxy @k), wireType' (Proxy @v)]
+  toWire =
+    MkList . fmap (\(k, v) -> MkTuple [toWire k, toWire v]) . hashMapToSeq
+  fromWire (MkList xs) = hashMapFromFoldable <$> traverse toTuple xs
+    where
+      toTuple :: Value -> Maybe (k, v)
+      toTuple (MkTuple [k, v]) = (,) <$> fromWire k <*> fromWire v
+      toTuple _ = Nothing
   fromWire _ = Nothing
 
 -- Instances for tuples.
