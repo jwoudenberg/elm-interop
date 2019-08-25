@@ -139,7 +139,7 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined name -> PP.textStrict $ Wire.unTypeName name
+    Defined name -> PP.textStrict $ unqualifiedName name
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
       -- |
       -- We only need to parenthesize the input argument if it is a
