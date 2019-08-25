@@ -28,13 +28,13 @@ main = do
   let coder = Wire.Json.coderForType $ Wire.wireType (Proxy :: Proxy Foo)
   putStrLn .
     maybe "" ByteString.unpack . Wire.Json.encodeJson coder . Wire.toWire $
-    Foo (12, "Hi", "Ho") () ["hello", "world"] Baz
+    Foo (Right (12, "Hi", "Ho")) () (Just ["hello", "world"]) (Just Baz)
 
 data Foo = Foo
-  { one :: (Int32, Text, Text)
+  { one :: Either Int32 (Int32, Text, Text)
   , two :: ()
-  , three :: [Text]
-  , four :: Bar
+  , three :: Maybe [Text]
+  , four :: Maybe Bar
   } deriving (Generic)
 
 instance Rep Foo

@@ -15,16 +15,18 @@ module Elm
 
 import Data.Bifunctor (bimap)
 import Data.Foldable (toList)
-import Data.Functor.Foldable (Fix(Fix), cata, unfix, zygo)
+import Data.Functor.Foldable (Fix(Fix), cata, unfix, unfix, zygo)
 import Data.Int (Int32)
 import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy)
 import Data.Text (Text)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.Graph as Graph
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
@@ -39,6 +41,8 @@ data ElmTypeF a
   | String
   | List a
   | Maybe a
+  | Result a
+           a
   | Tuple2 a
            a
   | Tuple3 a
@@ -114,6 +118,7 @@ namesInType =
     String -> mempty
     List x -> x
     Maybe x -> x
+    Result x y -> x <> y
     Tuple2 x y -> x <> y
     Tuple3 x y z -> x <> y <> z
     Record x -> foldMap snd x
@@ -134,6 +139,7 @@ printType =
     String -> "String"
     List (a, i) -> "List" <+> parens a i
     Maybe (a, i) -> "Maybe" <+> parens a i
+    Result (ai, i) (aj, j) -> "Result" <+> parens ai i <+> parens aj j
     Tuple2 (_, i) (_, j) -> encloseSep' PP.lparen PP.rparen PP.comma [i, j]
     Tuple3 (_, i) (_, j) (_, k) ->
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
@@ -251,6 +257,7 @@ appearance =
     String -> SingleWord
     List _ -> MultipleWord
     Maybe _ -> MultipleWord
+    Result _ _ -> MultipleWord
     Tuple2 _ _ -> SingleWord
     Tuple3 _ _ _ -> SingleWord
     Record _ -> SingleWord
@@ -272,11 +279,52 @@ printRecordField (k, (_, v)) =
 -- Get the Elm-representation of a type. The Elm representation might make
 -- reference to custom types which you get as well.
 elmType :: Wire.Rep a => Proxy a -> (UserTypes, ElmType)
-elmType = bimap fromWireUserTypes fromWireType . Wire.wireType
+elmType = useElmCoreTypes . bimap fromWireUserTypes fromWireType . Wire.wireType
+
+-- |
+-- The wire format is intentionally very limited and does not include many types
+-- types that are in `elm-core`, such as `Maybe a` and `Result err ok`. When the
+-- user generates Elm code for a Haskell `Maybe a` we'd still like that to be
+-- mapped onto the Elm equivalent. This code ensures it does.
+useElmCoreTypes :: (UserTypes, ElmType) -> (UserTypes, ElmType)
+useElmCoreTypes (userTypes, type_) =
+  ( UserTypes . fmap replaceInTypeDefinition $
+    Map.withoutKeys (unUserTypes userTypes) (Map.keysSet replacements)
+  , replace type_)
+  where
+    replacements :: Map Wire.TypeName ElmType
+    replacements = elmCoreTypeReplacements userTypes
+    replaceInTypeDefinition :: ElmTypeDefinition -> ElmTypeDefinition
+    replaceInTypeDefinition (Alias x) = Alias (replace x)
+    replaceInTypeDefinition (Custom ctors) =
+      Custom ((fmap . fmap . fmap) replace ctors)
+    replace :: ElmType -> ElmType
+    replace =
+      cata $ \case
+        x@(Defined name) -> fromMaybe (Fix x) $ Map.lookup name replacements
+        x -> Fix x
 
 fromWireUserTypes :: Wire.UserTypes -> UserTypes
 fromWireUserTypes =
   UserTypes . fmap (fromWireUserType . toList) . Wire.unUserTypes
+
+elmCoreTypeReplacements :: UserTypes -> Map Wire.TypeName ElmType
+elmCoreTypeReplacements =
+  Map.mapMaybeWithKey replaceWithElmCoreType . unUserTypes
+
+replaceWithElmCoreType :: Wire.TypeName -> ElmTypeDefinition -> Maybe ElmType
+replaceWithElmCoreType _ (Alias _) = Nothing
+replaceWithElmCoreType typeName (Custom typeDef) =
+  case (Wire.typeConstructor typeName, orderedConstructors) of
+    ("Maybe", [("Just", [a]), ("Nothing", [])]) -> Just (Fix $ Maybe a)
+    ("Either", [("Left", [a]), ("Right", [b])]) -> Just (Fix $ Result a b)
+    ("Result", [("Err", [a]), ("Ok", [b])]) -> Just (Fix $ Result a b)
+    -- ^ There's not a `Result` type in the Haskell standard library, but if you
+    -- would create one, you'd expect it to map to the Elm `Result` type.
+    _ -> Nothing
+  where
+    orderedConstructors :: [(Wire.ConstructorName, [ElmType])]
+    orderedConstructors = toList $ NonEmpty.sortWith fst typeDef
 
 fromWireUserType ::
      [(Wire.ConstructorName, Wire.PrimitiveType)] -> ElmTypeDefinition

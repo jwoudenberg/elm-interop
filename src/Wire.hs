@@ -158,7 +158,7 @@ data TypeName = TypeName
   { typeConstructor :: Text
   , fromModule :: Text
   , parameters :: [Text]
-  } deriving (Eq, Ord)
+  } deriving (Eq, Ord, Show)
 
 newtype ConstructorName = ConstructorName
   { unConstructorName :: Text
@@ -384,6 +384,10 @@ instance (Rep a, Rep b, Rep c, Rep d, Rep e, Rep f, Rep g) =>
 
 tupleType :: Applicative f => Seq (f PrimitiveType) -> f PrimitiveType
 tupleType xs = Fix . Tuple <$> sequenceA xs
+
+instance Rep a => Rep (Maybe a)
+
+instance (Rep a, Rep b) => Rep (Either a b)
 
 -- |
 -- Helper class for constructing write types from generic representations of
