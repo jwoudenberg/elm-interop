@@ -25,15 +25,17 @@ library:
   - aeson
   - base
   - bytestring
+  - containers
+  - hashable
   - http-types
   - http-media
   - mtl
   - recursion-schemes
   - servant
   - text
-  - containers
   - scientific
   - unordered-containers
+  - vector
   - wl-pprint-text
   exposed-modules:
   - Elm

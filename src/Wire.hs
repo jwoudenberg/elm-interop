@@ -34,25 +34,30 @@ import Control.Applicative ((<|>))
 import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
-import Data.Foldable (toList)
+import Data.Foldable (foldl', toList)
 import Data.Functor.Foldable (Fix(Fix))
+import Data.HashSet (HashSet)
+import Data.Hashable (Hashable)
 import Data.Int (Int32)
 import Data.Map.Strict (Map)
 import Data.Proxy (Proxy(Proxy))
 import Data.Sequence (Seq)
-import Data.Sequence.Extra (mapFromFoldable, mapToSeq)
+import Data.Sequence.Extra (foldableToSeq, mapFromFoldable, mapToSeq)
 import Data.Set (Set)
 import Data.String (IsString)
 import Data.Text (Text)
 import Data.Tuple (swap)
+import Data.Vector (Vector)
 import Data.Void (Void, absurd)
 import GHC.Generics hiding (Rep)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 
+import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 import qualified GHC.Generics as Generics
 
 type Type_ = (UserTypes, PrimitiveType)
@@ -211,6 +216,32 @@ instance Rep a => Rep [a] where
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
   toWire = MkList . Seq.fromList . fmap toWire
   fromWire (MkList xs) = traverse fromWire $ toList xs
+  fromWire _ = Nothing
+
+instance Rep a => Rep (Seq a) where
+  wireType' _ = Fix . List <$> wireType' (Proxy @a)
+  toWire = MkList . fmap toWire
+  fromWire (MkList xs) = traverse fromWire xs
+  fromWire _ = Nothing
+
+instance Rep a => Rep (Vector a) where
+  wireType' _ = Fix . List <$> wireType' (Proxy @a)
+  toWire = MkList . fmap toWire . foldableToSeq
+  fromWire (MkList xs) = fmap (Vector.fromList . toList) $ traverse fromWire xs
+  fromWire _ = Nothing
+
+instance (Ord a, Rep a) => Rep (Set a) where
+  wireType' _ = Fix . List <$> wireType' (Proxy @a)
+  toWire = MkList . fmap toWire . foldableToSeq
+  fromWire (MkList xs) =
+    fmap (foldl' (flip Set.insert) mempty) $ traverse fromWire xs
+  fromWire _ = Nothing
+
+instance (Eq a, Hashable a, Rep a) => Rep (HashSet a) where
+  wireType' _ = Fix . List <$> wireType' (Proxy @a)
+  toWire = MkList . fmap toWire . foldableToSeq
+  fromWire (MkList xs) =
+    fmap (foldl' (flip HashSet.insert) mempty) $ traverse fromWire xs
   fromWire _ = Nothing
 
 -- Instances for tuples.
