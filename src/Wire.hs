@@ -34,6 +34,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
+import Data.Bifunctor (first, second)
 import Data.Foldable (foldl', toList)
 import Data.Functor.Foldable (Fix(Fix))
 import Data.HashMap.Strict (HashMap)
@@ -58,6 +59,7 @@ import Data.Vector (Vector)
 import Data.Void (Void, absurd)
 import GHC.Generics hiding (Rep)
 import GHC.TypeLits (KnownSymbol, symbolVal)
+import Type.Reflection (Typeable)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
@@ -66,6 +68,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified GHC.Generics as Generics
+import qualified Type.Reflection
 
 type Type_ = (UserTypes, PrimitiveType)
 
@@ -151,9 +154,11 @@ data Value
           Value
   deriving (Generic)
 
-newtype TypeName = TypeName
-  { unTypeName :: Text
-  } deriving (Eq, Ord, IsString)
+data TypeName = TypeName
+  { typeConstructor :: Text
+  , fromModule :: Text
+  , parameters :: [Text]
+  } deriving (Eq, Ord)
 
 newtype ConstructorName = ConstructorName
   { unConstructorName :: Text
@@ -168,14 +173,18 @@ wireType = swap . flip runReader mempty . runWriterT . wireType'
 
 -- |
 -- Class of types that have a wire format representation.
-class Rep (a :: *) where
+class Typeable a =>
+      Rep (a :: *)
+  where
   wireType' :: Proxy a -> Builder PrimitiveType
   toWire :: a -> Value
   fromWire :: Value -> Maybe a
   -- Default Generics-based implementations.
   default wireType' :: (WireG (Generics.Rep a)) =>
     Proxy a -> Builder PrimitiveType
-  wireType' _ = wireTypeG (Proxy @(Generics.Rep a))
+  wireType' _ =
+    local (first (const (paramsOf (Proxy @a)))) $
+    wireTypeG (Proxy @(Generics.Rep a))
   default toWire :: (Generic a, WireG (Generics.Rep a)) =>
     a -> Value
   toWire = toWireG . from
@@ -183,7 +192,19 @@ class Rep (a :: *) where
     Value -> Maybe a
   fromWire = fmap to . fromWireG
 
-type Builder a = WriterT UserTypes (Reader (Set TypeName)) a
+paramsOf ::
+     forall a. Typeable a
+  => Proxy a
+  -> ParamNames
+paramsOf _ =
+  ParamNames . fmap (Text.pack . show) . snd . Type.Reflection.splitApps $
+  Type.Reflection.typeOf (undefined :: a)
+
+type Builder a = WriterT UserTypes (Reader (ParamNames, Set TypeName)) a
+
+newtype ParamNames =
+  ParamNames [Text]
+  deriving (Semigroup, Monoid)
 
 instance Rep Int32 where
   wireType' _ = pure $ Fix Int
@@ -379,10 +400,10 @@ instance (Rep c) => WireG (K1 i c) where
 
 instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
   wireTypeG _ = do
-    let name = typeName (Proxy @m)
-    namesSeen <- ask
+    (unqualifiedName, namesSeen) <- ask
+    let name = typeName (Proxy @m) unqualifiedName
     unless (Set.member name namesSeen) $ do
-      constructors <- local (Set.insert name) $ sumsG (Proxy @f)
+      constructors <- local (second (Set.insert name)) $ sumsG (Proxy @f)
       tell . UserTypes $ Map.singleton name constructors
     pure . Fix $ User name
   toWireG = uncurry MkSum . toSumsG . unM1
@@ -466,12 +487,16 @@ instance ProductG U1 where
 -- Helper classes for extracting the type-level names of a `Meta` kind.
 -- Used to recover names of types, constructors, and fields.
 class HasTypeName (a :: Meta) where
-  typeName :: Proxy a -> TypeName
+  typeName :: Proxy a -> ParamNames -> TypeName
 
-instance (KnownSymbol n, KnownSymbol m) =>
+instance (KnownSymbol m, KnownSymbol n) =>
          HasTypeName ('MetaData n m p nt) where
-  typeName _ =
-    TypeName . Text.pack $ symbolVal (Proxy @m) <> "." <> symbolVal (Proxy @n)
+  typeName _ (ParamNames params) =
+    TypeName
+      { typeConstructor = Text.pack . symbolVal $ Proxy @n
+      , fromModule = Text.pack . symbolVal $ Proxy @m
+      , parameters = params
+      }
 
 constructorName ::
      forall n. (KnownSymbol n)

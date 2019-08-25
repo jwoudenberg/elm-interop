@@ -164,8 +164,7 @@ printTypeDefinition name =
       "=" <++> PP.indent elmIndent (printType base)
 
 unqualifiedName :: Wire.TypeName -> Text
-unqualifiedName "" = ""
-unqualifiedName name = last . Text.splitOn "." $ Wire.unTypeName name
+unqualifiedName = Wire.typeConstructor
 
 printConstructor :: (Wire.ConstructorName, [ElmType]) -> PP.Doc
 printConstructor (name, params) =
