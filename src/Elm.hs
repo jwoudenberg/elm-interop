@@ -22,6 +22,7 @@ import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Proxy (Proxy)
+import Data.String (IsString)
 import Data.Text (Text)
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
@@ -80,7 +81,73 @@ data ElmValueF a
   | MkRecord [(Text, a)]
   | MkCustom Text
              [a]
+  | MkLambda [Pattern]
+             a
+  | MkFnCall VariableName
+             [a]
+  | MkCase a
+           [(Pattern, a)]
+  | MkVar VariableName
   deriving (Functor)
+
+mkUnit :: ElmValue
+mkUnit = Fix MkUnit
+
+mkBool :: Bool -> ElmValue
+mkBool = Fix . MkBool
+
+mkInt :: Int32 -> ElmValue
+mkInt = Fix . MkInt
+
+mkFloat :: Double -> ElmValue
+mkFloat = Fix . MkFloat
+
+mkString :: Text -> ElmValue
+mkString = Fix . MkString
+
+mkList :: [ElmValue] -> ElmValue
+mkList = Fix . MkList
+
+mKMaybe :: Maybe ElmValue -> ElmValue
+mKMaybe = Fix . MKMaybe
+
+mkTuple2 :: ElmValue -> ElmValue -> ElmValue
+mkTuple2 a b = Fix $ MkTuple2 a b
+
+mkTuple3 :: ElmValue -> ElmValue -> ElmValue -> ElmValue
+mkTuple3 a b c = Fix $ MkTuple3 a b c
+
+mkRecord :: [(Text, ElmValue)] -> ElmValue
+mkRecord = Fix . MkRecord
+
+mkCustom :: Text -> [ElmValue] -> ElmValue
+mkCustom name constructors = Fix $ MkCustom name constructors
+
+mkLambda :: [Pattern] -> ElmValue -> ElmValue
+mkLambda args body = Fix $ MkLambda args body
+
+mkFnCall :: VariableName -> [ElmValue] -> ElmValue
+mkFnCall name body = Fix $ MkFnCall name body
+
+mkCase :: ElmValue -> [(Pattern, ElmValue)] -> ElmValue
+mkCase matched branches = Fix $ MkCase matched branches
+
+mkVar :: VariableName -> ElmValue
+mkVar = Fix . MkVar
+
+newtype VariableName = VariableName
+  { unVariableName :: Text
+  } deriving (IsString)
+
+newtype ConstructorName = ConstructorName
+  { unConstructorName :: Text
+  } deriving (IsString)
+
+-- | A pattern to match on, in case statements or function arguments.
+data Pattern
+  = Variable VariableName
+  | Match ConstructorName
+          [Pattern]
 
 type ElmValue = Fix ElmValueF
 
@@ -199,6 +266,25 @@ printValue =
       where printField :: (Text, PP.Doc) -> PP.Doc
             printField (name, value) = PP.textStrict name <+> "=" <+> value
     MkCustom name items -> PP.sep (PP.textStrict name : items)
+    MkLambda params body ->
+      "\\" <+> PP.sep (printPattern <$> params) <+> "->" <+> body
+    MkFnCall name args -> PP.sep (printVariableName name : args)
+    MkCase matched branches ->
+      "case" <+> matched <+> "of" <> PP.vsep (uncurry printBranch <$> branches)
+      where printBranch :: Pattern -> PP.Doc -> PP.Doc
+            printBranch pattern body = printPattern pattern <+> "->" <+> body
+    MkVar name -> printVariableName name
+
+printPattern :: Pattern -> PP.Doc
+printPattern (Variable name) = printVariableName name
+printPattern (Match ctor vars) =
+  PP.sep $ (printConstructorName ctor) : (printPattern <$> vars)
+
+printVariableName :: VariableName -> PP.Doc
+printVariableName = PP.textStrict . unVariableName
+
+printConstructorName :: ConstructorName -> PP.Doc
+printConstructorName = PP.textStrict . unConstructorName
 
 -- |
 -- Replacement for the `PP.<$>` operator, which we use for `fmap` instead.
@@ -280,6 +366,53 @@ printRecordField (k, (_, v)) =
 -- reference to custom types which you get as well.
 elmType :: Wire.Rep a => Proxy a -> (UserTypes, ElmType)
 elmType = useElmCoreTypes . bimap fromWireUserTypes fromWireType . Wire.wireType
+
+elmEncoder :: ElmType -> ElmValue
+elmEncoder =
+  cata $ \case
+    Unit -> mkFnCall "Basics.always" [mkUnit]
+    Never -> mkFnCall "Basics.never" []
+    Bool -> mkFnCall "Json.Encode.bool" []
+    Int -> mkFnCall "Json.Encode.int" []
+    Float -> mkFnCall "Json.Encode.float" []
+    String -> mkFnCall "Json.Encode.string" []
+    List a -> mkFnCall "Json.Encode.list" [a]
+    Maybe a -> customTypeEncoder [("Nothing", []), ("Just", [a])]
+    Result err ok -> customTypeEncoder [("Err", [err]), ("Ok", [ok])]
+    Tuple2 a b -> undefined
+    Tuple3 a b c -> undefined
+    Record fields -> undefined
+    Lambda i o -> undefined
+    Defined name -> undefined
+
+customTypeEncoder :: [(ConstructorName, [ElmValue])] -> ElmValue
+customTypeEncoder ctors =
+  mkLambda [Variable "x"] . mkCase (mkVar "x") $
+  uncurry constructorEncoder <$> ctors
+
+constructorEncoder :: ConstructorName -> [ElmValue] -> (Pattern, ElmValue)
+constructorEncoder name paramEncoders =
+  let vars =
+        take (length paramEncoders) $
+        (VariableName . ("x" <>) . Text.pack . show) <$> [1 ..]
+   in ( Match name (Variable <$> vars)
+      , recordEncoder
+          [ ( "ctor"
+            , mkFnCall "Json.Encode.string" [mkString (unConstructorName name)])
+          , ( "value"
+            , mkList $
+              zipWith
+                (\param encoder -> mkFnCall "Basics.<|" [encoder, mkVar param])
+                vars
+                paramEncoders)
+          ])
+
+recordEncoder :: [(Text, ElmValue)] -> ElmValue
+recordEncoder fields =
+  mkFnCall "object" [mkList $ uncurry fieldEncoder <$> fields]
+  where
+    fieldEncoder :: Text -> ElmValue -> ElmValue
+    fieldEncoder name = mkTuple2 (mkString name)
 
 -- |
 -- The wire format is intentionally very limited and does not include many types
