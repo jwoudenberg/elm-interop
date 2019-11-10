@@ -49,5 +49,9 @@ tests:
     dependencies:
     - base
     - elm-interop
-    main: Spec.hs
+    - servant
+    - tasty
+    - tasty-golden
+    - text
+    main: Main.hs
     source-dirs: tests
