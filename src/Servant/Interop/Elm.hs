@@ -85,15 +85,12 @@ data ElmValueF a
              a
              a
   | MkRecord [(Text, a)]
-  | MkCustom Text
-             [a]
   | MkLambda [Pattern]
              a
   | MkFnCall VariableName
              [a]
   | MkCase a
            [(Pattern, a)]
-  | MkVar VariableName
   deriving (Functor)
 
 mkUnit :: ElmValue
@@ -126,23 +123,24 @@ _mkTuple3 a b c = Fix $ MkTuple3 a b c
 _mkRecord :: [(Text, ElmValue)] -> ElmValue
 _mkRecord = Fix . MkRecord
 
-_mkCustom :: Text -> [ElmValue] -> ElmValue
-_mkCustom name constructors = Fix $ MkCustom name constructors
-
 mkLambda :: [Pattern] -> ElmValue -> ElmValue
 mkLambda args body = Fix $ MkLambda args body
 
-mkFnCall :: VariableName -> [ElmValue] -> ElmValue
-mkFnCall name body = Fix $ MkFnCall name body
+mkFnCall :: FunctionName -> [ElmValue] -> ElmValue
+mkFnCall name body = Fix $ MkFnCall (Function name) body
 
 mkCase :: ElmValue -> [(Pattern, ElmValue)] -> ElmValue
 mkCase matched branches = Fix $ MkCase matched branches
 
-mkVar :: VariableName -> ElmValue
-mkVar = Fix . MkVar
+mkVar :: FunctionName -> ElmValue
+mkVar name = Fix $ MkFnCall (Function name) []
 
-newtype VariableName = VariableName
-  { unVariableName :: Text
+data VariableName
+  = Constructor ConstructorName
+  | Function FunctionName
+
+newtype FunctionName = FunctionName
+  { unFunctionName :: Text
   } deriving (IsString)
 
 newtype ConstructorName = ConstructorName
@@ -151,7 +149,7 @@ newtype ConstructorName = ConstructorName
 
 -- | A pattern to match on, in case statements or function arguments.
 data Pattern
-  = Variable VariableName
+  = Variable FunctionName
   | Match ConstructorName
           [Pattern]
 
@@ -273,7 +271,6 @@ _printValue =
       encloseSep' PP.lbrace PP.rbrace PP.comma (printField <$> fields)
       where printField :: (Text, PP.Doc) -> PP.Doc
             printField (name, value) = PP.textStrict name <+> "=" <+> value
-    MkCustom name items -> PP.sep (PP.textStrict name : items)
     MkLambda params body ->
       "\\" <+> PP.sep (printPattern <$> params) <+> "->" <+> body
     MkFnCall name args -> PP.sep (printVariableName name : args)
@@ -281,18 +278,24 @@ _printValue =
       "case" <+> matched <+> "of" <> PP.vsep (uncurry printBranch <$> branches)
       where printBranch :: Pattern -> PP.Doc -> PP.Doc
             printBranch pattern body = printPattern pattern <+> "->" <+> body
-    MkVar name -> printVariableName name
 
 printPattern :: Pattern -> PP.Doc
-printPattern (Variable name) = printVariableName name
+printPattern (Variable name) = printFunctionName name
 printPattern (Match ctor vars) =
   PP.sep $ (printConstructorName ctor) : (printPattern <$> vars)
 
 printVariableName :: VariableName -> PP.Doc
-printVariableName = PP.textStrict . unVariableName
+printVariableName var =
+  PP.textStrict $
+  case var of
+    Function name -> unFunctionName name
+    Constructor name -> unConstructorName name
 
 printConstructorName :: ConstructorName -> PP.Doc
 printConstructorName = PP.textStrict . unConstructorName
+
+printFunctionName :: FunctionName -> PP.Doc
+printFunctionName = PP.textStrict . unFunctionName
 
 -- |
 -- Replacement for the `PP.<$>` operator, which we use for `fmap` instead.
@@ -396,7 +399,7 @@ constructorEncoder :: ConstructorName -> [ElmValue] -> (Pattern, ElmValue)
 constructorEncoder name paramEncoders =
   let vars =
         take (length paramEncoders) $
-        (VariableName . ("x" <>) . Text.pack . show) <$> ([1 ..] :: [Int])
+        (FunctionName . ("x" <>) . Text.pack . show) <$> ([1 ..] :: [Int])
    in ( Match name (Variable <$> vars)
       , recordEncoder
           [ ( "ctor"
@@ -411,7 +414,7 @@ constructorEncoder name paramEncoders =
 
 recordEncoder :: [(Text, ElmValue)] -> ElmValue
 recordEncoder fields =
-  mkFnCall "object" [mkList $ uncurry fieldEncoder <$> fields]
+  mkFnCall "Json.Encode.object" [mkList $ uncurry fieldEncoder <$> fields]
   where
     fieldEncoder :: Text -> ElmValue -> ElmValue
     fieldEncoder name = mkTuple2 (mkString name)
