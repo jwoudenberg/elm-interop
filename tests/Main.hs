@@ -7,7 +7,11 @@ import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
 import qualified Elm
 import qualified Elm.Servant
-import qualified Golden.API
+import qualified Golden.MutuallyRecursive
+import qualified Golden.Record
+import qualified Golden.Recursive
+import qualified Golden.RequestBody
+import qualified Golden.Void
 import Test.Tasty
 import qualified Test.Tasty.Golden as Golden
 
@@ -15,12 +19,21 @@ main :: IO ()
 main = defaultMain goldenTests
 
 goldenTests :: TestTree
-goldenTests = testGroup "golden" (goldenTestFor <$> apis)
-  where
-    apis = [Proxy :: Proxy Golden.API.API]
+goldenTests =
+  testGroup
+    "golden"
+    [ goldenTestFor "Record" (Proxy :: Proxy Golden.Record.API)
+    , goldenTestFor "Recursive" (Proxy :: Proxy Golden.Recursive.API)
+    , goldenTestFor
+        "MutuallyRecursive"
+        (Proxy :: Proxy Golden.MutuallyRecursive.API)
+    , goldenTestFor "RequestBody" (Proxy :: Proxy Golden.RequestBody.API)
+    , goldenTestFor "Void" (Proxy :: Proxy Golden.Void.API)
+    ]
 
-goldenTestFor :: Elm.Servant.HasElm api => Proxy api -> TestTree
-goldenTestFor api = Golden.goldenVsString "API" "tests/Golden/API.elm" go
+goldenTestFor :: Elm.Servant.HasElm api => String -> Proxy api -> TestTree
+goldenTestFor name api =
+  Golden.goldenVsString name ("tests/Golden/" <> name <> ".elm") go
   where
     go =
       pure .
