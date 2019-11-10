@@ -15,6 +15,7 @@ module Servant.Interop
   ( HasWireFormat
   , WIRE
   , wireTypes
+  , Wire.Rep
   ) where
 
 import Data.Proxy (Proxy(Proxy))

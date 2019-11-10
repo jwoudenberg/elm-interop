@@ -5,12 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Servant.Interop.Elm
-  ( Wire.Rep
-  , ElmType
-  , fromWireUserTypes
-  , UserTypes
-  , printModule
-  , printValue
+  ( printModule
   ) where
 
 import Data.Foldable (toList)
@@ -20,6 +15,7 @@ import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
+import Data.Proxy (Proxy)
 import Data.String (IsString)
 import Data.Text (Text)
 import Text.PrettyPrint.Leijen.Text ((<+>))
@@ -28,6 +24,7 @@ import qualified Data.Graph as Graph
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Servant.Interop
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
@@ -149,11 +146,13 @@ data Pattern
 
 type ElmValue = Fix ElmValueF
 
-printModule :: UserTypes -> Text
+printModule :: Servant.Interop.HasWireFormat a => Proxy a -> Text
 printModule =
   printDoc .
   PP.vcat .
-  intersperse PP.linebreak . fmap (uncurry printTypeDefinition) . sortUserTypes
+  intersperse PP.linebreak .
+  fmap (uncurry printTypeDefinition) .
+  sortUserTypes . fst . fromWireUserTypes . Servant.Interop.wireTypes
 
 sortUserTypes :: UserTypes -> [(Wire.TypeName, ElmTypeDefinition)]
 sortUserTypes =
@@ -247,8 +246,8 @@ printConstructor (name, params) =
     printParam :: ElmType -> PP.Doc
     printParam t = parens (appearance (unfix t)) (printType t)
 
-printValue :: ElmValue -> PP.Doc
-printValue =
+_printValue :: ElmValue -> PP.Doc
+_printValue =
   cata $ \case
     MkUnit -> "()"
     MkBool bool -> PP.textStrict . Text.pack $ show bool

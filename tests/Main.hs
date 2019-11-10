@@ -37,7 +37,5 @@ goldenTestFor name api =
   Golden.goldenVsString name ("tests/Golden/" <> name <> ".elm") go
   where
     go =
-      pure .
-      Data.Text.Lazy.Encoding.encodeUtf8 .
-      Data.Text.Lazy.fromStrict . Elm.printModule . fst . Elm.fromWireUserTypes $
-      Servant.Interop.wireTypes api
+      pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
+      Elm.printModule api
