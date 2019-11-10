@@ -8,7 +8,7 @@ module Golden.Recursive
     ) where
 
 import Data.Text (Text)
-import Servant.Elm (WIRE)
+import Servant.Interop (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
 import qualified Wire

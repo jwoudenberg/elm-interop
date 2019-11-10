@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
-module Servant.Elm
+module Servant.Interop
   ( HasWireFormat
   , WIRE
   , wireTypes

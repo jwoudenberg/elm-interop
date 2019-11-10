@@ -11,7 +11,7 @@ import qualified Golden.Record
 import qualified Golden.Recursive
 import qualified Golden.RequestBody
 import qualified Golden.Void
-import qualified Servant.Elm
+import qualified Servant.Interop
 import Test.Tasty
 import qualified Test.Tasty.Golden as Golden
 
@@ -32,7 +32,7 @@ goldenTests =
     ]
 
 goldenTestFor ::
-     Servant.Elm.HasWireFormat api => String -> Proxy api -> TestTree
+     Servant.Interop.HasWireFormat api => String -> Proxy api -> TestTree
 goldenTestFor name api =
   Golden.goldenVsString name ("tests/Golden/" <> name <> ".elm") go
   where
@@ -40,4 +40,4 @@ goldenTestFor name api =
       pure .
       Data.Text.Lazy.Encoding.encodeUtf8 .
       Data.Text.Lazy.fromStrict . Elm.printModule . fst . Elm.fromWireUserTypes $
-      Servant.Elm.wireTypes api
+      Servant.Interop.wireTypes api
