@@ -381,7 +381,10 @@ _elmEncoder =
     Int -> mkFnCall "Json.Encode.int" []
     Float -> mkFnCall "Json.Encode.float" []
     String -> mkFnCall "Json.Encode.string" []
-    List a -> mkFnCall "Json.Encode.list" [a]
+    List a ->
+      mkLambda [Variable "list"] $
+      mkFnCall "List.map" [a, mkVar "list"] `rightPizza`
+      (mkFnCall "Json.Encode.list" [a])
     Maybe a -> customTypeEncoder [("Nothing", []), ("Just", [a])]
     Result err ok -> customTypeEncoder [("Err", [err]), ("Ok", [ok])]
     Tuple2 _a _b -> undefined
@@ -395,6 +398,12 @@ customTypeEncoder ctors =
   mkLambda [Variable "x"] . mkCase (mkVar "x") $
   uncurry constructorEncoder <$> ctors
 
+rightPizza :: ElmValue -> ElmValue -> ElmValue
+rightPizza left right = mkFnCall "Basics.|>" [left, right]
+
+leftPizza :: ElmValue -> ElmValue -> ElmValue
+leftPizza left right = mkFnCall "Basics.<|" [left, right]
+
 constructorEncoder :: ConstructorName -> [ElmValue] -> (Pattern, ElmValue)
 constructorEncoder name paramEncoders =
   let vars =
@@ -407,7 +416,7 @@ constructorEncoder name paramEncoders =
           , ( "value"
             , mkList $
               zipWith
-                (\param encoder -> mkFnCall "Basics.<|" [encoder, mkVar param])
+                (\param encoder -> encoder `leftPizza` mkVar param)
                 vars
                 paramEncoders)
           ])
