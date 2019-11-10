@@ -206,6 +206,12 @@ newtype ParamNames =
   ParamNames [Text]
   deriving (Semigroup, Monoid)
 
+instance Rep Int where
+  wireType' _ = pure $ Fix Int
+  toWire = MkInt . fromIntegral
+  fromWire (MkInt int) = Just (fromIntegral int)
+  fromWire _ = Nothing
+
 instance Rep Int32 where
   wireType' _ = pure $ Fix Int
   toWire = MkInt

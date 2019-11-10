@@ -93,14 +93,14 @@ data ElmValueF a
 mkUnit :: ElmValue
 mkUnit = Fix MkUnit
 
-mkBool :: Bool -> ElmValue
-mkBool = Fix . MkBool
+_mkBool :: Bool -> ElmValue
+_mkBool = Fix . MkBool
 
-mkInt :: Int32 -> ElmValue
-mkInt = Fix . MkInt
+_mkInt :: Int32 -> ElmValue
+_mkInt = Fix . MkInt
 
-mkFloat :: Double -> ElmValue
-mkFloat = Fix . MkFloat
+_mkFloat :: Double -> ElmValue
+_mkFloat = Fix . MkFloat
 
 mkString :: Text -> ElmValue
 mkString = Fix . MkString
@@ -108,20 +108,20 @@ mkString = Fix . MkString
 mkList :: [ElmValue] -> ElmValue
 mkList = Fix . MkList
 
-mKMaybe :: Maybe ElmValue -> ElmValue
-mKMaybe = Fix . MKMaybe
+_mKMaybe :: Maybe ElmValue -> ElmValue
+_mKMaybe = Fix . MKMaybe
 
 mkTuple2 :: ElmValue -> ElmValue -> ElmValue
 mkTuple2 a b = Fix $ MkTuple2 a b
 
-mkTuple3 :: ElmValue -> ElmValue -> ElmValue -> ElmValue
-mkTuple3 a b c = Fix $ MkTuple3 a b c
+_mkTuple3 :: ElmValue -> ElmValue -> ElmValue -> ElmValue
+_mkTuple3 a b c = Fix $ MkTuple3 a b c
 
-mkRecord :: [(Text, ElmValue)] -> ElmValue
-mkRecord = Fix . MkRecord
+_mkRecord :: [(Text, ElmValue)] -> ElmValue
+_mkRecord = Fix . MkRecord
 
-mkCustom :: Text -> [ElmValue] -> ElmValue
-mkCustom name constructors = Fix $ MkCustom name constructors
+_mkCustom :: Text -> [ElmValue] -> ElmValue
+_mkCustom name constructors = Fix $ MkCustom name constructors
 
 mkLambda :: [Pattern] -> ElmValue -> ElmValue
 mkLambda args body = Fix $ MkLambda args body
@@ -367,8 +367,8 @@ printRecordField (k, (_, v)) =
 elmType :: Wire.Rep a => Proxy a -> (UserTypes, ElmType)
 elmType = useElmCoreTypes . bimap fromWireUserTypes fromWireType . Wire.wireType
 
-elmEncoder :: ElmType -> ElmValue
-elmEncoder =
+_elmEncoder :: ElmType -> ElmValue
+_elmEncoder =
   cata $ \case
     Unit -> mkFnCall "Basics.always" [mkUnit]
     Never -> mkFnCall "Basics.never" []
@@ -379,11 +379,11 @@ elmEncoder =
     List a -> mkFnCall "Json.Encode.list" [a]
     Maybe a -> customTypeEncoder [("Nothing", []), ("Just", [a])]
     Result err ok -> customTypeEncoder [("Err", [err]), ("Ok", [ok])]
-    Tuple2 a b -> undefined
-    Tuple3 a b c -> undefined
-    Record fields -> undefined
-    Lambda i o -> undefined
-    Defined name -> undefined
+    Tuple2 _a _b -> undefined
+    Tuple3 _a _b _c -> undefined
+    Record _fields -> undefined
+    Lambda _i _o -> undefined
+    Defined _name -> undefined
 
 customTypeEncoder :: [(ConstructorName, [ElmValue])] -> ElmValue
 customTypeEncoder ctors =
@@ -394,7 +394,7 @@ constructorEncoder :: ConstructorName -> [ElmValue] -> (Pattern, ElmValue)
 constructorEncoder name paramEncoders =
   let vars =
         take (length paramEncoders) $
-        (VariableName . ("x" <>) . Text.pack . show) <$> [1 ..]
+        (VariableName . ("x" <>) . Text.pack . show) <$> ([1 ..] :: [Int])
    in ( Match name (Variable <$> vars)
       , recordEncoder
           [ ( "ctor"
