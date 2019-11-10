@@ -24,9 +24,9 @@
 --     instance Rep MyType
 --
 module Servant.Interop
-  ( HasWireFormat(..)
+  ( HasWireFormat(wireFormat)
   , WIRE
-  , wireTypes
+  , Endpoint(..)
   , Wire.Rep
   ) where
 
@@ -48,9 +48,6 @@ data Endpoint = Endpoint
   , responseBody :: Maybe Wire.Type_
   }
 
-wireTypes :: HasWireFormat api => Proxy api -> Wire.UserTypes
-wireTypes = fst . wireFormat
-
 data Path
   = Static Text
            Path
@@ -62,7 +59,7 @@ data Path
 data WIRE
 
 instance Accept WIRE where
-  contentType _ = "application" // "elm-interop-json"
+  contentType _ = "application" // "servant-interop-json"
 
 class HasWireFormat api where
   wireFormat :: Proxy api -> (Wire.UserTypes, [Endpoint])

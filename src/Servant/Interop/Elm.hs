@@ -163,7 +163,7 @@ printModule =
   PP.vcat .
   intersperse PP.linebreak .
   fmap (uncurry printTypeDefinition) .
-  sortUserTypes . fst . fromWireUserTypes . Servant.Interop.wireTypes
+  sortUserTypes . fst . fromWireUserTypes . fst . Servant.Interop.wireFormat
 
 sortUserTypes :: UserTypes -> [(Wire.TypeName, ElmTypeDefinition)]
 sortUserTypes =
