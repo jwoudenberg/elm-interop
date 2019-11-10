@@ -7,13 +7,12 @@
 module Elm
   ( Wire.Rep
   , ElmType
-  , elmType
+  , fromWireUserTypes
   , UserTypes
   , printModule
   , printValue
   ) where
 
-import Data.Bifunctor (bimap)
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix(Fix), cata, unfix, unfix, zygo)
 import Data.Int (Int32)
@@ -21,7 +20,6 @@ import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
-import Data.Proxy (Proxy)
 import Data.String (IsString)
 import Data.Text (Text)
 import Text.PrettyPrint.Leijen.Text ((<+>))
@@ -361,12 +359,6 @@ printRecordField :: (Wire.FieldName, (a, PP.Doc)) -> PP.Doc
 printRecordField (k, (_, v)) =
   hangCollapse $ PP.textStrict (Wire.unFieldName k) <+> ":" <++> v
 
--- |
--- Get the Elm-representation of a type. The Elm representation might make
--- reference to custom types which you get as well.
-elmType :: Wire.Rep a => Proxy a -> (UserTypes, ElmType)
-elmType = useElmCoreTypes . bimap fromWireUserTypes fromWireType . Wire.wireType
-
 _elmEncoder :: ElmType -> ElmValue
 _elmEncoder =
   cata $ \case
@@ -419,11 +411,11 @@ recordEncoder fields =
 -- types that are in `elm-core`, such as `Maybe a` and `Result err ok`. When the
 -- user generates Elm code for a Haskell `Maybe a` we'd still like that to be
 -- mapped onto the Elm equivalent. This code ensures it does.
-useElmCoreTypes :: (UserTypes, ElmType) -> (UserTypes, ElmType)
-useElmCoreTypes (userTypes, type_) =
+useElmCoreTypes :: UserTypes -> (UserTypes, ElmType -> ElmType)
+useElmCoreTypes userTypes =
   ( UserTypes . fmap replaceInTypeDefinition $
     Map.withoutKeys (unUserTypes userTypes) (Map.keysSet replacements)
-  , replace type_)
+  , replace)
   where
     replacements :: Map Wire.TypeName ElmType
     replacements = elmCoreTypeReplacements userTypes
@@ -437,8 +429,9 @@ useElmCoreTypes (userTypes, type_) =
         x@(Defined name) -> fromMaybe (Fix x) $ Map.lookup name replacements
         x -> Fix x
 
-fromWireUserTypes :: Wire.UserTypes -> UserTypes
+fromWireUserTypes :: Wire.UserTypes -> (UserTypes, ElmType -> ElmType)
 fromWireUserTypes =
+  useElmCoreTypes .
   UserTypes . fmap (fromWireUserType . toList) . Wire.unUserTypes
 
 elmCoreTypeReplacements :: UserTypes -> Map Wire.TypeName ElmType

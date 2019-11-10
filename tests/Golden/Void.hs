@@ -8,12 +8,12 @@ module Golden.Void
     ) where
 
 import Data.Void (Void)
-import Servant.Elm (ELM)
+import Servant.Elm (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
 import qualified Wire
 
-type API = "wish" :> Get '[ ELM] (Either Void Unicorn)
+type API = "wish" :> Get '[ WIRE] (Either Void Unicorn)
 
 data Unicorn
     deriving (Generic, Wire.Rep)

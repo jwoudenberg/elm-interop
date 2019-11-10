@@ -8,12 +8,12 @@ module Golden.MutuallyRecursive
     ) where
 
 import Data.Text (Text)
-import Servant.Elm (ELM)
+import Servant.Elm (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
 import qualified Wire
 
-type API = "duet" :> Get '[ ELM] (BackAndForth Line)
+type API = "duet" :> Get '[ WIRE] (BackAndForth Line)
 
 type Line = Text
 

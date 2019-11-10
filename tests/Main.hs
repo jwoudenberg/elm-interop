@@ -6,12 +6,12 @@ import Data.Proxy (Proxy(Proxy))
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
 import qualified Elm
-import qualified Servant.Elm
 import qualified Golden.MutuallyRecursive
 import qualified Golden.Record
 import qualified Golden.Recursive
 import qualified Golden.RequestBody
 import qualified Golden.Void
+import qualified Servant.Elm
 import Test.Tasty
 import qualified Test.Tasty.Golden as Golden
 
@@ -31,12 +31,13 @@ goldenTests =
     , goldenTestFor "Void" (Proxy :: Proxy Golden.Void.API)
     ]
 
-goldenTestFor :: Servant.Elm.HasElm api => String -> Proxy api -> TestTree
+goldenTestFor ::
+     Servant.Elm.HasWireFormat api => String -> Proxy api -> TestTree
 goldenTestFor name api =
   Golden.goldenVsString name ("tests/Golden/" <> name <> ".elm") go
   where
     go =
       pure .
       Data.Text.Lazy.Encoding.encodeUtf8 .
-      Data.Text.Lazy.fromStrict . Elm.printModule $
-      Servant.Elm.elmTypes api
+      Data.Text.Lazy.fromStrict . Elm.printModule . fst . Elm.fromWireUserTypes $
+      Servant.Elm.wireTypes api

@@ -8,12 +8,12 @@ module Golden.Record
   ) where
 
 import Data.Text (Text)
-import Servant.Elm (ELM)
+import Servant.Elm (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
 import qualified Wire
 
-type API = "socks" :> Get '[ ELM] Sock
+type API = "socks" :> Get '[ WIRE] Sock
 
 data Sock = Sock
   { color :: Text

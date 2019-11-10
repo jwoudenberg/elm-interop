@@ -8,12 +8,12 @@ module Golden.RequestBody
     ) where
 
 import Data.Text (Text)
-import Servant.Elm (ELM)
+import Servant.Elm (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
 import qualified Wire
 
-type API = "fish" :> ReqBody '[ ELM] Money :> Get '[ ELM] Fish
+type API = "fish" :> ReqBody '[ WIRE] Money :> Get '[ WIRE] Fish
 
 data Money = Money
     { amount :: Int

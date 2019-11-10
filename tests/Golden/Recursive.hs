@@ -8,12 +8,12 @@ module Golden.Recursive
     ) where
 
 import Data.Text (Text)
-import Servant.Elm (ELM)
+import Servant.Elm (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
 import qualified Wire
 
-type API = "turtles" :> Get '[ ELM] Turtle
+type API = "turtles" :> Get '[ WIRE] Turtle
 
 data Turtle = Turtle
     { name :: Text
