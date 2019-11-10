@@ -15,6 +15,10 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
+-- |
+-- A wire type that for sending data between a Haskell backend and a frontend or
+-- other backend written in a different language. Can be derived automatically
+-- for Haskell types using Generics.
 module Wire
   ( TypeName(..)
   , ConstructorName(..)

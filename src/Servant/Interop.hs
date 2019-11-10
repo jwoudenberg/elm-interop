@@ -11,8 +11,20 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
+-- |
+-- A type class to support code generation in other languages for Servant APIs.
+-- Enable code generation for an endpoint by adding `WIRE` to the list of
+-- supported data formats.
+--
+--     "api" :> Get '[WIRE] MyType
+--
+-- This will require types in the `Servant` API to implement the `Rep` type
+-- class, which can be derived automatically using Generics:
+--
+--     instance Rep MyType
+--
 module Servant.Interop
-  ( HasWireFormat
+  ( HasWireFormat(..)
   , WIRE
   , wireTypes
   , Wire.Rep

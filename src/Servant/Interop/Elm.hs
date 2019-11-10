@@ -4,6 +4,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- |
+-- Generate an Elm module for talking with a Servant API. This will generate
+-- code only for endpoints in the API which support the `WIRE` format, see the
+-- `Servant.Interop` module for more details.
+--
+-- Given an API you can generate Elm code for talking with it:
+--
+--     writeFile
+--         "src/Generated.elm"
+--         (printModule (Proxy :: Proxy api))
+--
 module Servant.Interop.Elm
   ( printModule
   ) where
@@ -451,8 +462,7 @@ replaceWithElmCoreType typeName (Custom typeDef) =
     orderedConstructors :: [(Wire.ConstructorName, [ElmType])]
     orderedConstructors = toList $ NonEmpty.sortWith fst typeDef
 
-fromWireUserType ::
-     [(Wire.ConstructorName, Wire.Type_)] -> ElmTypeDefinition
+fromWireUserType :: [(Wire.ConstructorName, Wire.Type_)] -> ElmTypeDefinition
 fromWireUserType [] = Alias (Fix Never)
 fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
   where

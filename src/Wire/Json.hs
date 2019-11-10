@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
+-- |
+-- JSON encoding an decoding of the wire type defined in the `Wire` module.
 module Wire.Json
   ( Coder
   , coderForType
