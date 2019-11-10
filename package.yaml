@@ -40,8 +40,6 @@ library:
   exposed-modules:
   - Servant.Interop.Elm
   - Servant.Interop
-  - Wire
-  - Wire.Json
   source-dirs: src
 
 tests:

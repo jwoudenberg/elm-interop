@@ -4,24 +4,23 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Golden.RequestBody
-    ( API
-    ) where
+  ( API
+  ) where
 
 import Data.Text (Text)
-import Servant.Interop (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
-import qualified Wire
+import Servant.Interop (Rep, WIRE)
 
 type API = "fish" :> ReqBody '[ WIRE] Money :> Get '[ WIRE] Fish
 
 data Money = Money
-    { amount :: Int
-    , currency :: Text
-    } deriving (Generic, Wire.Rep)
+  { amount :: Int
+  , currency :: Text
+  } deriving (Generic, Rep)
 
 data Fish
-    = Herring
-    | Carp
-    | Salmon
-    deriving (Generic, Wire.Rep)
+  = Herring
+  | Carp
+  | Salmon
+  deriving (Generic, Rep)

@@ -4,16 +4,15 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Golden.Void
-    ( API
-    ) where
+  ( API
+  ) where
 
 import Data.Void (Void)
-import Servant.Interop (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
-import qualified Wire
+import Servant.Interop (Rep, WIRE)
 
 type API = "wish" :> Get '[ WIRE] (Either Void Unicorn)
 
 data Unicorn
-    deriving (Generic, Wire.Rep)
+  deriving (Generic, Rep)

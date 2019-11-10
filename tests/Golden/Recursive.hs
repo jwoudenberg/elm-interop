@@ -4,18 +4,17 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Golden.Recursive
-    ( API
-    ) where
+  ( API
+  ) where
 
 import Data.Text (Text)
-import Servant.Interop (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
-import qualified Wire
+import Servant.Interop (Rep, WIRE)
 
 type API = "turtles" :> Get '[ WIRE] Turtle
 
 data Turtle = Turtle
-    { name :: Text
-    , onBackOf :: Turtle
-    } deriving (Generic, Wire.Rep)
+  { name :: Text
+  , onBackOf :: Turtle
+  } deriving (Generic, Rep)

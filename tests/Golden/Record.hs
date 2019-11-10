@@ -8,10 +8,9 @@ module Golden.Record
   ) where
 
 import Data.Text (Text)
-import Servant.Interop (WIRE)
 import GHC.Generics (Generic)
 import Servant.API
-import qualified Wire
+import Servant.Interop (Rep, WIRE)
 
 type API = "socks" :> Get '[ WIRE] Sock
 
@@ -19,11 +18,11 @@ data Sock = Sock
   { color :: Text
   , pattern :: Pattern
   , holes :: Int
-  } deriving (Generic, Wire.Rep)
+  } deriving (Generic, Rep)
 
 data Pattern
   = None
   | Stripes
   | Dots
   | Other
-  deriving (Generic, Wire.Rep)
+  deriving (Generic, Rep)
