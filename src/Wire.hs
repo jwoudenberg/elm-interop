@@ -16,8 +16,7 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Wire
-  ( Type_
-  , TypeName(..)
+  ( TypeName(..)
   , ConstructorName(..)
   , FieldName(..)
   , PrimitiveType
@@ -69,8 +68,6 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified GHC.Generics as Generics
 import qualified Type.Reflection
-
-type Type_ = (UserTypes, PrimitiveType)
 
 -- |
 -- A type to describe the shape of data flowing between the front- and backend.
@@ -168,7 +165,7 @@ newtype FieldName = FieldName
   { unFieldName :: Text
   } deriving (Eq, Ord, IsString)
 
-wireType :: Rep a => Proxy a -> Type_
+wireType :: Rep a => Proxy a -> (UserTypes, PrimitiveType)
 wireType = swap . flip runReader mempty . runWriterT . wireType'
 
 -- |
