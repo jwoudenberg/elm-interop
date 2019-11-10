@@ -41,7 +41,7 @@ decodeJson coder =
     (maybe (fail "JSON has a different structure than expected.") pure .
      decode coder)
 
-coderForType :: (UserTypes, Wire.PrimitiveType) -> Coder
+coderForType :: (UserTypes, Wire.Type_) -> Coder
 coderForType (userTypes, type_) =
   flip cata type_ $ \case
     Tuple xs -> tuple xs

@@ -29,11 +29,11 @@ import qualified Wire
 
 data Endpoint = Endpoint
   { path :: Path
-  , query :: [(Text, Maybe Wire.PrimitiveType)]
+  , query :: [(Text, Maybe Wire.Type_)]
   , method :: Method
-  , headers :: [(Text, Wire.PrimitiveType)]
-  , body :: Maybe Wire.PrimitiveType
-  , responseBody :: Maybe Wire.PrimitiveType
+  , headers :: [(Text, Wire.Type_)]
+  , body :: Maybe Wire.Type_
+  , responseBody :: Maybe Wire.Type_
   }
 
 wireTypes :: HasWireFormat api => Proxy api -> Wire.UserTypes
@@ -42,9 +42,9 @@ wireTypes = fst . wireFormat
 data Path
   = Static Text
            Path
-  | Capture Wire.PrimitiveType
+  | Capture Wire.Type_
             Path
-  | CaptureAll Wire.PrimitiveType
+  | CaptureAll Wire.Type_
   | Root
 
 data WIRE

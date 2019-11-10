@@ -19,8 +19,8 @@ module Wire
   ( TypeName(..)
   , ConstructorName(..)
   , FieldName(..)
-  , PrimitiveType
-  , PrimitiveTypeF(..)
+  , Type_
+  , TypeF(..)
   , UserTypes(..)
   , Value(..)
   , Rep
@@ -72,13 +72,13 @@ import qualified Type.Reflection
 -- |
 -- A type to describe the shape of data flowing between the front- and backend.
 --
--- We generate Elm types based on descriptions of types expressed in `PrimitiveType`
+-- We generate Elm types based on descriptions of types expressed in `Type_`
 -- so there's enough information there for that, but otherwise the intention is
 -- for this type to be as small as possible, which is to say having the least
 -- amount of constructors.
 --
 -- Having a small type here contributes to simplifying other parts of the code:
--- - Using `GHC.Generics` we produce `PrimitiveType` representations of all Haskell
+-- - Using `GHC.Generics` we produce `Type_` representations of all Haskell
 --   types. Generics code by its nature is spread out across a large number of
 --   type class instances. The more high end-user concepts like 'records' or
 --   'tuple we add to this type the more we have to perform the construction of
@@ -89,7 +89,7 @@ import qualified Type.Reflection
 --   to have compatible implementations for encoding/decoding it. The smaller
 --   the type the fewer opportunities there are for these implementations to be
 --   misaligned.
-data PrimitiveTypeF a
+data TypeF a
   = Record (Seq (FieldName, a))
   -- ^ A record consisting of name-value pairs.
   | Tuple (Seq a)
@@ -109,7 +109,7 @@ data PrimitiveTypeF a
   | Bool
   deriving (Functor)
 
-type PrimitiveType = Fix PrimitiveTypeF
+type Type_ = Fix TypeF
 
 -- |
 -- Everything that isn't a primitive type is a user type. We always keep their
@@ -118,18 +118,18 @@ type PrimitiveType = Fix PrimitiveTypeF
 -- A user type is a Haskell sum type or Elm custom type. It can have multiple
 -- constructors, each with one or more parameters.
 newtype UserTypes = UserTypes
-  { unUserTypes :: Map TypeName (Seq (ConstructorName, PrimitiveType))
+  { unUserTypes :: Map TypeName (Seq (ConstructorName, Type_))
   } deriving (Semigroup, Monoid)
 
 -- |
--- The `PrimitiveType` describes the types of the things going over the wire
+-- The `Type_` describes the types of the things going over the wire
 -- between Haskell and a language like Elm. This `Value` type describes the
 -- values of those types we're going to encode and decode.
 --
 -- As you can see the `Value` constructors make no mention of field names or
 -- constructor names. Instead we use the order of fields in products and
 -- constructors in sums to indicate which value belongs where. This means you
--- need the `PrimitiveType` to be able to decode a `Value`, and also that the
+-- need the `Type_` to be able to decode a `Value`, and also that the
 -- data going over the wire will be hard for humans to grok.
 --
 -- There's reasons we do it this way regardless:
@@ -165,7 +165,7 @@ newtype FieldName = FieldName
   { unFieldName :: Text
   } deriving (Eq, Ord, IsString)
 
-wireType :: Rep a => Proxy a -> (UserTypes, PrimitiveType)
+wireType :: Rep a => Proxy a -> (UserTypes, Type_)
 wireType = swap . flip runReader mempty . runWriterT . wireType'
 
 -- |
@@ -173,12 +173,12 @@ wireType = swap . flip runReader mempty . runWriterT . wireType'
 class Typeable a =>
       Rep (a :: *)
   where
-  wireType' :: Proxy a -> Builder PrimitiveType
+  wireType' :: Proxy a -> Builder Type_
   toWire :: a -> Value
   fromWire :: Value -> Maybe a
   -- Default Generics-based implementations.
   default wireType' :: (WireG (Generics.Rep a)) =>
-    Proxy a -> Builder PrimitiveType
+    Proxy a -> Builder Type_
   wireType' _ =
     local (first (const (paramsOf (Proxy @a)))) $
     wireTypeG (Proxy @(Generics.Rep a))
@@ -385,7 +385,7 @@ instance (Rep a, Rep b, Rep c, Rep d, Rep e, Rep f, Rep g) =>
     fromWire g
   fromWire _ = Nothing
 
-tupleType :: Applicative f => Seq (f PrimitiveType) -> f PrimitiveType
+tupleType :: Applicative f => Seq (f Type_) -> f Type_
 tupleType xs = Fix . Tuple <$> sequenceA xs
 
 instance Rep a => Rep (Maybe a)
@@ -396,7 +396,7 @@ instance (Rep a, Rep b) => Rep (Either a b)
 -- Helper class for constructing write types from generic representations of
 -- types.
 class WireG (f :: * -> *) where
-  wireTypeG :: Proxy f -> Builder PrimitiveType
+  wireTypeG :: Proxy f -> Builder Type_
   toWireG :: f p -> Value
   fromWireG :: Value -> Maybe (f p)
 
@@ -420,7 +420,7 @@ instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: * -> *) where
-  sumsG :: Proxy f -> Builder (Seq (ConstructorName, PrimitiveType))
+  sumsG :: Proxy f -> Builder (Seq (ConstructorName, Type_))
   toSumsG :: f p -> (ConstructorName, Value)
   fromSumsG :: ConstructorName -> Value -> Maybe (f p)
 
@@ -461,7 +461,7 @@ instance SumsG V1 where
 -- |
 -- Helper class for constructing products.
 class ProductG (f :: * -> *) where
-  productG :: Proxy f -> Builder (Seq (FieldName, PrimitiveType))
+  productG :: Proxy f -> Builder (Seq (FieldName, Type_))
   productLengthG :: Proxy f -> Int
   toProductG :: f p -> (Seq (FieldName, Value))
   fromProductG :: (Seq (FieldName, Value)) -> Maybe (f p)

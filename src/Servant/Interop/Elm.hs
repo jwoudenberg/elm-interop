@@ -452,11 +452,11 @@ replaceWithElmCoreType typeName (Custom typeDef) =
     orderedConstructors = toList $ NonEmpty.sortWith fst typeDef
 
 fromWireUserType ::
-     [(Wire.ConstructorName, Wire.PrimitiveType)] -> ElmTypeDefinition
+     [(Wire.ConstructorName, Wire.Type_)] -> ElmTypeDefinition
 fromWireUserType [] = Alias (Fix Never)
 fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
   where
-    mkConstructors :: Wire.PrimitiveType -> [ElmType]
+    mkConstructors :: Wire.Type_ -> [ElmType]
     mkConstructors =
       \case
         Fix (Wire.Tuple params) -> toList $ fmap fromWireType params
@@ -466,7 +466,7 @@ fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
         -- we'll assume it's a single parameter to the constructor.
         param -> [fromWireType param]
 
-fromWireType :: Wire.PrimitiveType -> ElmType
+fromWireType :: Wire.Type_ -> ElmType
 fromWireType =
   cata $ \case
     Wire.Tuple xs -> mkElmTuple $ toList xs
