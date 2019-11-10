@@ -38,7 +38,7 @@ library:
   - vector
   - wl-pprint-text
   exposed-modules:
-  - Elm
+  - Servant.Interop.Elm
   - Servant.Interop
   - Wire
   - Wire.Json

@@ -5,13 +5,13 @@ module Main
 import Data.Proxy (Proxy(Proxy))
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
-import qualified Elm
 import qualified Golden.MutuallyRecursive
 import qualified Golden.Record
 import qualified Golden.Recursive
 import qualified Golden.RequestBody
 import qualified Golden.Void
 import qualified Servant.Interop
+import qualified Servant.Interop.Elm as Elm
 import Test.Tasty
 import qualified Test.Tasty.Golden as Golden
 

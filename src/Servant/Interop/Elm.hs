@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Elm
+module Servant.Interop.Elm
   ( Wire.Rep
   , ElmType
   , fromWireUserTypes
