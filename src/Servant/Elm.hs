@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
-module Elm.Servant
+module Servant.Elm
   ( HasElm
   , ELM
   , elmTypes

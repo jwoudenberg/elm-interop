@@ -8,7 +8,7 @@ module Golden.Void
     ) where
 
 import Data.Void (Void)
-import Elm.Servant (ELM)
+import Servant.Elm (ELM)
 import GHC.Generics (Generic)
 import Servant.API
 import qualified Wire
