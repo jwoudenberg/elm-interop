@@ -9,6 +9,7 @@ module Servant.Interop.Elm.Values
   ( printValue
   ) where
 
+import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix), cata)
 import Data.Int (Int32)
 import Data.String (IsString(fromString))
@@ -51,6 +52,9 @@ instance IsElmValue () where
 instance IsElmValue String where
   isElmValue name = Fix $ (MkFnCall (VariableName (Text.pack name))) []
 
+instance IsElmValue VariableName where
+  isElmValue name = Fix $ MkFnCall name []
+
 instance IsElmValue ElmValue where
   isElmValue = id
 
@@ -63,8 +67,8 @@ instance IsElmArg ElmValue where
 instance (IsElmValue a, IsElmArg t) => IsElmArg (a -> t) where
   isElmArg name args arg = isElmArg name (isElmValue arg : args)
 
-fn :: IsElmArg args => String -> args
-fn name = isElmArg (VariableName (Text.pack name)) []
+call :: (IsVarName s, IsElmArg args) => s -> args
+call name = isElmArg (isVarName name) []
 
 mkString :: Text -> ElmValue
 mkString = Fix . MkString
@@ -75,14 +79,11 @@ mkList = Fix . MkList
 mkTuple2 :: ElmValue -> ElmValue -> ElmValue
 mkTuple2 a b = Fix $ MkTuple2 a b
 
-mkLambda :: [Pattern] -> ElmValue -> ElmValue
-mkLambda args body = Fix $ MkLambda args body
+lambda :: String -> (VariableName -> ElmValue) -> ElmValue
+lambda var body = Fix $ MkLambda [pattern var] (body (isVarName var))
 
 mkCase :: ElmValue -> [(Pattern, ElmValue)] -> ElmValue
 mkCase matched branches = Fix $ MkCase matched branches
-
-mkVar :: VariableName -> ElmValue
-mkVar name = Fix $ MkFnCall name []
 
 newtype VariableName = VariableName
   { unVariableName :: Text
@@ -93,8 +94,35 @@ data Pattern =
   Match VariableName
         [Pattern]
 
-instance IsString Pattern where
-  fromString = flip Match [] . VariableName . Text.pack
+pattern :: (IsVarName s, IsPatternArg args) => s -> args
+pattern name = isPatternArg (isVarName name) []
+
+class IsPatternArg t where
+  isPatternArg :: VariableName -> [Pattern] -> t
+
+instance IsPatternArg Pattern where
+  isPatternArg name args = Match name args
+
+instance (IsPattern a, IsPatternArg t) => IsPatternArg (a -> t) where
+  isPatternArg name args arg = isPatternArg name (isPattern arg : args)
+
+class IsPattern a where
+  isPattern :: a -> Pattern
+
+instance IsPattern Pattern where
+  isPattern = id
+
+instance IsPattern String where
+  isPattern name = Match (isVarName name) []
+
+class IsVarName a where
+  isVarName :: a -> VariableName
+
+instance IsVarName VariableName where
+  isVarName = id
+
+instance IsVarName String where
+  isVarName name = VariableName (Text.pack name)
 
 type ElmValue = Fix ElmValueF
 
@@ -123,8 +151,8 @@ printValue =
       fromString "case" <+>
       matched <+> fromString "of" <> PP.vsep (uncurry printBranch <$> branches)
       where printBranch :: Pattern -> PP.Doc -> PP.Doc
-            printBranch pattern body =
-              printPattern pattern <+> fromString "->" <+> body
+            printBranch match body =
+              printPattern match <+> fromString "->" <+> body
 
 printPattern :: Pattern -> PP.Doc
 printPattern (Match ctor vars) =
@@ -136,62 +164,57 @@ printVariableName = PP.textStrict . unVariableName
 _elmEncoder :: ElmType -> ElmValue
 _elmEncoder =
   cata $ \case
-    Unit -> fn "Basics.always" ()
-    Never -> fn "Basics.never"
-    Bool -> fn "Json.Encode.bool"
-    Int -> fn "Json.Encode.int"
-    Float -> fn "Json.Encode.float"
-    String -> fn "Json.Encode.string"
+    Unit -> call "Basics.always" ()
+    Never -> call "Basics.never"
+    Bool -> call "Json.Encode.bool"
+    Int -> call "Json.Encode.int"
+    Float -> call "Json.Encode.float"
+    String -> call "Json.Encode.string"
     List a ->
-      mkLambda [Match (VariableName (Text.pack "list")) []] $
-      fn "List.map" a "list" `rightPizza` fn "Json.Encode.list" a
-    Maybe a ->
-      customTypeEncoder
-        [ (VariableName (Text.pack "Nothing"), [])
-        , (VariableName (Text.pack "Just"), [a])
-        ]
-    Result err ok ->
-      customTypeEncoder
-        [ (VariableName (Text.pack "Err"), [err])
-        , (VariableName (Text.pack "Ok"), [ok])
-        ]
+      lambda "list" $ \list ->
+        call "List.map" a list |> call "Json.Encode.list" a
+    Maybe a -> customTypeEncoder [("Nothing", []), ("Just", [a])]
+    Result err ok -> customTypeEncoder [("Err", [err]), ("Ok", [ok])]
     Tuple2 _a _b -> undefined
     Tuple3 _a _b _c -> undefined
     Record _fields -> undefined
     Lambda _i _o -> undefined
     Defined _name -> undefined
 
-customTypeEncoder :: [(VariableName, [ElmValue])] -> ElmValue
+customTypeEncoder :: IsVarName s => [(s, [ElmValue])] -> ElmValue
 customTypeEncoder ctors =
-  mkLambda [Match (VariableName (Text.pack "x")) []] . mkCase (fn "x") $
-  uncurry constructorEncoder <$> ctors
+  lambda "x" $ \x ->
+    mkCase (call x) (uncurry constructorEncoder . first isVarName <$> ctors)
 
-rightPizza :: ElmValue -> ElmValue -> ElmValue
-rightPizza left right = fn "Basics.|>" left right
+(|>) :: ElmValue -> ElmValue -> ElmValue
+(|>) left right = call "Basics.|>" left right
 
-leftPizza :: ElmValue -> ElmValue -> ElmValue
-leftPizza left right = fn "Basics.<|" left right
+infixl 1 |>
+
+(<|) :: ElmValue -> ElmValue -> ElmValue
+(<|) left right = call "Basics.<|" left right
+
+infixr 0 <|
 
 constructorEncoder :: VariableName -> [ElmValue] -> (Pattern, ElmValue)
 constructorEncoder name paramEncoders =
   let vars =
         take (length paramEncoders) $
-        (VariableName . Text.pack . ("x" <>) . show) <$> ([1 ..] :: [Int])
-   in ( Match name (flip Match [] <$> vars)
+        (isVarName . ("x" <>) . show) <$> ([1 ..] :: [Int])
+   in ( Match name (pattern <$> vars)
       , recordEncoder
-          [ ( Text.pack "ctor"
-            , fn "Json.Encode.string" (mkString (unVariableName name)))
-          , ( Text.pack "value"
+          [ ("ctor", call "Json.Encode.string" name)
+          , ( "value"
             , mkList $
               zipWith
-                (\param encoder -> encoder `leftPizza` mkVar param)
+                (\param encoder -> encoder <| isElmValue param)
                 vars
                 paramEncoders)
           ])
 
-recordEncoder :: [(Text, ElmValue)] -> ElmValue
+recordEncoder :: [(String, ElmValue)] -> ElmValue
 recordEncoder fields =
-  fn "Json.Encode.object" (mkList $ uncurry fieldEncoder <$> fields)
+  call "Json.Encode.object" (mkList $ uncurry fieldEncoder <$> fields)
   where
-    fieldEncoder :: Text -> ElmValue -> ElmValue
-    fieldEncoder name = mkTuple2 (mkString name)
+    fieldEncoder :: String -> ElmValue -> ElmValue
+    fieldEncoder name = mkTuple2 (mkString (Text.pack name))
