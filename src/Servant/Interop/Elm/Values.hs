@@ -1,24 +1,27 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeInType #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Servant.Interop.Elm.Values
   ( printValue
   , elmEncoder
   ) where
 
-import Data.Bifunctor (first)
 import Data.Functor.Foldable (Fix(Fix), cata)
+import GHC.TypeLits (Symbol)
 import Data.Int (Int32)
 import Data.String (IsString(fromString))
 import Data.Text (Text)
 import Servant.Interop.Elm.Print
-import Servant.Interop.Elm.Types
+import Servant.Interop.Elm.Types (ElmTypeF'(..))
 import Text.PrettyPrint.Leijen.Text ((<+>))
 
 import qualified Data.Text as Text
@@ -48,7 +51,12 @@ data ElmValueF a
            [(Pattern, a)]
   deriving (Functor)
 
-type ElmValue = Fix ElmValueF
+type ElmValue (t :: ElmType) = Fix ElmValueF
+
+type ElmType = Fix (ElmTypeF' Symbol)
+
+instance IsString (ElmValue ('Fix 'String)) where
+  fromString = Fix . MkString . fromString
 
 newtype VariableName = VariableName
   { unVariableName :: Text
@@ -59,122 +67,52 @@ data Pattern =
   Match VariableName
         [Pattern]
 
--- |
--- Create Elm variables or function calls.
---
---    function "variable"
---
---    function "List.map" (function "Basics.abs") -23
---
-function :: (IsVarName s, IsElmArg args) => s -> args
-function name = isElmArg (isVarName name) []
+fn1 :: ElmValue ('Fix ('Lambda a b)) -> ElmValue a -> ElmValue b
+fn1 f x = f <| x
 
--- |
--- Create an Elm pattern.
---
---     pattern "User" "firstName" "lastName"
---
-pattern :: (IsVarName s, IsPatternArg args) => s -> args
-pattern name = isPatternArg (isVarName name) []
+fn2 :: ElmValue ('Fix ('Lambda a ('Fix ('Lambda b c)))) -> ElmValue a -> ElmValue b -> ElmValue c
+fn2 f x y = f <| x <| y
+
+p0 :: VariableName -> Pattern
+p0 n = Match n []
 
 -- |
 -- Combine two Elm values with a right-pizza operator.
-(|>) :: ElmValue -> ElmValue -> ElmValue
-(|>) left right = function "Basics.|>" left right
+(|>) :: ElmValue a -> ElmValue ('Fix ('Lambda a b)) -> ElmValue b
+(|>) left right = fn2 "Basics.|>" left right
 
 infixl 1 |>
 
 -- |
 -- Combine two Elm values with a left-pizza operator.
-(<|) :: ElmValue -> ElmValue -> ElmValue
-(<|) left right = function "Basics.<|" left right
+(<|) :: ElmValue ('Fix ('Lambda a b)) -> ElmValue a -> ElmValue b
+(<|) left right = fn2 "Basics.<|" left right
 
 infixr 0 <|
 
-lambda :: String -> (VariableName -> ElmValue) -> ElmValue
-lambda var body = Fix $ MkLambda [pattern var] (body (isVarName var))
+lambda :: VariableName -> (ElmValue a -> ElmValue b) -> ElmValue ('Fix ('Lambda a b))
+lambda var body = Fix $ MkLambda [p0 var] (body (Fix (MkFnCall var [])))
 
-mkCase :: ElmValue -> [(Pattern, ElmValue)] -> ElmValue
+mkCase :: ElmValue a -> [(Pattern, ElmValue b)] -> ElmValue b
 mkCase matched branches = Fix $ MkCase matched branches
 
--- |
--- Helper type class for interpreting Haskell values as Elm values. This allows
--- us to use regular Haskell values in building Elm ASTs.
-class IsElmValue a where
-  isElmValue :: a -> ElmValue
+unit :: ElmValue ('Fix 'Unit)
+unit = Fix MkUnit
 
-instance IsElmValue () where
-  isElmValue () = Fix MkUnit
+tuple :: ElmValue a -> ElmValue b -> ElmValue ('Fix ('Tuple2 a b))
+tuple x y = Fix (MkTuple2 x y)
 
-instance IsElmValue Data.Int.Int32 where
-  isElmValue int = Fix (MkInt int)
+l :: [ElmValue a] -> ElmValue ('Fix ('List a))
+l = Fix . MkList
 
-instance {-# OVERLAPPING #-} IsElmValue String where
-  isElmValue string = Fix (MkString (Text.pack string))
+v :: VariableName -> ElmValue a
+v name = Fix $ MkFnCall name []
 
-instance (IsElmValue a, IsElmValue b) => IsElmValue (a, b) where
-  isElmValue (x, y) = Fix (MkTuple2 (isElmValue x) (isElmValue y))
+printValue :: ElmValue a -> PP.Doc
+printValue = printValue'
 
-instance IsElmValue a => IsElmValue [a] where
-  isElmValue = Fix . MkList . fmap isElmValue
-
-instance IsElmValue VariableName where
-  isElmValue name = Fix $ MkFnCall name []
-
-instance IsElmValue ElmValue where
-  isElmValue = id
-
--- |
--- Helper class for recognizing Elm args. This supports the `function` helper,
--- and allows it to take a variadic amount of arguments.
-class IsElmArg t where
-  isElmArg :: VariableName -> [ElmValue] -> t
-
-instance IsElmArg ElmValue where
-  isElmArg name args = Fix $ MkFnCall name args
-
-instance (IsElmValue a, IsElmArg t) => IsElmArg (a -> t) where
-  isElmArg name args arg = isElmArg name (isElmValue arg : args)
-
--- |
--- Helper class for recognizing pattern args. This supports the `pattern`
--- helper, and allows it to take a variadic amount of arguments.
-class IsPatternArg t where
-  isPatternArg :: VariableName -> [Pattern] -> t
-
-instance IsPatternArg Pattern where
-  isPatternArg name args = Match name args
-
-instance (IsPattern a, IsPatternArg t) => IsPatternArg (a -> t) where
-  isPatternArg name args arg = isPatternArg name (isPattern arg : args)
-
--- |
--- Helper class for recognizing patterns. This allows the `pattern` helper to
--- take a mix of `Pattern` types and regular strings.
-class IsPattern a where
-  isPattern :: a -> Pattern
-
-instance IsPattern Pattern where
-  isPattern = id
-
-instance IsPattern String where
-  isPattern name = Match (isVarName name) []
-
--- |
--- Helper class for recognizing variable names. This allows us to write strings
--- in places instead of explicitly wrapping our variables in the `VariableName`
--- constructor.
-class IsVarName a where
-  isVarName :: a -> VariableName
-
-instance IsVarName VariableName where
-  isVarName = id
-
-instance IsVarName String where
-  isVarName name = VariableName (Text.pack name)
-
-printValue :: ElmValue -> PP.Doc
-printValue =
+printValue' :: Fix ElmValueF -> PP.Doc
+printValue' =
   cata $ \case
     MkUnit -> fromString "()"
     MkBool bool -> PP.textStrict . Text.pack $ show bool
@@ -208,43 +146,43 @@ printPattern (Match ctor vars) =
 printVariableName :: VariableName -> PP.Doc
 printVariableName = PP.textStrict . unVariableName
 
-elmEncoder :: ElmType -> ElmValue
+elmEncoder :: ElmType -> ElmValue a
 elmEncoder =
   cata $ \case
-    Unit -> function "Basics.always" ()
-    Never -> function "Basics.never"
-    Bool -> function "Json.Encode.bool"
-    Int -> function "Json.Encode.int"
-    Float -> function "Json.Encode.float"
-    String -> function "Json.Encode.string"
+    Unit -> fn1 "Basics.always" unit
+    Never -> "Basics.never"
+    Bool -> "Json.Encode.bool"
+    Int -> "Json.Encode.int"
+    Float -> "Json.Encode.float"
+    String -> "Json.Encode.string"
     List a ->
       lambda "list" $ \list ->
-        function "List.map" a list |> function "Json.Encode.list" a
+        fn2 "List.map" a list |> fn1 "Json.Encode.list" a
     Maybe a -> customTypeEncoder [("Nothing", []), ("Just", [a])]
     Result err ok -> customTypeEncoder [("Err", [err]), ("Ok", [ok])]
     Tuple2 _a _b -> undefined
     Tuple3 _a _b _c -> undefined
     Record _fields -> undefined
     Lambda _i _o -> undefined
-    Defined _name -> undefined
+    Defined _name _ -> undefined
 
-customTypeEncoder :: IsVarName s => [(s, [ElmValue])] -> ElmValue
+customTypeEncoder :: [(VariableName, [ElmValue x])] -> ElmValue y
 customTypeEncoder ctors =
-  lambda "x" $ \x ->
-    mkCase (function x) (uncurry constructorEncoder . first isVarName <$> ctors)
+  lambda ("x") $ \x ->
+    mkCase x (uncurry constructorEncoder <$> ctors)
 
-constructorEncoder :: VariableName -> [ElmValue] -> (Pattern, ElmValue)
+constructorEncoder :: VariableName -> [ElmValue x] -> (Pattern, ElmValue y)
 constructorEncoder name paramEncoders =
   let vars =
         take (length paramEncoders) $ (("x" <>) . show) <$> ([1 ..] :: [Int])
-   in ( Match name (pattern <$> vars)
-      , function
-          "Json.Encode.object"
-          [ ("ctor", function "Json.Encode.string" name)
-          , ( "value"
-            , isElmValue $
+   in ( Match name (p0 . fromString <$> vars)
+      , fn1
+          ("Json.Encode.object")
+          (l [ tuple ("ctor") (fn1 ("Json.Encode.string") (v name))
+          , tuple ("value")
+            ( l $
               zipWith
-                (\param encoder -> encoder <| isElmValue param)
+                (\param encoder -> encoder <| fromString param)
                 vars
                 paramEncoders)
-          ])
+          ]))

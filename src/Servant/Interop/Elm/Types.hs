@@ -7,7 +7,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Servant.Interop.Elm.Types
-  ( ElmTypeF(..)
+  ( ElmTypeF
+  , ElmTypeF'(..)
   , ElmType
   , sortUserTypes
   , fromWireUserTypes
@@ -30,7 +31,9 @@ import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
-data ElmTypeF a
+type ElmTypeF a = ElmTypeF' Wire.FieldName a
+
+data ElmTypeF' s a
   = Unit
   | Never
   | Bool
@@ -46,13 +49,13 @@ data ElmTypeF a
   | Tuple3 a
            a
            a
-  | Record [(Wire.FieldName, a)]
+  | Record [(s, a)]
   | Lambda a
            a
-  | Defined Wire.TypeName
+  | Defined Wire.TypeName a
   deriving (Functor)
 
-type ElmType = Fix ElmTypeF
+type ElmType = Fix (ElmTypeF' Wire.FieldName)
 
 newtype UserTypes = UserTypes
   { unUserTypes :: Map Wire.TypeName ElmTypeDefinition
@@ -83,7 +86,7 @@ namesInType =
     Tuple2 x y -> x <> y
     Tuple3 x y z -> x <> y <> z
     Record x -> foldMap snd x
-    Defined n -> [n]
+    Defined n _ -> [n]
     Lambda x y -> x <> y
 
 printType :: ElmType -> PP.Doc
@@ -103,7 +106,7 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined name -> PP.textStrict $ unqualifiedName name
+    Defined name _ -> PP.textStrict $ unqualifiedName name
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
       -- |
       -- We only need to parenthesize the input argument if it is a
@@ -155,7 +158,7 @@ appearance =
     Tuple2 _ _ -> SingleWord
     Tuple3 _ _ _ -> SingleWord
     Record _ -> SingleWord
-    Defined _ -> SingleWord
+    Defined _ _ -> SingleWord
     Lambda _ _ -> MultipleWordLambda
 
 printRecordField :: (Wire.FieldName, (a, PP.Doc)) -> PP.Doc
@@ -182,7 +185,7 @@ useElmCoreTypes userTypes =
     replace :: ElmType -> ElmType
     replace =
       cata $ \case
-        x@(Defined name) -> fromMaybe (Fix x) $ Map.lookup name replacements
+        x@(Defined name _) -> fromMaybe (Fix x) $ Map.lookup name replacements
         x -> Fix x
 
 fromWireUserTypes :: Wire.UserTypes -> (UserTypes, ElmType -> ElmType)
@@ -227,7 +230,7 @@ fromWireType =
   cata $ \case
     Wire.Tuple xs -> mkElmTuple $ toList xs
     Wire.Record xs -> Fix . Record $ toList xs
-    Wire.User name -> Fix $ Defined name
+    Wire.User name -> Fix $ Defined name (Fix Unit)
     Wire.Void -> Fix Never
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float
