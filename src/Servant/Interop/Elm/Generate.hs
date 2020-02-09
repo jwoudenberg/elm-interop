@@ -4,48 +4,59 @@
 module Servant.Interop.Elm.Generate (elmEncoder) where
 
 import Servant.Interop.Elm.Values
-import Data.Functor.Foldable (Fix(Fix), cata)
-import Data.String (IsString(fromString))
-import Data.Text (Text)
+import Data.Functor.Foldable (cata)
 import Servant.Interop.Elm.Types (ElmTypeF'(..))
 
-elmEncoder :: ElmType -> ElmValue a
+elmEncoder :: ElmType -> ElmValue (Any -> Value)
 elmEncoder =
   cata $ \case
-    Unit -> fn1 "Basics.always" unit
-    Never -> "Basics.never"
-    Bool -> "Json.Encode.bool"
-    Int -> "Json.Encode.int"
-    Float -> "Json.Encode.float"
-    String -> "Json.Encode.string"
-    List a ->
-      lambda "list" $ \list ->
-        fn2 "List.map" a list |> fn1 "Json.Encode.list" a
-    Maybe a -> customTypeEncoder [("Nothing", []), ("Just", [a])]
-    Result err ok -> customTypeEncoder [("Err", [err]), ("Ok", [ok])]
+    Unit -> anyEncoder $ fn1 (var _always) (var _Json_Encode_null)
+    Never -> anyEncoder $ var _never
+    Bool -> anyEncoder $ var _Json_Encode_bool
+    Int -> anyEncoder $ var _Json_Encode_int
+    Float -> anyEncoder $ var _Json_Encode_float
+    String -> anyEncoder $ var _Json_Encode_string
+    List a -> anyEncoder $
+      lambda "elems" $ \elems -> fn2 (var _Json_Encode_list) a elems
+    Maybe f -> anyEncoder $ 
+      lambda "x" $ \x ->
+        mkCase x 
+          [ matchCtor0 _Nothing (ctor0Encoder _Nothing)
+          , matchCtor1 _Just "x" (\y -> ctor1Encoder _Just (fn1 f y))
+          ]
+    Result f g -> anyEncoder $ 
+      lambda "x" $ \x ->
+        mkCase x 
+          [ matchCtor1 _Err "err" (\err -> ctor1Encoder _Err (fn1 f err))
+          , matchCtor1 _Just "ok" (\ok -> ctor1Encoder _Just (fn1 g ok))
+          ]
     Tuple2 _a _b -> undefined
     Tuple3 _a _b _c -> undefined
     Record _fields -> undefined
     Lambda _i _o -> undefined
-    Defined _name _ -> undefined
+    Defined _name -> undefined
 
-customTypeEncoder :: [(Text, [ElmValue x])] -> ElmValue y
-customTypeEncoder ctors =
-  lambda ("x") $ \x ->
-    mkCase x (uncurry constructorEncoder <$> ctors)
+data Any
 
-constructorEncoder :: Text -> [ElmValue x] -> (Pattern z, ElmValue y)
-constructorEncoder name paramEncoders =
-  let vars =
-        take (length paramEncoders) $ (("x" <>) . show) <$> ([1 ..] :: [Int])
-   in ( Fix (ConstructorPat name (p0 . fromString <$> vars))
-      , fn1
-          ("Json.Encode.object")
-          (l [ tuple ("ctor") (fn1 ("Json.Encode.string") (v name))
-          , tuple ("value")
-            ( l $
-              zipWith
-                (\param encoder -> encoder <| fromString param)
-                vars
-                paramEncoders)
-          ]))
+anyEncoder :: ElmValue (a -> Value) -> ElmValue (Any -> Value)
+anyEncoder = anyType
+
+ctor0Encoder :: Variable a -> ElmValue Value
+ctor0Encoder ctor =
+       fn1
+          (var _Json_Encode_object)
+          (list
+            [ tuple ("ctor") (fn1 (var _Json_Encode_string) (string (varName ctor)))
+            , tuple ("value") (fn2 (var _Json_Encode_list) (var _identity) (list []))
+            ]
+          )
+
+ctor1Encoder :: Variable (a -> b) -> ElmValue Value -> ElmValue Value
+ctor1Encoder ctor param =
+       fn1
+          (var _Json_Encode_object)
+          (list
+            [ tuple ("ctor") (fn1 (var _Json_Encode_string) (string (varName ctor)))
+            , tuple ("value") (fn2 (var _Json_Encode_list) (var _identity) (list [param]))
+            ]
+          )

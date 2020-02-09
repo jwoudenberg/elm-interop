@@ -10,6 +10,7 @@ module Servant.Interop.Elm.Types
   ( ElmTypeF
   , ElmTypeF'(..)
   , ElmType
+  , ElmTypeDefinition
   , sortUserTypes
   , fromWireUserTypes
   , printTypeDefinition
@@ -52,7 +53,7 @@ data ElmTypeF' s a
   | Record [(s, a)]
   | Lambda a
            a
-  | Defined Wire.TypeName a
+  | Defined Wire.TypeName
   deriving (Functor)
 
 type ElmType = Fix (ElmTypeF' Wire.FieldName)
@@ -86,7 +87,7 @@ namesInType =
     Tuple2 x y -> x <> y
     Tuple3 x y z -> x <> y <> z
     Record x -> foldMap snd x
-    Defined n _ -> [n]
+    Defined n -> [n]
     Lambda x y -> x <> y
 
 printType :: ElmType -> PP.Doc
@@ -106,7 +107,7 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined name _ -> PP.textStrict $ unqualifiedName name
+    Defined name -> PP.textStrict $ unqualifiedName name
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
       -- |
       -- We only need to parenthesize the input argument if it is a
@@ -158,7 +159,7 @@ appearance =
     Tuple2 _ _ -> SingleWord
     Tuple3 _ _ _ -> SingleWord
     Record _ -> SingleWord
-    Defined _ _ -> SingleWord
+    Defined _ -> SingleWord
     Lambda _ _ -> MultipleWordLambda
 
 printRecordField :: (Wire.FieldName, (a, PP.Doc)) -> PP.Doc
@@ -185,7 +186,7 @@ useElmCoreTypes userTypes =
     replace :: ElmType -> ElmType
     replace =
       cata $ \case
-        x@(Defined name _) -> fromMaybe (Fix x) $ Map.lookup name replacements
+        x@(Defined name ) -> fromMaybe (Fix x) $ Map.lookup name replacements
         x -> Fix x
 
 fromWireUserTypes :: Wire.UserTypes -> (UserTypes, ElmType -> ElmType)
@@ -230,7 +231,7 @@ fromWireType =
   cata $ \case
     Wire.Tuple xs -> mkElmTuple $ toList xs
     Wire.Record xs -> Fix . Record $ toList xs
-    Wire.User name -> Fix $ Defined name (Fix Unit)
+    Wire.User name -> Fix $ Defined name 
     Wire.Void -> Fix Never
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float
