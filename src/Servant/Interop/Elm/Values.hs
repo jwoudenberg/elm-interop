@@ -27,6 +27,9 @@ module Servant.Interop.Elm.Values
   , (|>)
   , mkCase
   , matchVar
+  , matchTuple2
+  , matchTuple3
+  , matchRecordN
   , matchCtor0
   , matchCtor1
   , p0
@@ -103,6 +106,7 @@ data PatternF p
   = VarPat Text
   | ConstructorPat Text [p]
   | Tuple2Pat p p
+  | Tuple3Pat p p p
   | RecordPat [Text]
   deriving (Functor)
 
@@ -131,14 +135,41 @@ infixl 1 |>
 
 infixr 0 <|
 
-lambda :: Text -> (ElmValue a -> ElmValue b) -> ElmValue (a -> b)
-lambda var' body = T . Fix $ MkLambda (p0 var') (unT . body $ v var')
+lambda :: (Pattern a, ElmValue b) -> ElmValue (a -> b)
+lambda (pattern, value) = T . Fix $ MkLambda pattern (unT value)
 
 mkCase :: ElmValue a -> [(Pattern a, ElmValue b)] -> ElmValue b
 mkCase (T matched) branches = T . Fix $ MkCase matched ((fmap . fmap) unT branches)
 
 matchVar :: Text -> (ElmValue a -> ElmValue b) -> (Pattern a, ElmValue b)
 matchVar name withMatch = (Fix (VarPat name), withMatch (v name))
+
+matchTuple2 :: Text -> Text -> (ElmValue a -> ElmValue b -> ElmValue c) -> (Pattern (a, b), ElmValue c)
+matchTuple2 name1 name2 withMatch =
+  (Fix (Tuple2Pat (Fix (VarPat name1)) (Fix (VarPat name2)))
+  , withMatch (v name1) (v name2)
+  )
+
+matchTuple3
+  :: Text
+  -> Text
+  -> Text
+  -> (ElmValue a -> ElmValue b -> ElmValue c -> ElmValue d)
+  -> (Pattern (a, b, c), ElmValue d)
+matchTuple3 name1 name2 name3 withMatch =
+  (Fix (Tuple3Pat (Fix (VarPat name1)) (Fix (VarPat name2)) (Fix (VarPat name3)))
+  , withMatch (v name1) (v name2) (v name3)
+  )
+
+matchRecordN
+  :: [Text]
+  -> (Variable a -> ElmValue b)
+  -> ([ElmValue b] -> ElmValue c)
+  -> (Pattern x, ElmValue c)
+matchRecordN fields perField combine =
+  ( Fix (RecordPat fields)
+  , combine $ perField . Variable <$> fields
+  )
 
 newtype Variable t = Variable Text deriving (IsString)
 
@@ -231,6 +262,8 @@ printPattern =
       PP.sep $ (PP.textStrict ctor) : vars
     Tuple2Pat x y ->
        encloseSep' PP.lparen PP.rparen PP.comma [x, y]
+    Tuple3Pat x y z ->
+       encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
     RecordPat fields ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (PP.textStrict <$> fields)
 
