@@ -10,7 +10,7 @@ module Servant.Interop.Elm.Types
   ( ElmTypeF
   , ElmTypeF'(..)
   , ElmType
-  , ElmTypeDefinition
+  , ElmTypeDefinition(..)
   , sortUserTypes
   , fromWireUserTypes
   , printTypeDefinition

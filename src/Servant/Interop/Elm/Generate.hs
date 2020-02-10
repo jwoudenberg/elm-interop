@@ -1,12 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Servant.Interop.Elm.Generate (elmEncoder) where
+module Servant.Interop.Elm.Generate (elmEncoder, encoderForType) where
 
+import Data.Foldable (toList)
+import qualified Data.Text
 import qualified Wire
 import Servant.Interop.Elm.Values
 import Data.Functor.Foldable (cata)
-import Servant.Interop.Elm.Types (ElmTypeF'(..))
+import Servant.Interop.Elm.Types (ElmTypeDefinition(..), ElmTypeF'(..))
 
 elmEncoder :: ElmType -> ElmValue (Any -> Value)
 elmEncoder =
@@ -56,7 +58,38 @@ elmEncoder =
         )
         (fn1 (var _Json_Encode_object) . list)
     Lambda _ _ -> error "Cannot encode lambda function"
-    Defined _name -> undefined
+    Defined name -> encoderNameForType name
+
+encoderNameForType :: Wire.TypeName -> ElmValue (Any -> Value)
+encoderNameForType name = 
+  v $ mconcat 
+        [ "encode" 
+        , Wire.fromModule name
+        , Wire.typeConstructor name
+        ]
+
+encoderForType :: ElmTypeDefinition -> ElmValue (Any -> Value)
+encoderForType typeDef =
+  case typeDef of
+    Alias elmType -> elmEncoder elmType
+    Custom constructors -> 
+      lambda $ matchVar "x" $ \x ->
+        mkCase x $ toList $ matchConstructor <$> constructors
+      where
+        matchConstructor :: (Wire.ConstructorName, [ElmType]) -> (Pattern a0, ElmValue Value)
+        matchConstructor (name, params) =
+          matchCtorN
+            (fromVarName $ Wire.unConstructorName name)
+            (fst <$> keyedParams)
+            (\param -> 
+                case lookup (varName param) keyedParams of
+                  Nothing -> error "Lookup of constructor param failed"
+                  Just elmType -> fn1 (elmEncoder elmType) (var param)
+            )
+            (fn2 (var _Json_Encode_list) (var _identity) . list)
+          where
+            keyedParams = 
+              zipWith (\i param -> ("param" <> (Data.Text.pack $ show i), param)) [(1 :: Int)..] params
 
 data Any
 

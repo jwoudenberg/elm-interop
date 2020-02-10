@@ -17,6 +17,7 @@ module Servant.Interop.Elm.Values
   , PatternF(..)
   , Variable
   , varName
+  , fromVarName
   , printValue
   , anyType
   , unit
@@ -32,13 +33,16 @@ module Servant.Interop.Elm.Values
   , matchRecordN
   , matchCtor0
   , matchCtor1
+  , matchCtorN
   , p0
   , list
   , string
   , var
+  , v
   , tuple
 
   -- * Library functions
+  -- ** Basics
   , _Just
   , _Nothing
   , _Err
@@ -46,7 +50,11 @@ module Servant.Interop.Elm.Values
   , _always
   , _identity
   , _never
+
+  -- ** List
   , _List_map
+
+  -- ** Json.Encode
   , _Json_Encode_list
   , _Json_Encode_bool
   , _Json_Encode_int
@@ -61,11 +69,9 @@ module Servant.Interop.Elm.Values
   ) where
 
 
-import Data.List.NonEmpty (NonEmpty)
 import Data.Functor.Foldable (Fix(Fix), cata)
 import Data.Int (Int32)
 import Data.String (IsString(fromString))
-import qualified Wire
 import Data.Text (Text)
 import Servant.Interop.Elm.Print
 import Servant.Interop.Elm.Types (ElmType)
@@ -176,6 +182,9 @@ newtype Variable t = Variable Text deriving (IsString)
 varName :: Variable t -> Text
 varName (Variable t) = t
 
+fromVarName :: Text -> Variable t
+fromVarName = Variable
+
 matchCtor0
   :: Variable a
   -> ElmValue c
@@ -190,17 +199,21 @@ matchCtor1
   -> Text
   -> (ElmValue a -> ElmValue c)
   -> (Pattern b, ElmValue c)
-matchCtor1 (Variable ctor) var' f =
-    ( Fix (ConstructorPat ctor [Fix (VarPat var')])
-    , f (v var')
+matchCtor1 (Variable ctor) param f =
+    ( Fix (ConstructorPat ctor [Fix (VarPat param)])
+    , f (v param)
     )
-  
-_caseFor
-  :: NonEmpty (Wire.ConstructorName, [ElmType])
-  -> (forall a. ElmValue a -> ElmValue b)
-  -> ([(Text, ElmValue b)] -> ElmValue c)
-  -> ElmValue c 
-_caseFor _ctors _forParam _concatParams = undefined
+ 
+matchCtorN
+  :: Variable x
+  -> [Text]
+  -> (Variable a -> ElmValue b)
+  -> ([ElmValue b] -> ElmValue c)
+  -> (Pattern y, ElmValue c)
+matchCtorN (Variable ctor) params perParam combine =
+  ( Fix (ConstructorPat ctor (Fix . VarPat <$> params))
+  , combine $ perParam . Variable <$> params
+  )
 
 anyType :: ElmValue a -> ElmValue b
 anyType (T x) = T x
