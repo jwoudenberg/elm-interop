@@ -21,6 +21,8 @@ module Servant.Interop.Elm
   ( printModule
   ) where
 
+import qualified Servant.Interop.Elm.Generate as Generate
+import qualified Wire
 import Data.List (intersperse)
 import Data.Proxy (Proxy)
 import Data.Text (Text)
@@ -34,8 +36,15 @@ printModule =
   printDoc .
   PP.vcat .
   intersperse PP.linebreak .
-  fmap (uncurry printTypeDefinition) .
+  fmap (uncurry printForType) .
   sortUserTypes . fst . fromWireUserTypes . fst . Servant.Interop.wireFormat
+
+printForType :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
+printForType name definition =
+  PP.hsep
+    [ printTypeDefinition name definition
+    , Generate.printEncoder name definition
+    ]
 
 printDoc :: PP.Doc -> Text
 printDoc = PP.displayTStrict . PP.renderPretty 1 80

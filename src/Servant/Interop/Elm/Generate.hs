@@ -1,8 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Servant.Interop.Elm.Generate (elmEncoder, encoderForType) where
+module Servant.Interop.Elm.Generate (printEncoder) where
 
+import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Foldable (toList)
 import qualified Data.Text
 import qualified Wire
@@ -58,15 +59,19 @@ elmEncoder =
         )
         (fn1 (var _Json_Encode_object) . list)
     Lambda _ _ -> error "Cannot encode lambda function"
-    Defined name -> encoderNameForType name
+    Defined name -> v (encoderNameForType name)
 
-encoderNameForType :: Wire.TypeName -> ElmValue (Any -> Value)
+encoderNameForType :: Wire.TypeName -> Data.Text.Text
 encoderNameForType name = 
-  v $ mconcat 
+  mconcat 
         [ "encode" 
         , Wire.fromModule name
         , Wire.typeConstructor name
         ]
+
+printEncoder :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
+printEncoder name typeDef =
+  printFunction (encoderNameForType name) (encoderForType typeDef)
 
 encoderForType :: ElmTypeDefinition -> ElmValue (Any -> Value)
 encoderForType typeDef =

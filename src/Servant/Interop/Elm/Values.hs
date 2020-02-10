@@ -18,7 +18,7 @@ module Servant.Interop.Elm.Values
   , Variable
   , varName
   , fromVarName
-  , printValue
+  , printFunction
   , anyType
   , unit
   , lambda
@@ -236,6 +236,10 @@ v name = T $ Fix $ MkVar name
 var :: Variable a -> ElmValue a
 var (Variable s) = T $ Fix (MkVar s)
 
+printFunction :: Text -> ElmValue t -> PP.Doc
+printFunction name val =
+  PP.textStrict name <+> printValue val
+
 printValue :: ElmValue t -> PP.Doc
 printValue = printValue' . unT
 
@@ -246,7 +250,7 @@ printValue' =
     MkBool bool -> PP.textStrict . Text.pack $ show bool
     MkInt int -> PP.textStrict . Text.pack $ show int
     MkFloat double -> PP.textStrict . Text.pack $ show double
-    MkString text -> PP.textStrict text
+    MkString text -> PP.dquotes (PP.textStrict text)
     MkList items -> encloseSep' PP.lbracket PP.rbracket PP.comma items
     MKMaybe a -> maybe (fromString "Nothing") (fromString "Maybe" <+>) a
     MkTuple2 x y -> encloseSep' PP.lparen PP.rparen PP.comma [x, y]
