@@ -14,6 +14,7 @@ module Servant.Interop.Elm.Types
   , sortUserTypes
   , fromWireUserTypes
   , printTypeDefinition
+  , printType
   ) where
 
 import Data.Foldable (toList)

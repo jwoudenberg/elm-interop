@@ -32,7 +32,7 @@ encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
     _ -> PP.vcat entries <++> right
-      where entries = zipWith (<+>) (left : repeat sp) ds
+      where entries = zipWith (\pre x -> pre <+> PP.align x) (left : repeat sp) ds
 
 -- |
 -- Switch between hanging formatting or single-line formatting.
@@ -48,7 +48,7 @@ encloseSep' left right sp ds =
 --     line1 line2 line3
 --
 hangCollapse :: PP.Doc -> PP.Doc
-hangCollapse = PP.nest elmIndent . PP.group
+hangCollapse = PP.hang elmIndent . PP.group
 
 data TypeAppearance
   = SingleWord

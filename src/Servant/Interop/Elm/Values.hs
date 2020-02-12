@@ -31,6 +31,7 @@ module Servant.Interop.Elm.Values
   , matchTuple2
   , matchTuple3
   , matchRecordN
+  , matchCtorRecord
   , matchCtor0
   , matchCtor1
   , matchCtorN
@@ -69,13 +70,15 @@ module Servant.Interop.Elm.Values
   ) where
 
 
-import Data.Functor.Foldable (Fix(Fix), cata)
+import Data.Functor.Foldable (Fix(Fix), cata, histo)
 import Data.Int (Int32)
 import Data.String (IsString(fromString))
 import Data.Text (Text)
 import Servant.Interop.Elm.Print
-import Servant.Interop.Elm.Types (ElmType)
+import Servant.Interop.Elm.Types (ElmType, printType)
 import Text.PrettyPrint.Leijen.Text ((<+>))
+import Control.Comonad (extract)
+import Control.Comonad.Cofree (Cofree((:<)))
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -177,6 +180,16 @@ matchRecordN fields perField combine =
   , combine $ perField . Variable <$> fields
   )
 
+matchCtorRecord
+  :: Variable (y -> x)
+  -> [Text]
+  -> (Variable a -> ElmValue b)
+  -> ([ElmValue b] -> ElmValue c)
+  -> (Pattern x, ElmValue c)
+matchCtorRecord (Variable ctor) fields perField combine =
+  (Fix (ConstructorPat ctor [recPattern]), body)
+    where (recPattern, body) = matchRecordN fields perField combine
+
 newtype Variable t = Variable Text deriving (IsString)
 
 varName :: Variable t -> Text
@@ -236,53 +249,89 @@ v name = T $ Fix $ MkVar name
 var :: Variable a -> ElmValue a
 var (Variable s) = T $ Fix (MkVar s)
 
-printFunction :: Text -> ElmValue t -> PP.Doc
-printFunction name val =
-  PP.textStrict name <+> printValue val
-
-printValue :: ElmValue t -> PP.Doc
-printValue = printValue' . unT
-
+printFunction :: Text -> ElmType -> ElmValue t -> PP.Doc
+printFunction name fnType (T val) =
+  PP.vsep
+    [ PP.nest elmIndent $ PP.textStrict name <+> "::" <+> printType fnType
+    , PP.nest elmIndent $ PP.textStrict name <+> go val
+    ]
+  where
+    go =
+      \case 
+        Fix (MkLambda pattern rest) ->
+          printPattern pattern <+> go rest
+        x -> "=" <> PP.line <> printValue' x
+        
 printValue' :: Fix ElmValueF -> PP.Doc
 printValue' =
-  cata $ \case
+  histo $ \case 
     MkUnit -> fromString "()"
     MkBool bool -> PP.textStrict . Text.pack $ show bool
     MkInt int -> PP.textStrict . Text.pack $ show int
     MkFloat double -> PP.textStrict . Text.pack $ show double
     MkString text -> PP.dquotes (PP.textStrict text)
-    MkList items -> encloseSep' PP.lbracket PP.rbracket PP.comma items
-    MKMaybe a -> maybe (fromString "Nothing") (fromString "Maybe" <+>) a
-    MkTuple2 x y -> encloseSep' PP.lparen PP.rparen PP.comma [x, y]
-    MkTuple3 x y z -> encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
+    MkList items -> PP.group $ encloseSep' PP.lbracket PP.rbracket PP.comma (extract <$> items)
+    MKMaybe a -> maybe (fromString "Nothing") ((fromString "Just" <+>) . extractParens) a
+    MkTuple2 x y -> PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [extract x, extract y]
+    MkTuple3 x y z -> PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [extract x, extract y, extract z]
     MkRecord fields ->
-      encloseSep' PP.lbrace PP.rbrace PP.comma (printField <$> fields)
+      encloseSep' PP.lbrace PP.rbrace PP.comma (printField . fmap extract <$> fields)
       where printField :: (Text, PP.Doc) -> PP.Doc
             printField (name, value) =
               PP.textStrict name <+> fromString "=" <+> value
     MkLambda pattern body ->
-      fromString "\\" <+> printPattern pattern <+> fromString "->" <+> body
-    MkApply f x -> f <+> PP.lparen <+> x <+> PP.rparen
+      hangCollapse $ fromString "\\" <> printPattern pattern <+> fromString "->" <++> extract body
+    MkApply rest1 x1 ->
+      hangCollapse $ nextArg rest1 (extractParens x1)
+      where 
+        nextArg (f :< more) memo =
+          case more of
+            MkApply rest2 x2 -> nextArg rest2 (extractParens x2 <++> memo)
+            _ -> extractParens (f :< more) <++> memo
     MkVar name -> PP.textStrict name
     MkCase matched branches ->
       fromString "case" <+>
-      matched <+> fromString "of" <> PP.vsep (uncurry printBranch <$> branches)
+      extract matched <+>
+      fromString "of" <++>
+      PP.indent elmIndent (PP.vsep (uncurry printBranch . fmap extract <$> branches))
       where printBranch :: Pattern t -> PP.Doc -> PP.Doc
             printBranch match body =
-              printPattern match <+> fromString "->" <+> body
+              printPattern match <+> fromString "->" <++> PP.indent elmIndent body
+
+extractParens :: Cofree ElmValueF PP.Doc -> PP.Doc
+extractParens (val :< prev) =
+  parens (appearance prev) val
+
+appearance :: ElmValueF a -> TypeAppearance
+appearance =
+  \case
+    MkUnit -> SingleWord
+    MkBool _ -> SingleWord
+    MkInt _ -> SingleWord
+    MkFloat _ -> SingleWord
+    MkString _ -> SingleWord
+    MkList _ -> SingleWord
+    MKMaybe a -> maybe SingleWord (\_ -> MultipleWord) a
+    MkTuple2 _ _ -> SingleWord
+    MkTuple3 _ _ _ -> SingleWord
+    MkRecord _ -> SingleWord
+    MkLambda _ _ -> MultipleWord
+    MkApply _ _ -> MultipleWord
+    MkVar _ -> SingleWord
+    MkCase _ _ -> MultipleWord
 
 printPattern :: Pattern t -> PP.Doc
 printPattern =
   cata $ \case
     VarPat name -> PP.textStrict name
     ConstructorPat ctor vars -> 
-      PP.sep $ (PP.textStrict ctor) : vars
+      PP.group $ PP.sep $ (PP.textStrict ctor) : vars
     Tuple2Pat x y ->
-       encloseSep' PP.lparen PP.rparen PP.comma [x, y]
+      PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y]
     Tuple3Pat x y z ->
-       encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
+      PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
     RecordPat fields ->
-      encloseSep' PP.lbrace PP.rbrace PP.comma (PP.textStrict <$> fields)
+      PP.group $ encloseSep' PP.lbrace PP.rbrace PP.comma (PP.textStrict <$> fields)
 
 -- * Library
 

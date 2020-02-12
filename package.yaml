@@ -26,6 +26,8 @@ library:
   - base
   - bytestring
   - containers
+  - comonad
+  - free
   - hashable
   - http-types
   - http-media

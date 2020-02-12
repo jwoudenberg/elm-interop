@@ -24,9 +24,7 @@ goldenTests =
     "golden"
     [ goldenTestFor "Record" (Proxy :: Proxy Golden.Record.API)
     , goldenTestFor "Recursive" (Proxy :: Proxy Golden.Recursive.API)
-    , goldenTestFor
-        "MutuallyRecursive"
-        (Proxy :: Proxy Golden.MutuallyRecursive.API)
+    , goldenTestFor "MutuallyRecursive" (Proxy :: Proxy Golden.MutuallyRecursive.API)
     , goldenTestFor "RequestBody" (Proxy :: Proxy Golden.RequestBody.API)
     , goldenTestFor "Void" (Proxy :: Proxy Golden.Void.API)
     ]

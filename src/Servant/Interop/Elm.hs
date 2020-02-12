@@ -41,7 +41,7 @@ printModule =
 
 printForType :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
 printForType name definition =
-  PP.hsep
+  PP.vcat $ intersperse PP.linebreak $ 
     [ printTypeDefinition name definition
     , Generate.printEncoder name definition
     ]
