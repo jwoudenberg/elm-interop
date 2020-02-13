@@ -44,6 +44,7 @@ printForType name definition =
   PP.vcat $ intersperse PP.linebreak $ 
     [ printTypeDefinition name definition
     , Generate.printEncoder name definition
+    , Generate.printDecoder name definition
     ]
 
 printDoc :: PP.Doc -> Text

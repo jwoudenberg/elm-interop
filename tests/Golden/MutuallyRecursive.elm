@@ -8,7 +8,25 @@ encodeForth forth =
         Forth param1 param2 ->
             Json.Encode.list
                 identity
-                [ Json.Encode.string param1, encodeBackAndForth param2 ]
+                [ Json.Encode.string param1, decoderBackAndForth param2 ]
+
+
+decoderForth :: Decoder
+decoderForth =
+    |>
+        (Json.Decode.field "ctor" Json.Decode.string)
+        (Json.Decode.andThen
+             (\ctor ->
+                  Json.Decode.field
+                      "val"
+                      (case ctor of
+                          "Forth" ->
+                              Json.Decode.map2
+                                  Forth
+                                  Json.Decode.string
+                                  decoderBackAndForth
+                          _ ->
+                              Json.Decode.fail "Unexpected constructor")))
 
 
 type BackAndForth
@@ -21,4 +39,22 @@ encodeBackAndForth backAndForth =
         Back param1 param2 ->
             Json.Encode.list
                 identity
-                [ Json.Encode.string param1, encodeForth param2 ]
+                [ Json.Encode.string param1, decoderForth param2 ]
+
+
+decoderBackAndForth :: Decoder
+decoderBackAndForth =
+    |>
+        (Json.Decode.field "ctor" Json.Decode.string)
+        (Json.Decode.andThen
+             (\ctor ->
+                  Json.Decode.field
+                      "val"
+                      (case ctor of
+                          "Back" ->
+                              Json.Decode.map2
+                                  Back
+                                  Json.Decode.string
+                                  decoderForth
+                          _ ->
+                              Json.Decode.fail "Unexpected constructor")))

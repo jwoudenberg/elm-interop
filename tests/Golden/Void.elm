@@ -5,3 +5,8 @@ type alias Unicorn =
 encodeUnicorn :: Unicorn -> Value
 encodeUnicorn =
     never
+
+
+decoderUnicorn :: Decoder
+decoderUnicorn =
+    Json.Decode.fail "Cannot decode Never type from JSON"

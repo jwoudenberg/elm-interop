@@ -15,6 +15,25 @@ encodeFish fish =
             Json.Encode.list identity []
 
 
+decoderFish :: Decoder
+decoderFish =
+    |>
+        (Json.Decode.field "ctor" Json.Decode.string)
+        (Json.Decode.andThen
+             (\ctor ->
+                  Json.Decode.field
+                      "val"
+                      (case ctor of
+                          "Herring" ->
+                              Herring
+                          "Carp" ->
+                              Carp
+                          "Salmon" ->
+                              Salmon
+                          _ ->
+                              Json.Decode.fail "Unexpected constructor")))
+
+
 type Money
     = Money { amount : Int, currency : String }
 
@@ -27,3 +46,26 @@ encodeMoney money =
                 [ ( "amount", Json.Encode.int amount )
                 , ( "currency", Json.Encode.string currency )
                 ]
+
+
+decoderMoney :: Decoder
+decoderMoney =
+    |>
+        (Json.Decode.field "ctor" Json.Decode.string)
+        (Json.Decode.andThen
+             (\ctor ->
+                  Json.Decode.field
+                      "val"
+                      (case ctor of
+                          "Money" ->
+                              Json.Decode.map
+                                  Money
+                                  (Json.Decode.map2
+                                       (\amount currency ->
+                                            { amount = amount
+                                            , currency = currency
+                                            })
+                                       Json.Decode.int
+                                       Json.Decode.string)
+                          _ ->
+                              Json.Decode.fail "Unexpected constructor")))
