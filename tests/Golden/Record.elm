@@ -15,27 +15,25 @@ encodeSock sock =
 
 decoderSock :: Decoder
 decoderSock =
-    |>
-        (Json.Decode.field "ctor" Json.Decode.string)
-        (Json.Decode.andThen
-             (\ctor ->
-                  Json.Decode.field
-                      "val"
-                      (case ctor of
-                          "Sock" ->
-                              Json.Decode.map
-                                  Sock
-                                  (Json.Decode.map3
-                                       (\color pattern holes ->
-                                            { color = color
-                                            , pattern = pattern
-                                            , holes = holes
-                                            })
-                                       Json.Decode.string
-                                       decoderPattern
-                                       Json.Decode.int)
-                          _ ->
-                              Json.Decode.fail "Unexpected constructor")))
+    Json.Decode.field "ctor" Json.Decode.string
+        |> Json.Decode.andThen
+               (\ctor ->
+                    Json.Decode.field "val" <|
+                        case ctor of
+                            "Sock" ->
+                                Json.Decode.map
+                                    Sock
+                                    (Json.Decode.map3
+                                         (\color pattern holes ->
+                                              { color = color
+                                              , pattern = pattern
+                                              , holes = holes
+                                              })
+                                         Json.Decode.string
+                                         decoderPattern
+                                         Json.Decode.int)
+                            _ ->
+                                Json.Decode.fail "Unexpected constructor")
 
 
 type Pattern
@@ -60,20 +58,18 @@ encodePattern pattern =
 
 decoderPattern :: Decoder
 decoderPattern =
-    |>
-        (Json.Decode.field "ctor" Json.Decode.string)
-        (Json.Decode.andThen
-             (\ctor ->
-                  Json.Decode.field
-                      "val"
-                      (case ctor of
-                          "None" ->
-                              None
-                          "Stripes" ->
-                              Stripes
-                          "Dots" ->
-                              Dots
-                          "Other" ->
-                              Other
-                          _ ->
-                              Json.Decode.fail "Unexpected constructor")))
+    Json.Decode.field "ctor" Json.Decode.string
+        |> Json.Decode.andThen
+               (\ctor ->
+                    Json.Decode.field "val" <|
+                        case ctor of
+                            "None" ->
+                                None
+                            "Stripes" ->
+                                Stripes
+                            "Dots" ->
+                                Dots
+                            "Other" ->
+                                Other
+                            _ ->
+                                Json.Decode.fail "Unexpected constructor")

@@ -271,9 +271,10 @@ decoderForType typeDef =
         |> fn1
           (var _Json_Decode_andThen)
           ( lambda $ matchVar "ctor" $ \ctor ->
-              fn2 (var _Json_Decode_field) "val"
-                $ mkCase ctor
-                $ (toList $ decodeConstructor <$> constructors) <> [catchAll]
+              fn1 (var _Json_Decode_field) "val"
+                <| ( mkCase ctor $
+                       (toList $ decodeConstructor <$> constructors) <> [catchAll]
+                   )
           )
       where
         catchAll = matchVar "_" $ \_ -> fn1 (var _Json_Decode_fail) "Unexpected constructor"

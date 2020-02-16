@@ -14,22 +14,20 @@ encodeTurtle turtle =
 
 decoderTurtle :: Decoder
 decoderTurtle =
-    |>
-        (Json.Decode.field "ctor" Json.Decode.string)
-        (Json.Decode.andThen
-             (\ctor ->
-                  Json.Decode.field
-                      "val"
-                      (case ctor of
-                          "Turtle" ->
-                              Json.Decode.map
-                                  Turtle
-                                  (Json.Decode.map2
-                                       (\name onBackOf ->
-                                            { name = name
-                                            , onBackOf = onBackOf
-                                            })
-                                       Json.Decode.string
-                                       decoderTurtle)
-                          _ ->
-                              Json.Decode.fail "Unexpected constructor")))
+    Json.Decode.field "ctor" Json.Decode.string
+        |> Json.Decode.andThen
+               (\ctor ->
+                    Json.Decode.field "val" <|
+                        case ctor of
+                            "Turtle" ->
+                                Json.Decode.map
+                                    Turtle
+                                    (Json.Decode.map2
+                                         (\name onBackOf ->
+                                              { name = name
+                                              , onBackOf = onBackOf
+                                              })
+                                         Json.Decode.string
+                                         decoderTurtle)
+                            _ ->
+                                Json.Decode.fail "Unexpected constructor")

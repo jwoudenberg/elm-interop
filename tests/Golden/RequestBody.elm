@@ -17,21 +17,19 @@ encodeFish fish =
 
 decoderFish :: Decoder
 decoderFish =
-    |>
-        (Json.Decode.field "ctor" Json.Decode.string)
-        (Json.Decode.andThen
-             (\ctor ->
-                  Json.Decode.field
-                      "val"
-                      (case ctor of
-                          "Herring" ->
-                              Herring
-                          "Carp" ->
-                              Carp
-                          "Salmon" ->
-                              Salmon
-                          _ ->
-                              Json.Decode.fail "Unexpected constructor")))
+    Json.Decode.field "ctor" Json.Decode.string
+        |> Json.Decode.andThen
+               (\ctor ->
+                    Json.Decode.field "val" <|
+                        case ctor of
+                            "Herring" ->
+                                Herring
+                            "Carp" ->
+                                Carp
+                            "Salmon" ->
+                                Salmon
+                            _ ->
+                                Json.Decode.fail "Unexpected constructor")
 
 
 type Money
@@ -50,22 +48,20 @@ encodeMoney money =
 
 decoderMoney :: Decoder
 decoderMoney =
-    |>
-        (Json.Decode.field "ctor" Json.Decode.string)
-        (Json.Decode.andThen
-             (\ctor ->
-                  Json.Decode.field
-                      "val"
-                      (case ctor of
-                          "Money" ->
-                              Json.Decode.map
-                                  Money
-                                  (Json.Decode.map2
-                                       (\amount currency ->
-                                            { amount = amount
-                                            , currency = currency
-                                            })
-                                       Json.Decode.int
-                                       Json.Decode.string)
-                          _ ->
-                              Json.Decode.fail "Unexpected constructor")))
+    Json.Decode.field "ctor" Json.Decode.string
+        |> Json.Decode.andThen
+               (\ctor ->
+                    Json.Decode.field "val" <|
+                        case ctor of
+                            "Money" ->
+                                Json.Decode.map
+                                    Money
+                                    (Json.Decode.map2
+                                         (\amount currency ->
+                                              { amount = amount
+                                              , currency = currency
+                                              })
+                                         Json.Decode.int
+                                         Json.Decode.string)
+                            _ ->
+                                Json.Decode.fail "Unexpected constructor")
