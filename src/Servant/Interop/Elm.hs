@@ -16,35 +16,38 @@
 --     writeFile
 --         "src/Generated.elm"
 --         (printModule (Proxy :: Proxy api))
---
 module Servant.Interop.Elm
-  ( printModule
-  ) where
+  ( printModule,
+  )
+where
 
-import qualified Servant.Interop.Elm.Generate as Generate
-import qualified Wire
 import Data.List (intersperse)
 import Data.Proxy (Proxy)
 import Data.Text (Text)
-import Servant.Interop.Elm.Types
-
 import qualified Servant.Interop
+import qualified Servant.Interop.Elm.Generate as Generate
+import Servant.Interop.Elm.Types
 import qualified Text.PrettyPrint.Leijen.Text as PP
+import qualified Wire
 
 printModule :: Servant.Interop.HasWireFormat a => Proxy a -> Text
 printModule =
-  printDoc .
-  PP.vcat .
-  intersperse PP.linebreak .
-  fmap (uncurry printForType) .
-  sortUserTypes . fst . fromWireUserTypes . fst . Servant.Interop.wireFormat
+  printDoc
+    . PP.vcat
+    . intersperse PP.linebreak
+    . fmap (uncurry printForType)
+    . sortUserTypes
+    . fst
+    . fromWireUserTypes
+    . fst
+    . Servant.Interop.wireFormat
 
 printForType :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
 printForType name definition =
-  PP.vcat $ intersperse PP.linebreak $ 
-    [ printTypeDefinition name definition
-    , Generate.printEncoder name definition
-    , Generate.printDecoder name definition
+  PP.vcat $ intersperse PP.linebreak $
+    [ printTypeDefinition name definition,
+      Generate.printEncoder name definition,
+      Generate.printDecoder name definition
     ]
 
 printDoc :: PP.Doc -> Text

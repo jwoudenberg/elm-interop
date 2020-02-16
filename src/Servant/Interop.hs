@@ -1,9 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -22,15 +22,15 @@
 -- class, which can be derived automatically using Generics:
 --
 --     instance Rep MyType
---
 module Servant.Interop
-  ( HasWireFormat(wireFormat)
-  , WIRE
-  , Endpoint(..)
-  , Wire.Rep
-  ) where
+  ( HasWireFormat (wireFormat),
+    WIRE,
+    Endpoint (..),
+    Wire.Rep,
+  )
+where
 
-import Data.Proxy (Proxy(Proxy))
+import Data.Proxy (Proxy (Proxy))
 import Data.Text (Text, pack)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Network.HTTP.Media ((//))
@@ -39,20 +39,23 @@ import Servant.API
 import Servant.API.Modifiers (RequiredArgument)
 import qualified Wire
 
-data Endpoint = Endpoint
-  { path :: Path
-  , query :: [(Text, Maybe Wire.Type_)]
-  , method :: Method
-  , headers :: [(Text, Wire.Type_)]
-  , body :: Maybe Wire.Type_
-  , responseBody :: Maybe Wire.Type_
-  }
+data Endpoint
+  = Endpoint
+      { path :: Path,
+        query :: [(Text, Maybe Wire.Type_)],
+        method :: Method,
+        headers :: [(Text, Wire.Type_)],
+        body :: Maybe Wire.Type_,
+        responseBody :: Maybe Wire.Type_
+      }
 
 data Path
-  = Static Text
-           Path
-  | Capture Wire.Type_
-            Path
+  = Static
+      Text
+      Path
+  | Capture
+      Wire.Type_
+      Path
   | CaptureAll Wire.Type_
   | Root
 
@@ -88,15 +91,19 @@ instance HasWireFormat api => HasWireFormat (IsSecure :> api) where
 instance HasWireFormat api => HasWireFormat (RemoteHost :> api) where
   wireFormat _ = wireFormat (Proxy @api)
 
-instance (KnownSymbol path, HasWireFormat api) =>
-         HasWireFormat (path :> api) where
+instance
+  (KnownSymbol path, HasWireFormat api) =>
+  HasWireFormat (path :> api)
+  where
   wireFormat _ = do
     fmap addSegment <$> wireFormat (Proxy @api)
     where
       addSegment e = e {path = Static (pack $ symbolVal (Proxy @path)) (path e)}
 
-instance (BoolVal (InList WIRE list), Wire.Rep a, HasWireFormat api) =>
-         HasWireFormat (ReqBody' mods list a :> api) where
+instance
+  (BoolVal (InList WIRE list), Wire.Rep a, HasWireFormat api) =>
+  HasWireFormat (ReqBody' mods list a :> api)
+  where
   wireFormat _ =
     if boolVal (Proxy @(InList WIRE list))
       then do
@@ -105,15 +112,19 @@ instance (BoolVal (InList WIRE list), Wire.Rep a, HasWireFormat api) =>
         fmap addBody <$> wireFormat (Proxy @api)
       else pure []
 
-instance (KnownSymbol sym, HasWireFormat api) =>
-         HasWireFormat (QueryFlag sym :> api) where
+instance
+  (KnownSymbol sym, HasWireFormat api) =>
+  HasWireFormat (QueryFlag sym :> api)
+  where
   wireFormat _ = fmap addQueryFlag <$> wireFormat (Proxy @api)
     where
       addQueryFlag e =
         e {query = (pack (symbolVal (Proxy @sym)), Nothing) : query e}
 
-instance (KnownSymbol sym, Wire.Rep [a], HasWireFormat api) =>
-         HasWireFormat (QueryParams sym a :> api) where
+instance
+  (KnownSymbol sym, Wire.Rep [a], HasWireFormat api) =>
+  HasWireFormat (QueryParams sym a :> api)
+  where
   wireFormat _ = do
     t <- Wire.wireType (Proxy @[a])
     fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
@@ -121,11 +132,13 @@ instance (KnownSymbol sym, Wire.Rep [a], HasWireFormat api) =>
       addQueryFlag t e =
         e {query = (pack (symbolVal (Proxy @sym)), Just t) : query e}
 
-instance ( KnownSymbol sym
-         , Wire.Rep (RequiredArgument mods a)
-         , HasWireFormat api
-         ) =>
-         HasWireFormat (QueryParam' mods sym a :> api) where
+instance
+  ( KnownSymbol sym,
+    Wire.Rep (RequiredArgument mods a),
+    HasWireFormat api
+  ) =>
+  HasWireFormat (QueryParam' mods sym a :> api)
+  where
   wireFormat _ = do
     t <- Wire.wireType (Proxy @(RequiredArgument mods a))
     fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
@@ -133,11 +146,13 @@ instance ( KnownSymbol sym
       addQueryFlag t e =
         e {query = (pack (symbolVal (Proxy @sym)), Just t) : query e}
 
-instance ( KnownSymbol sym
-         , Wire.Rep (RequiredArgument mods a)
-         , HasWireFormat api
-         ) =>
-         HasWireFormat (Header' mods sym a :> api) where
+instance
+  ( KnownSymbol sym,
+    Wire.Rep (RequiredArgument mods a),
+    HasWireFormat api
+  ) =>
+  HasWireFormat (Header' mods sym a :> api)
+  where
   wireFormat _ = do
     t <- Wire.wireType (Proxy @(RequiredArgument mods a))
     fmap (addHeader' t) <$> wireFormat (Proxy @api)
@@ -145,53 +160,61 @@ instance ( KnownSymbol sym
       addHeader' t e =
         e {headers = (pack (symbolVal (Proxy @sym)), t) : headers e}
 
-instance (KnownSymbol sym, Wire.Rep [t], HasWireFormat api) =>
-         HasWireFormat (CaptureAll sym t :> api) where
+instance
+  (KnownSymbol sym, Wire.Rep [t], HasWireFormat api) =>
+  HasWireFormat (CaptureAll sym t :> api)
+  where
   wireFormat _ = do
     t <- Wire.wireType (Proxy @[t])
     fmap (setPath t) <$> wireFormat (Proxy @api)
     where
       setPath t e = e {path = CaptureAll t}
 
-instance (KnownSymbol sym, Wire.Rep t, HasWireFormat api) =>
-         HasWireFormat (Capture' mods sym t :> api) where
+instance
+  (KnownSymbol sym, Wire.Rep t, HasWireFormat api) =>
+  HasWireFormat (Capture' mods sym t :> api)
+  where
   wireFormat _ = do
     t <- Wire.wireType (Proxy @[t])
     fmap (addSegment t) <$> wireFormat (Proxy @api)
     where
       addSegment t e = e {path = Capture t (path e)}
 
-instance (BoolVal (InList WIRE list), Wire.Rep a, ReflectMethod method) =>
-         HasWireFormat (Verb method status list a) where
+instance
+  (BoolVal (InList WIRE list), Wire.Rep a, ReflectMethod method) =>
+  HasWireFormat (Verb method status list a)
+  where
   wireFormat _ =
     if boolVal (Proxy @(InList WIRE list))
       then do
         t <- Wire.wireType (Proxy @a)
         pure . pure $
           Endpoint
-            { path = Root
-            , query = []
-            , method = reflectMethod (Proxy @method)
-            , headers = []
-            , body = Nothing
-            , responseBody = Just t
+            { path = Root,
+              query = [],
+              method = reflectMethod (Proxy @method),
+              headers = [],
+              body = Nothing,
+              responseBody = Just t
             }
       else pure []
 
-instance (BoolVal (InList WIRE '[ ct]), Wire.Rep a, ReflectMethod method) =>
-         HasWireFormat (Stream method status framing ct a) where
+instance
+  (BoolVal (InList WIRE '[ct]), Wire.Rep a, ReflectMethod method) =>
+  HasWireFormat (Stream method status framing ct a)
+  where
   wireFormat _ =
-    if boolVal (Proxy @(InList WIRE '[ ct]))
+    if boolVal (Proxy @(InList WIRE '[ct]))
       then do
         t <- Wire.wireType (Proxy @a)
         pure . pure $
           Endpoint
-            { path = Root
-            , query = []
-            , method = reflectMethod (Proxy @method)
-            , headers = []
-            , body = Nothing
-            , responseBody = Just t
+            { path = Root,
+              query = [],
+              method = reflectMethod (Proxy @method),
+              headers = [],
+              body = Nothing,
+              responseBody = Just t
             }
       else pure []
 

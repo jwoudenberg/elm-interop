@@ -9,7 +9,6 @@
 module Servant.Interop.Elm.Print where
 
 import Text.PrettyPrint.Leijen.Text ((<+>))
-
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 -- |
@@ -32,7 +31,8 @@ encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
     _ -> PP.vcat entries <++> right
-      where entries = zipWith (\pre x -> pre <+> PP.align x) (left : repeat sp) ds
+      where
+        entries = zipWith (\pre x -> pre <+> PP.align x) (left : repeat sp) ds
 
 -- |
 -- Switch between hanging formatting or single-line formatting.
@@ -46,17 +46,16 @@ encloseSep' left right sp ds =
 -- Single-line notation:
 --
 --     line1 line2 line3
---
 hangCollapse :: PP.Doc -> PP.Doc
 hangCollapse = PP.hang elmIndent . PP.group
 
 data TypeAppearance
-  = SingleWord
-  -- ^ The printed type consists of a single word, like `Int` or `Thing`.
-  | MultipleWord
-  -- ^ The printed type consists of multiple words, like `List Int`
-  | MultipleWordLambda
-  -- ^ The type is a lambda, like `Text -> Int`. Implies `MultipleWord`.
+  = -- | The printed type consists of a single word, like `Int` or `Thing`.
+    SingleWord
+  | -- | The printed type consists of multiple words, like `List Int`
+    MultipleWord
+  | -- | The type is a lambda, like `Text -> Int`. Implies `MultipleWord`.
+    MultipleWordLambda
 
 parens :: TypeAppearance -> PP.Doc -> PP.Doc
 parens a doc =

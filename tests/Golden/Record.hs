@@ -4,21 +4,24 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Golden.Record
-  ( API
-  ) where
+  ( API,
+  )
+where
 
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Servant.API
 import Servant.Interop (Rep, WIRE)
 
-type API = "socks" :> Get '[ WIRE] Sock
+type API = "socks" :> Get '[WIRE] Sock
 
-data Sock = Sock
-  { color :: Text
-  , pattern :: Pattern
-  , holes :: Int
-  } deriving (Generic, Rep)
+data Sock
+  = Sock
+      { color :: Text,
+        pattern :: Pattern,
+        holes :: Int
+      }
+  deriving (Generic, Rep)
 
 data Pattern
   = None

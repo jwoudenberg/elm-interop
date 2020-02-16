@@ -7,29 +7,29 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Servant.Interop.Elm.Types
-  ( ElmTypeF
-  , ElmTypeF'(..)
-  , ElmType
-  , ElmTypeDefinition(..)
-  , sortUserTypes
-  , fromWireUserTypes
-  , printTypeDefinition
-  , printType
-  ) where
+  ( ElmTypeF,
+    ElmTypeF' (..),
+    ElmType,
+    ElmTypeDefinition (..),
+    sortUserTypes,
+    fromWireUserTypes,
+    printTypeDefinition,
+    printType,
+  )
+where
 
 import Data.Foldable (toList)
-import Data.Functor.Foldable (Fix(Fix), cata, unfix, zygo)
-import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.Functor.Foldable (Fix (Fix), cata, unfix, zygo)
+import qualified Data.Graph as Graph
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Servant.Interop.Elm.Print
 import Text.PrettyPrint.Leijen.Text ((<+>))
-
-import qualified Data.Graph as Graph
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Map as Map
-import qualified Data.Text as Text
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
@@ -44,24 +44,30 @@ data ElmTypeF' s a
   | String
   | List a
   | Maybe a
-  | Result a
-           a
-  | Tuple2 a
-           a
-  | Tuple3 a
-           a
-           a
+  | Result
+      a
+      a
+  | Tuple2
+      a
+      a
+  | Tuple3
+      a
+      a
+      a
   | Record [(s, a)]
-  | Lambda a
-           a
+  | Lambda
+      a
+      a
   | Defined Wire.TypeName
   deriving (Functor)
 
 type ElmType = Fix (ElmTypeF' Wire.FieldName)
 
-newtype UserTypes = UserTypes
-  { unUserTypes :: Map Wire.TypeName ElmTypeDefinition
-  } deriving (Monoid, Semigroup)
+newtype UserTypes
+  = UserTypes
+      { unUserTypes :: Map Wire.TypeName ElmTypeDefinition
+      }
+  deriving (Monoid, Semigroup)
 
 data ElmTypeDefinition
   = Custom (NonEmpty (Wire.ConstructorName, [ElmType]))
@@ -110,27 +116,28 @@ printType =
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
     Defined name -> PP.textStrict $ unqualifiedName name
     Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
-      -- |
-      -- We only need to parenthesize the input argument if it is a
-      -- lambda function itself.
-      where idoc =
-              case ai of
-                SingleWord -> i
-                MultipleWord -> i
-                MultipleWordLambda -> PP.parens i
+      where
+        -- We only need to parenthesize the input argument if it is a
+        -- lambda function itself.
+        idoc =
+          case ai of
+            SingleWord -> i
+            MultipleWord -> i
+            MultipleWordLambda -> PP.parens i
 
 printTypeDefinition :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
 printTypeDefinition name =
   \case
     Custom constructors ->
       "type" <+> PP.textStrict (unqualifiedName name) <++> printedConstructors
-      where printedConstructors =
-              PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
-              printConstructor <$> toList constructors
+      where
+        printedConstructors =
+          PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
+            printConstructor <$> toList constructors
     Alias base ->
-      "type alias" <+>
-      PP.textStrict (unqualifiedName name) <+>
-      "=" <++> PP.indent elmIndent (printType base)
+      "type alias"
+        <+> PP.textStrict (unqualifiedName name)
+        <+> "=" <++> PP.indent elmIndent (printType base)
 
 unqualifiedName :: Wire.TypeName -> Text
 unqualifiedName = Wire.typeConstructor
@@ -139,8 +146,9 @@ printConstructor :: (Wire.ConstructorName, [ElmType]) -> PP.Doc
 printConstructor (name, params) =
   PP.nest
     elmIndent
-    (PP.sep
-       (PP.textStrict (Wire.unConstructorName name) : (printParam <$> params)))
+    ( PP.sep
+        (PP.textStrict (Wire.unConstructorName name) : (printParam <$> params))
+    )
   where
     printParam :: ElmType -> PP.Doc
     printParam t = parens (appearance (unfix t)) (printType t)
@@ -175,8 +183,9 @@ printRecordField (k, (_, v)) =
 useElmCoreTypes :: UserTypes -> (UserTypes, ElmType -> ElmType)
 useElmCoreTypes userTypes =
   ( UserTypes . fmap replaceInTypeDefinition $
-    Map.withoutKeys (unUserTypes userTypes) (Map.keysSet replacements)
-  , replace)
+      Map.withoutKeys (unUserTypes userTypes) (Map.keysSet replacements),
+    replace
+  )
   where
     replacements :: Map Wire.TypeName ElmType
     replacements = elmCoreTypeReplacements userTypes
@@ -187,13 +196,15 @@ useElmCoreTypes userTypes =
     replace :: ElmType -> ElmType
     replace =
       cata $ \case
-        x@(Defined name ) -> fromMaybe (Fix x) $ Map.lookup name replacements
+        x@(Defined name) -> fromMaybe (Fix x) $ Map.lookup name replacements
         x -> Fix x
 
 fromWireUserTypes :: Wire.UserTypes -> (UserTypes, ElmType -> ElmType)
 fromWireUserTypes =
-  useElmCoreTypes .
-  UserTypes . fmap (fromWireUserType . toList) . Wire.unUserTypes
+  useElmCoreTypes
+    . UserTypes
+    . fmap (fromWireUserType . toList)
+    . Wire.unUserTypes
 
 elmCoreTypeReplacements :: UserTypes -> Map Wire.TypeName ElmType
 elmCoreTypeReplacements =
@@ -205,9 +216,9 @@ replaceWithElmCoreType typeName (Custom typeDef) =
   case (Wire.typeConstructor typeName, orderedConstructors) of
     ("Maybe", [("Just", [a]), ("Nothing", [])]) -> Just (Fix $ Maybe a)
     ("Either", [("Left", [a]), ("Right", [b])]) -> Just (Fix $ Result a b)
-    ("Result", [("Err", [a]), ("Ok", [b])]) -> Just (Fix $ Result a b)
-    -- ^ There's not a `Result` type in the Haskell standard library, but if you
+    -- There's not a `Result` type in the Haskell standard library, but if you
     -- would create one, you'd expect it to map to the Elm `Result` type.
+    ("Result", [("Err", [a]), ("Ok", [b])]) -> Just (Fix $ Result a b)
     _ -> Nothing
   where
     orderedConstructors :: [(Wire.ConstructorName, [ElmType])]
@@ -215,16 +226,16 @@ replaceWithElmCoreType typeName (Custom typeDef) =
 
 fromWireUserType :: [(Wire.ConstructorName, Wire.Type_)] -> ElmTypeDefinition
 fromWireUserType [] = Alias (Fix Never)
-fromWireUserType (c:cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
+fromWireUserType (c : cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
   where
     mkConstructors :: Wire.Type_ -> [ElmType]
     mkConstructors =
       \case
         Fix (Wire.Tuple params) -> toList $ fmap fromWireType params
+        -- We don't expect anything but a product here, but should we get one
+        -- we'll assume it's a single parameter to the constructor.
         Fix (Wire.Record fields) ->
           pure . Fix . Record . (fmap . fmap) fromWireType $ toList fields
-        -- | We don't expect anything but a product here, but should we get one
-        -- we'll assume it's a single parameter to the constructor.
         param -> [fromWireType param]
 
 fromWireType :: Wire.Type_ -> ElmType
@@ -232,7 +243,7 @@ fromWireType =
   cata $ \case
     Wire.Tuple xs -> mkElmTuple $ toList xs
     Wire.Record xs -> Fix . Record $ toList xs
-    Wire.User name -> Fix $ Defined name 
+    Wire.User name -> Fix $ Defined name
     Wire.Void -> Fix Never
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float
@@ -247,24 +258,28 @@ mkElmTuple values =
   case values of
     [] -> Fix Unit
     [x] -> x
+    -- A 2-tuple. Example: `(Int, Text)`.
     [x, y] -> Fix $ Tuple2 (x) (y)
-    -- ^ A 2-tuple. Example: `(Int, Text)`.
+    -- A 3-tuple. Example: `(Int, Text, Bool)`.
     [x, y, z] -> Fix $ Tuple3 (x) (y) (z)
-    -- ^ A 3-tuple. Example: `(Int, Text, Bool)`.
-    xs -> Fix . Record $ zip anonFields xs
-    -- ^ Elm only has tuples with 2 or 3 elements. If we have more values
+    -- Elm only has tuples with 2 or 3 elements. If we have more values
     -- than that we have to use a record.
-      where anonFields =
-              Wire.FieldName . ("field" <>) . Text.pack . show <$>
-              ([1 ..] :: [Int])
+    xs -> Fix . Record $ zip anonFields xs
+      where
+        anonFields =
+          Wire.FieldName . ("field" <>) . Text.pack . show
+            <$> ([1 ..] :: [Int])
 
 sortUserTypes :: UserTypes -> [(Wire.TypeName, ElmTypeDefinition)]
 sortUserTypes =
-  reverse .
-  Graph.flattenSCCs .
-  Graph.stronglyConnComp . fmap toNode . Map.toList . unUserTypes
+  reverse
+    . Graph.flattenSCCs
+    . Graph.stronglyConnComp
+    . fmap toNode
+    . Map.toList
+    . unUserTypes
   where
     toNode ::
-         (Wire.TypeName, ElmTypeDefinition)
-      -> ((Wire.TypeName, ElmTypeDefinition), Wire.TypeName, [Wire.TypeName])
+      (Wire.TypeName, ElmTypeDefinition) ->
+      ((Wire.TypeName, ElmTypeDefinition), Wire.TypeName, [Wire.TypeName])
     toNode (name, t) = ((name, t), name, namesInTypeDefinition t)
