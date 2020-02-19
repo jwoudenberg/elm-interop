@@ -9,6 +9,7 @@ let
   }) { };
 in pkgs.mkShell {
   buildInputs = [
+    pkgs.elmPackages.elm-format
     pkgs.haskellPackages.ghcid
     pkgs.haskellPackages.hindent
     pkgs.libiconv
