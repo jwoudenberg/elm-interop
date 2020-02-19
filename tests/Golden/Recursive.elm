@@ -24,9 +24,11 @@ decoderTurtle =
                                     (\name onBackOf ->
                                          { name = name
                                          , onBackOf = onBackOf
-                                         })
+                                         }
+                                    )
                                     Json.Decode.string
                                     decoderTurtle
                                     |> Json.Decode.map Turtle
                             _ ->
-                                Json.Decode.fail "Unexpected constructor")
+                                Json.Decode.fail "Unexpected constructor"
+               )

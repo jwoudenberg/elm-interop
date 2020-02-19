@@ -61,5 +61,12 @@ parens :: TypeAppearance -> PP.Doc -> PP.Doc
 parens a doc =
   case a of
     SingleWord -> doc
-    MultipleWord -> PP.parens doc
-    MultipleWordLambda -> PP.parens doc
+    MultipleWord -> parens' doc
+    MultipleWordLambda -> parens' doc
+
+parens' :: PP.Doc -> PP.Doc
+parens' doc =
+  PP.cat
+    [ PP.lparen <> doc,
+      PP.rparen
+    ]

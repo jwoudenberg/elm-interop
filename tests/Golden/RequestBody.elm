@@ -29,7 +29,8 @@ decoderFish =
                             "Salmon" ->
                                 Salmon
                             _ ->
-                                Json.Decode.fail "Unexpected constructor")
+                                Json.Decode.fail "Unexpected constructor"
+               )
 
 
 type Money
@@ -58,9 +59,11 @@ decoderMoney =
                                     (\amount currency ->
                                          { amount = amount
                                          , currency = currency
-                                         })
+                                         }
+                                    )
                                     Json.Decode.int
                                     Json.Decode.string
                                     |> Json.Decode.map Money
                             _ ->
-                                Json.Decode.fail "Unexpected constructor")
+                                Json.Decode.fail "Unexpected constructor"
+               )
