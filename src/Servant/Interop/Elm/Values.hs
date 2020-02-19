@@ -345,7 +345,7 @@ var (Variable s) = T $ Fix (MkVar s)
 printFunction :: Text -> ElmType -> ElmValue t -> PP.Doc
 printFunction name fnType (T val) =
   PP.vsep
-    [ PP.nest elmIndent $ PP.textStrict name <+> "::" <+> printType fnType,
+    [ PP.nest elmIndent $ PP.textStrict name <+> ":" <+> printType fnType,
       PP.nest elmIndent $ PP.textStrict name <+> go val
     ]
   where

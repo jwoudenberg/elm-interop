@@ -2,7 +2,7 @@ type Turtle
     = Turtle { name : String, onBackOf : Turtle }
 
 
-encodeTurtle :: Turtle -> Value
+encodeTurtle : Turtle -> Value
 encodeTurtle turtle =
     case turtle of
         Turtle { name, onBackOf } ->
@@ -12,7 +12,7 @@ encodeTurtle turtle =
                 ]
 
 
-decoderTurtle :: Decoder
+decoderTurtle : Decoder
 decoderTurtle =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -20,14 +20,13 @@ decoderTurtle =
                     Json.Decode.field "val" <|
                         case ctor of
                             "Turtle" ->
-                                Json.Decode.map
-                                    Turtle
-                                    (Json.Decode.map2
-                                         (\name onBackOf ->
-                                              { name = name
-                                              , onBackOf = onBackOf
-                                              })
-                                         Json.Decode.string
-                                         decoderTurtle)
+                                Json.Decode.map2
+                                    (\name onBackOf ->
+                                         { name = name
+                                         , onBackOf = onBackOf
+                                         })
+                                    Json.Decode.string
+                                    decoderTurtle
+                                    |> Json.Decode.map Turtle
                             _ ->
                                 Json.Decode.fail "Unexpected constructor")
