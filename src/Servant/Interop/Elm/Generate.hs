@@ -2,8 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Servant.Interop.Elm.Generate
-  ( printEncoder,
-    printDecoder,
+  ( generateEncoder,
+    generateDecoder,
   )
 where
 
@@ -14,7 +14,6 @@ import Data.Functor.Foldable (Fix (Fix), cata)
 import qualified Data.Text
 import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF' (..))
 import Servant.Interop.Elm.Values
-import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
 elmEncoder :: ElmType -> ElmValue (Any -> Value)
@@ -77,19 +76,21 @@ encoderNameForType name =
       Wire.typeConstructor name
     ]
 
-printEncoder :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
-printEncoder name typeDef =
-  printFunction
-    (encoderNameForType name)
-    (Fix (Lambda (Fix (Defined name)) (Fix (Defined valueTypeName))))
-    (encoderForType name typeDef)
+generateEncoder :: Wire.TypeName -> ElmTypeDefinition -> ElmFunction
+generateEncoder name typeDef =
+  ElmFunction
+    { fnName = encoderNameForType name,
+      fnType = Fix (Lambda (Fix (Defined name)) (Fix (Defined valueTypeName))),
+      fnImplementation = encoderForType name typeDef
+    }
 
-printDecoder :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
-printDecoder name typeDef =
-  printFunction
-    (decoderNameForType name)
-    (Fix (Defined (decoderTypeName name)))
-    (decoderForType typeDef)
+generateDecoder :: Wire.TypeName -> ElmTypeDefinition -> ElmFunction
+generateDecoder name typeDef =
+  ElmFunction
+    { fnName = decoderNameForType name,
+      fnType = Fix (Defined (decoderTypeName name)),
+      fnImplementation = decoderForType typeDef
+    }
 
 valueTypeName :: Wire.TypeName
 valueTypeName =

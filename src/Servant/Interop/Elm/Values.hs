@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -10,7 +12,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Servant.Interop.Elm.Values
-  ( ElmType,
+  ( ElmFunction (..),
+    ElmType,
     ElmValue,
     ElmValueF (..),
     Pattern,
@@ -342,11 +345,19 @@ v name = T $ Fix $ MkVar name
 var :: Variable a -> ElmValue a
 var (Variable s) = T $ Fix (MkVar s)
 
-printFunction :: Text -> ElmType -> ElmValue t -> PP.Doc
-printFunction name fnType (T val) =
+data ElmFunction where
+  ElmFunction ::
+    { fnName :: Text,
+      fnType :: ElmType,
+      fnImplementation :: ElmValue a
+    } ->
+    ElmFunction
+
+printFunction :: ElmFunction -> PP.Doc
+printFunction ElmFunction {fnName, fnType, fnImplementation} =
   PP.vsep
-    [ PP.nest elmIndent $ PP.textStrict name <+> ":" <+> printType fnType,
-      PP.nest elmIndent $ PP.textStrict name <+> go val
+    [ PP.nest elmIndent $ PP.textStrict fnName <+> ":" <+> printType fnType,
+      PP.nest elmIndent $ PP.textStrict fnName <+> go (unT fnImplementation)
     ]
   where
     go =

@@ -27,28 +27,45 @@ import Data.Text (Text)
 import qualified Servant.Interop
 import qualified Servant.Interop.Elm.Generate as Generate
 import Servant.Interop.Elm.Types
+import Servant.Interop.Elm.Values (ElmFunction, printFunction)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
 printModule :: Servant.Interop.HasWireFormat a => Proxy a -> Text
 printModule =
   printDoc
-    . PP.vcat
-    . intersperse PP.linebreak
-    . fmap (uncurry printForType)
+    . printModule'
+    . Module
+    . foldMap (uncurry definitionsForType)
     . sortUserTypes
     . fst
     . fromWireUserTypes
     . fst
     . Servant.Interop.wireFormat
 
-printForType :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
-printForType name definition =
-  PP.vcat $ intersperse PP.linebreak $
-    [ printTypeDefinition name definition,
-      Generate.printEncoder name definition,
-      Generate.printDecoder name definition
-    ]
+newtype Module = Module [Definition]
+
+data Definition
+  = TypeDefinition Wire.TypeName ElmTypeDefinition
+  | FunctionDefinition ElmFunction
+
+printModule' :: Module -> PP.Doc
+printModule' (Module definitions) =
+  PP.vcat $ intersperse PP.linebreak $ printDefinition <$> definitions
+  where
+    printDefinition =
+      \case
+        TypeDefinition name t ->
+          printTypeDefinition name t
+        FunctionDefinition f ->
+          printFunction f
+
+definitionsForType :: Wire.TypeName -> ElmTypeDefinition -> [Definition]
+definitionsForType name definition =
+  [ TypeDefinition name definition,
+    FunctionDefinition $ Generate.generateEncoder name definition,
+    FunctionDefinition $ Generate.generateDecoder name definition
+  ]
 
 printDoc :: PP.Doc -> Text
 printDoc = PP.displayTStrict . PP.renderPretty 1 80
