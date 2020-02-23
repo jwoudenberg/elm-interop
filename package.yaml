@@ -52,6 +52,9 @@ tests:
     - servant
     - tasty
     - tasty-golden
+    - tasty-hunit
+    - tasty-program
+    - tasty-rerun
     - text
     main: Main.hs
     source-dirs: tests
