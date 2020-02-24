@@ -6,7 +6,7 @@ getNameDogs =
 
 
 getDogs :
-    { min-age : Int
+    { minAge : Int
     } -> ()
 getDogs =
     ()
@@ -21,7 +21,7 @@ getToys =
 
 postToys :
     { body : Toy
-    , auth-smell : String
+    , authSmell : String
     } -> ()
 postToys =
     ()

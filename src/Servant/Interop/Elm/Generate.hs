@@ -312,10 +312,10 @@ generateClient endpoint =
     bodyField :: Wire.Type_ -> (Wire.FieldName, ElmType)
     bodyField wireType = ("body", fromWireType wireType)
     headerField :: T.Text -> Parameter.Parameter -> (Wire.FieldName, ElmType)
-    headerField name val = (Wire.FieldName (T.toLower name), elmTypeForParameter val)
+    headerField name val = (toFieldName name, elmTypeForParameter val)
     queryField :: T.Text -> QueryVal -> (Wire.FieldName, ElmType)
     queryField name val =
-      ( Wire.FieldName (T.toLower name),
+      ( toFieldName name,
         case val of
           QueryFlag -> Fix Bool
           QueryParam param -> elmTypeForParameter param
@@ -326,14 +326,25 @@ generateClient endpoint =
       case path of
         Static _ rest -> paramFields rest
         Capture name param rest ->
-          (Wire.FieldName name, elmTypeForParameter param)
+          (toFieldName name, elmTypeForParameter param)
             : paramFields rest
         CaptureAll name param ->
-          [ ( Wire.FieldName name,
+          [ ( toFieldName name,
               Fix (List (elmTypeForParameter param))
             )
           ]
         Root -> []
+
+toFieldName :: T.Text -> Wire.FieldName
+toFieldName = Wire.FieldName . toCamelCase
+
+toCamelCase :: T.Text -> T.Text
+toCamelCase name =
+  case parts of
+    [] -> ""
+    first' : rest -> T.toLower first' <> foldMap T.toTitle rest
+  where
+    parts = filter (not . T.null) $ T.split (not . Char.isLetter) name
 
 elmTypeForParameter :: Parameter.Parameter -> ElmType
 elmTypeForParameter param =
