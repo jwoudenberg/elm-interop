@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
@@ -23,7 +24,8 @@
 --
 --     instance Rep MyType
 module Servant.Interop
-  ( HasWireFormat (wireFormat),
+  ( NoWire,
+    HasWireFormat (wireFormat),
     WIRE,
     Endpoint (..),
     Wire.Rep,
@@ -37,6 +39,7 @@ import Network.HTTP.Media ((//))
 import Network.HTTP.Types.Method (Method)
 import Servant.API
 import Servant.API.Modifiers (RequiredArgument)
+import Servant.Server (HasServer (ServerT, hoistServerWithContext, route))
 import qualified Wire
 
 data Endpoint
@@ -61,11 +64,27 @@ data Path
 
 data WIRE
 
+-- | Do not generate Wire types for this endpoint.
+--
+--     NoWire :> "endpoint" :> Get '[JSON] Int
+data NoWire
+
+instance HasServer api c => HasServer (NoWire :> api) c where
+
+  type ServerT (NoWire :> api) m = ServerT api m
+
+  route _ = route (Proxy @api)
+
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy @api) pc nt s
+
 instance Accept WIRE where
   contentType _ = "application" // "servant-interop-json"
 
 class HasWireFormat api where
   wireFormat :: Proxy api -> (Wire.UserTypes, [Endpoint])
+
+instance HasWireFormat (NoWire :> api) where
+  wireFormat _ = (mempty, [])
 
 instance HasWireFormat EmptyAPI where
   wireFormat _ = (mempty, [])
