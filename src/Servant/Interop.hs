@@ -32,9 +32,10 @@ module Servant.Interop
   )
 where
 
+import Data.Kind (Constraint)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (Text, pack)
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError, symbolVal)
 import Network.HTTP.Media ((//))
 import Network.HTTP.Types.Method (Method)
 import Servant.API
@@ -120,16 +121,13 @@ instance
       addSegment e = e {path = Static (pack $ symbolVal (Proxy @path)) (path e)}
 
 instance
-  (BoolVal (InList WIRE list), Wire.Rep a, HasWireFormat api) =>
+  (CheckContentType list, Wire.Rep a, HasWireFormat api) =>
   HasWireFormat (ReqBody' mods list a :> api)
   where
-  wireFormat _ =
-    if boolVal (Proxy @(InList WIRE list))
-      then do
-        t <- Wire.wireType (Proxy @a)
-        let addBody e = e {body = Just t}
-        fmap addBody <$> wireFormat (Proxy @api)
-      else pure []
+  wireFormat _ = do
+    t <- Wire.wireType (Proxy @a)
+    let addBody e = e {body = Just t}
+    fmap addBody <$> wireFormat (Proxy @api)
 
 instance
   (KnownSymbol sym, HasWireFormat api) =>
@@ -200,53 +198,86 @@ instance
       addSegment t e = e {path = Capture t (path e)}
 
 instance
-  (BoolVal (InList WIRE list), Wire.Rep a, ReflectMethod method) =>
+  (CheckContentType list, Wire.Rep a, ReflectMethod method) =>
   HasWireFormat (Verb method status list a)
   where
-  wireFormat _ =
-    if boolVal (Proxy @(InList WIRE list))
-      then do
-        t <- Wire.wireType (Proxy @a)
-        pure . pure $
-          Endpoint
-            { path = Root,
-              query = [],
-              method = reflectMethod (Proxy @method),
-              headers = [],
-              body = Nothing,
-              responseBody = Just t
-            }
-      else pure []
+  wireFormat _ = do
+    t <- Wire.wireType (Proxy @a)
+    pure . pure $
+      Endpoint
+        { path = Root,
+          query = [],
+          method = reflectMethod (Proxy @method),
+          headers = [],
+          body = Nothing,
+          responseBody = Just t
+        }
 
 instance
-  (BoolVal (InList WIRE '[ct]), Wire.Rep a, ReflectMethod method) =>
+  (CheckContentType '[ct], Wire.Rep a, ReflectMethod method) =>
   HasWireFormat (Stream method status framing ct a)
   where
-  wireFormat _ =
-    if boolVal (Proxy @(InList WIRE '[ct]))
-      then do
-        t <- Wire.wireType (Proxy @a)
-        pure . pure $
-          Endpoint
-            { path = Root,
-              query = [],
-              method = reflectMethod (Proxy @method),
-              headers = [],
-              body = Nothing,
-              responseBody = Just t
-            }
-      else pure []
+  wireFormat _ = do
+    t <- Wire.wireType (Proxy @a)
+    pure . pure $
+      Endpoint
+        { path = Root,
+          query = [],
+          method = reflectMethod (Proxy @method),
+          headers = [],
+          body = Nothing,
+          responseBody = Just t
+        }
 
-type family InList (x :: *) (ys :: [*]) :: Bool where
-  InList x '[] = 'False
-  InList x (x ': ys) = 'True
-  InList x (y ': ys) = InList x ys
+type family CheckContentType (ys :: [*]) :: Constraint where
+  CheckContentType xs = (HasWIREContentType xs, NoJSONContentType xs)
 
-class BoolVal (bool :: Bool) where
-  boolVal :: Proxy bool -> Bool
+-- The WIRE content type is using JSON under the hood. We cannot allow not allow
+-- other types accepting JSON that might implement different JSON encoders and
+-- decoders.
+type JSONContentTypeNotAllowedMessage =
+  'Text "You're using the JSON content-type for one of your endpoints."
+    ':$$: 'Text "This is now allowed for endpoints that support code generation."
+    ':$$: 'Text ""
+    ':$$: 'Text "For example, if your endpoint looks like this:"
+    ':$$: 'Text ""
+    ':$$: 'Text "    import Servant.API ((:>), JSON)"
+    ':$$: 'Text "    type Endpoint = \"api\" :> Get '[JSON] Text"
+    ':$$: 'Text ""
+    ':$$: 'Text "You can fix this error by using the WIRE content-type instead:"
+    ':$$: 'Text ""
+    ':$$: 'Text "    import Servant.API ((:>))"
+    ':$$: 'Text "    import Servant.Interop (WIRE)"
+    ':$$: 'Text "    type Endpoint = \"api\" :> Get '[WIRE] Text"
+    ':$$: 'Text ""
+    ':$$: 'Text "Alternatively you can disable code generation for the endpoint:"
+    ':$$: 'Text ""
+    ':$$: 'Text "    import Servant.API ((:>), JSON)"
+    ':$$: 'Text "    import Servant.Interop (NoWire)"
+    ':$$: 'Text "    type Endpoint = NoWire :> \"api\" :> Get '[JSON] Text"
+    ':$$: 'Text ""
 
-instance BoolVal 'True where
-  boolVal _ = True
+type family NoJSONContentType (ys :: [*]) :: Constraint where
+  NoJSONContentType '[] = ()
+  NoJSONContentType (JSON ': ys) = TypeError JSONContentTypeNotAllowedMessage
+  NoJSONContentType (_ ': ys) = NoJSONContentType ys
 
-instance BoolVal 'False where
-  boolVal _ = False
+type MissingWIREContentTypeMessage =
+  'Text "An endpoint is missing the WIRE content-type."
+    ':$$: 'Text "Ensure your servant endpoints include it, like so:"
+    ':$$: 'Text ""
+    ':$$: 'Text "    import Servant.API ((:>))"
+    ':$$: 'Text "    import Servant.Interop (WIRE)"
+    ':$$: 'Text "    type Endpoint = \"api\" :> Get '[WIRE] Text"
+    ':$$: 'Text ""
+    ':$$: 'Text "Alternatively you can disable code generation for the endpoint:"
+    ':$$: 'Text ""
+    ':$$: 'Text "    import Servant.API ((:>), PlainText)"
+    ':$$: 'Text "    import Servant.Interop (NoWire)"
+    ':$$: 'Text "    type Endpoint = NoWire :> \"api\" :> Get '[PlainText] Text"
+    ':$$: 'Text ""
+
+type family HasWIREContentType (ys :: [*]) :: Constraint where
+  HasWIREContentType '[] = TypeError MissingWIREContentTypeMessage
+  HasWIREContentType (WIRE ': ys) = ()
+  HasWIREContentType (_ ': ys) = HasWIREContentType ys
