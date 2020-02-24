@@ -26,11 +26,12 @@ import qualified Data.Text as T
 import GHC.Generics
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 import GHC.TypeLits (KnownSymbol, symbolVal)
+import qualified Wire
 
 data Parameter
   = Parameter
       { type_ :: Primitive,
-        wrapper :: Maybe (T.Text, T.Text)
+        wrapper :: Maybe (Wire.TypeName, T.Text)
       }
 
 data Primitive
@@ -77,11 +78,11 @@ instance
     (parameterType (Proxy :: Proxy k))
       { wrapper =
           Just
-            ( T.pack
-                ( symbolVal (Proxy :: Proxy mod)
-                    <> "."
-                    <> symbolVal (Proxy :: Proxy name)
-                ),
+            ( Wire.TypeName
+                { Wire.typeConstructor = T.pack $ symbolVal (Proxy :: Proxy name),
+                  Wire.fromModule = T.pack $ symbolVal (Proxy :: Proxy mod),
+                  Wire.parameters = []
+                },
               T.pack (symbolVal (Proxy :: Proxy ctor))
             )
       }

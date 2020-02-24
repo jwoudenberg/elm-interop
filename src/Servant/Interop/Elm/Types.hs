@@ -15,6 +15,7 @@ module Servant.Interop.Elm.Types
     fromWireUserTypes,
     printTypeDefinition,
     printType,
+    fromWireType,
   )
 where
 

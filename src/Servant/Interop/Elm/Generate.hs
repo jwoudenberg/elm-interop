@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -13,10 +14,11 @@ import Data.Bifunctor (first)
 import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix (Fix), cata)
+import Data.Maybe (maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import Servant.Interop (Endpoint (..), Path (..))
-import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF' (..))
+import Servant.Interop (Endpoint (..), Path (..), QueryVal (..))
+import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF' (..), fromWireType)
 import Servant.Interop.Elm.Values
 import qualified Wire
 import qualified Wire.Parameter as Parameter
@@ -294,9 +296,55 @@ generateClient :: Endpoint -> ElmFunction
 generateClient endpoint =
   ElmFunction
     { fnName = endpointFunctionName endpoint,
-      fnType = Fix Unit,
+      fnType = Fix (Lambda inputRec (Fix Unit)),
       fnImplementation = anyType unit
     }
+  where
+    inputRec :: ElmType
+    inputRec =
+      Fix $ Record $
+        mconcat
+          [ maybeToList $ bodyField <$> body endpoint,
+            uncurry headerField <$> headers endpoint,
+            uncurry queryField <$> query endpoint,
+            paramFields (path endpoint)
+          ]
+    bodyField :: Wire.Type_ -> (Wire.FieldName, ElmType)
+    bodyField wireType = ("body", fromWireType wireType)
+    headerField :: T.Text -> Parameter.Parameter -> (Wire.FieldName, ElmType)
+    headerField name val = (Wire.FieldName (T.toLower name), elmTypeForParameter val)
+    queryField :: T.Text -> QueryVal -> (Wire.FieldName, ElmType)
+    queryField name val =
+      ( Wire.FieldName (T.toLower name),
+        case val of
+          QueryFlag -> Fix Bool
+          QueryParam param -> elmTypeForParameter param
+          QueryList param -> Fix (List (elmTypeForParameter param))
+      )
+    paramFields :: Path -> [(Wire.FieldName, ElmType)]
+    paramFields path =
+      case path of
+        Static _ rest -> paramFields rest
+        Capture name param rest ->
+          (Wire.FieldName name, elmTypeForParameter param)
+            : paramFields rest
+        CaptureAll name param ->
+          [ ( Wire.FieldName name,
+              Fix (List (elmTypeForParameter param))
+            )
+          ]
+        Root -> []
+
+elmTypeForParameter :: Parameter.Parameter -> ElmType
+elmTypeForParameter param =
+  case Parameter.wrapper param of
+    Just (name, _) -> Fix (Defined name)
+    Nothing ->
+      case Parameter.type_ param of
+        Parameter.Int -> Fix Int
+        Parameter.Float -> Fix Float
+        Parameter.String -> Fix String
+        Parameter.Bool -> Fix Bool
 
 endpointFunctionName :: Endpoint -> T.Text
 endpointFunctionName endpoint =
@@ -307,15 +355,6 @@ endpointFunctionName endpoint =
     segments path' =
       case path' of
         Static name rest -> name : segments rest
-        Capture param rest -> paramName param : segments rest
-        CaptureAll param -> [paramName param]
+        Capture name _ rest -> name : segments rest
+        CaptureAll name _ -> [name]
         Root -> []
-    paramName param =
-      case Parameter.wrapper param of
-        Just (_, name) -> name
-        Nothing ->
-          case Parameter.type_ param of
-            Parameter.Int -> "int"
-            Parameter.Float -> "float"
-            Parameter.String -> "string"
-            Parameter.Bool -> "bool"

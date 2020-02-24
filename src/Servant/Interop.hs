@@ -58,18 +58,19 @@ data Endpoint
       }
 
 data QueryVal
-  = Flag
-  | Single Parameter.Parameter
-  | List Parameter.Parameter
+  = QueryFlag
+  | QueryParam Parameter.Parameter
+  | QueryList Parameter.Parameter
 
 data Path
   = Static
       Text
       Path
   | Capture
+      Text
       Parameter.Parameter
       Path
-  | CaptureAll Parameter.Parameter
+  | CaptureAll Text Parameter.Parameter
   | Root
 
 data WIRE
@@ -145,7 +146,7 @@ instance
   wireFormat _ = fmap addQueryFlag <$> wireFormat (Proxy @api)
     where
       addQueryFlag e =
-        e {query = (pack (symbolVal (Proxy @sym)), Flag) : query e}
+        e {query = (pack (symbolVal (Proxy @sym)), QueryFlag) : query e}
 
 instance
   (KnownSymbol sym, Parameter.ParameterType a, HasWireFormat api) =>
@@ -156,7 +157,7 @@ instance
      in fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
     where
       addQueryFlag t e =
-        e {query = (pack (symbolVal (Proxy @sym)), List t) : query e}
+        e {query = (pack (symbolVal (Proxy @sym)), QueryList t) : query e}
 
 instance
   ( KnownSymbol sym,
@@ -170,7 +171,7 @@ instance
      in fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
     where
       addQueryFlag t e =
-        e {query = (pack (symbolVal (Proxy @sym)), Single t) : query e}
+        e {query = (pack (symbolVal (Proxy @sym)), QueryParam t) : query e}
 
 instance
   ( KnownSymbol sym,
@@ -194,7 +195,7 @@ instance
     let t = Parameter.parameterType (Proxy @t)
      in fmap (setPath t) <$> wireFormat (Proxy @api)
     where
-      setPath t e = e {path = CaptureAll t}
+      setPath t e = e {path = CaptureAll (pack (symbolVal (Proxy @sym))) t}
 
 instance
   (KnownSymbol sym, Parameter.ParameterType t, HasWireFormat api) =>
@@ -204,7 +205,7 @@ instance
     let t = Parameter.parameterType (Proxy @t)
      in fmap (addSegment t) <$> wireFormat (Proxy @api)
     where
-      addSegment t e = e {path = Capture t (path e)}
+      addSegment t e = e {path = Capture (pack (symbolVal (Proxy @sym))) t (path e)}
 
 instance
   (CheckContentType list, Wire.Rep a, ReflectMethod method) =>
