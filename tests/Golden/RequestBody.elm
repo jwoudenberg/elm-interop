@@ -34,11 +34,11 @@ decoderFish =
                     Json.Decode.field "val" <|
                         case ctor of
                             "Herring" ->
-                                Herring
+                                Json.Decode.succeed Herring
                             "Carp" ->
-                                Carp
+                                Json.Decode.succeed Carp
                             "Salmon" ->
-                                Salmon
+                                Json.Decode.succeed Salmon
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )

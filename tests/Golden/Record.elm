@@ -78,13 +78,13 @@ decoderPattern =
                     Json.Decode.field "val" <|
                         case ctor of
                             "None" ->
-                                None
+                                Json.Decode.succeed None
                             "Stripes" ->
-                                Stripes
+                                Json.Decode.succeed Stripes
                             "Dots" ->
-                                Dots
+                                Json.Decode.succeed Dots
                             "Other" ->
-                                Other
+                                Json.Decode.succeed Other
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )

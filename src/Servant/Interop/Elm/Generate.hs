@@ -250,7 +250,7 @@ elmDecoder =
 decodeMapN :: [ElmValue (Decoder g)] -> ElmValue (Decoder value) -> ElmValue (Decoder value)
 decodeMapN decoders fn =
   case decoders of
-    [] -> fn
+    [] -> fn1 (var _Json_Decode_succeed) (anyType fn)
     [d] -> d |> fn1 (var _Json_Decode_map) (anyType fn)
     [d1, d2] -> fn3 (var _Json_Decode_map2) (anyType fn) d1 d2
     [d1, d2, d3] -> fn4 (var _Json_Decode_map3) (anyType fn) d1 d2 d3

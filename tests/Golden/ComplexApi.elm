@@ -117,9 +117,9 @@ decoderToy =
                     Json.Decode.field "val" <|
                         case ctor of
                             "Bone" ->
-                                Bone
+                                Json.Decode.succeed Bone
                             "Ball" ->
-                                Ball
+                                Json.Decode.succeed Ball
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )
