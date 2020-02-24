@@ -29,6 +29,8 @@ module Servant.Interop
     WIRE,
     Endpoint (..),
     Wire.Rep,
+    Parameter.ParameterType,
+    QueryVal (..),
   )
 where
 
@@ -42,25 +44,31 @@ import Servant.API
 import Servant.API.Modifiers (RequiredArgument)
 import Servant.Server (HasServer (ServerT, hoistServerWithContext, route))
 import qualified Wire
+import qualified Wire.Parameter as Parameter
 
 data Endpoint
   = Endpoint
       { path :: Path,
-        query :: [(Text, Maybe Wire.Type_)],
+        query :: [(Text, QueryVal)],
         method :: Method,
-        headers :: [(Text, Wire.Type_)],
+        headers :: [(Text, Parameter.Parameter)],
         body :: Maybe Wire.Type_,
         responseBody :: Maybe Wire.Type_
       }
+
+data QueryVal
+  = Flag
+  | Single Parameter.Parameter
+  | List Parameter.Parameter
 
 data Path
   = Static
       Text
       Path
   | Capture
-      Wire.Type_
+      Parameter.Parameter
       Path
-  | CaptureAll Wire.Type_
+  | CaptureAll Parameter.Parameter
   | Root
 
 data WIRE
@@ -136,64 +144,64 @@ instance
   wireFormat _ = fmap addQueryFlag <$> wireFormat (Proxy @api)
     where
       addQueryFlag e =
-        e {query = (pack (symbolVal (Proxy @sym)), Nothing) : query e}
+        e {query = (pack (symbolVal (Proxy @sym)), Flag) : query e}
 
 instance
-  (KnownSymbol sym, Wire.Rep [a], HasWireFormat api) =>
+  (KnownSymbol sym, Parameter.ParameterType a, HasWireFormat api) =>
   HasWireFormat (QueryParams sym a :> api)
   where
-  wireFormat _ = do
-    t <- Wire.wireType (Proxy @[a])
-    fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
+  wireFormat _ =
+    let t = Parameter.parameterType (Proxy @a)
+     in fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
     where
       addQueryFlag t e =
-        e {query = (pack (symbolVal (Proxy @sym)), Just t) : query e}
+        e {query = (pack (symbolVal (Proxy @sym)), List t) : query e}
 
 instance
   ( KnownSymbol sym,
-    Wire.Rep (RequiredArgument mods a),
+    Parameter.ParameterType (RequiredArgument mods a),
     HasWireFormat api
   ) =>
   HasWireFormat (QueryParam' mods sym a :> api)
   where
-  wireFormat _ = do
-    t <- Wire.wireType (Proxy @(RequiredArgument mods a))
-    fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
+  wireFormat _ =
+    let t = Parameter.parameterType (Proxy @(RequiredArgument mods a))
+     in fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
     where
       addQueryFlag t e =
-        e {query = (pack (symbolVal (Proxy @sym)), Just t) : query e}
+        e {query = (pack (symbolVal (Proxy @sym)), Single t) : query e}
 
 instance
   ( KnownSymbol sym,
-    Wire.Rep (RequiredArgument mods a),
+    Parameter.ParameterType (RequiredArgument mods a),
     HasWireFormat api
   ) =>
   HasWireFormat (Header' mods sym a :> api)
   where
-  wireFormat _ = do
-    t <- Wire.wireType (Proxy @(RequiredArgument mods a))
-    fmap (addHeader' t) <$> wireFormat (Proxy @api)
+  wireFormat _ =
+    let t = Parameter.parameterType (Proxy @(RequiredArgument mods a))
+     in fmap (addHeader' t) <$> wireFormat (Proxy @api)
     where
       addHeader' t e =
         e {headers = (pack (symbolVal (Proxy @sym)), t) : headers e}
 
 instance
-  (KnownSymbol sym, Wire.Rep [t], HasWireFormat api) =>
+  (KnownSymbol sym, Parameter.ParameterType t, HasWireFormat api) =>
   HasWireFormat (CaptureAll sym t :> api)
   where
-  wireFormat _ = do
-    t <- Wire.wireType (Proxy @[t])
-    fmap (setPath t) <$> wireFormat (Proxy @api)
+  wireFormat _ =
+    let t = Parameter.parameterType (Proxy @t)
+     in fmap (setPath t) <$> wireFormat (Proxy @api)
     where
       setPath t e = e {path = CaptureAll t}
 
 instance
-  (KnownSymbol sym, Wire.Rep t, HasWireFormat api) =>
+  (KnownSymbol sym, Parameter.ParameterType t, HasWireFormat api) =>
   HasWireFormat (Capture' mods sym t :> api)
   where
-  wireFormat _ = do
-    t <- Wire.wireType (Proxy @[t])
-    fmap (addSegment t) <$> wireFormat (Proxy @api)
+  wireFormat _ =
+    let t = Parameter.parameterType (Proxy @t)
+     in fmap (addSegment t) <$> wireFormat (Proxy @api)
     where
       addSegment t e = e {path = Capture t (path e)}
 
