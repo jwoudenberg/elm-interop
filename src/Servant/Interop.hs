@@ -31,6 +31,7 @@ module Servant.Interop
     Wire.Rep,
     Parameter.ParameterType,
     QueryVal (..),
+    Path (..),
   )
 where
 

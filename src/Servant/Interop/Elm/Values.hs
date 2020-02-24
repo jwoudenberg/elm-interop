@@ -116,6 +116,13 @@ module Servant.Interop.Elm.Values
     _Json_Decode_fail,
     _Json_Decode_andThen,
 
+    -- * Http
+    _Http_request,
+    _Http_emptyBody,
+    _Http_jsonBody,
+    _Http_expectWhatever,
+    _Http_expectJson,
+
     -- * Phantom types
     Decoder,
     Array,
@@ -617,3 +624,26 @@ _Json_Decode_fail = "Json.Decode.fail"
 
 _Json_Decode_andThen :: Variable ((a -> Decoder b) -> Decoder a -> Decoder b)
 _Json_Decode_andThen = "Json.Decode.andThen"
+
+data Request
+
+data Cmd msg
+
+_Http_request :: Variable (Request -> Cmd msg)
+_Http_request = "Http.request"
+
+data Body
+
+_Http_emptyBody :: Variable Body
+_Http_emptyBody = "Http.emptyBody"
+
+_Http_jsonBody :: Variable (Value -> Body)
+_Http_jsonBody = "Http.jsonBody"
+
+data Expect msg
+
+_Http_expectWhatever :: Variable ((Result Error () -> msg) -> Expect msg)
+_Http_expectWhatever = "Http.expectWhatever"
+
+_Http_expectJson :: Variable ((Result Error a -> msg) -> Decoder a -> Expect msg)
+_Http_expectJson = "Http.expectJson"

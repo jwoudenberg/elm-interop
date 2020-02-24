@@ -1,3 +1,8 @@
+getFish : ()
+getFish =
+    ()
+
+
 type Fish
     = Herring
     | Carp

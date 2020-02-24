@@ -1,3 +1,8 @@
+getSocks : ()
+getSocks =
+    ()
+
+
 type Sock
     = Sock { color : String, pattern : Pattern, holes : Int }
 

@@ -15,6 +15,7 @@
 -- are allowed.
 module Wire.Parameter
   ( Parameter (..),
+    Primitive (..),
     ParameterType (..),
   )
 where

@@ -1,3 +1,8 @@
+getWish : ()
+getWish =
+    ()
+
+
 type alias Unicorn =
     Never
 

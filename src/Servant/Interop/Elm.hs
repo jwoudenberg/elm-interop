@@ -32,16 +32,17 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
 printModule :: Servant.Interop.HasWireFormat a => Proxy a -> Text
-printModule =
-  printDoc
-    . printModule'
-    . Module
-    . foldMap (uncurry definitionsForType)
-    . sortUserTypes
-    . fst
-    . fromWireUserTypes
-    . fst
-    . Servant.Interop.wireFormat
+printModule api =
+  printDoc . printModule' . Module $ clients <> helpers
+  where
+    (userTypes, endpoints) = Servant.Interop.wireFormat api
+    clients = FunctionDefinition . Generate.generateClient <$> endpoints
+    helpers =
+      foldMap (uncurry definitionsForType)
+        . sortUserTypes
+        . fst
+        . fromWireUserTypes
+        $ userTypes
 
 newtype Module = Module [Definition]
 

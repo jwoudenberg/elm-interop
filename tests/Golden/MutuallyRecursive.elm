@@ -1,3 +1,8 @@
+getDuet : ()
+getDuet =
+    ()
+
+
 type Forth
     = Forth String BackAndForth
 

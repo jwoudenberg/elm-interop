@@ -1,9 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Servant.Interop.Elm.Generate
   ( generateEncoder,
     generateDecoder,
+    generateClient,
   )
 where
 
@@ -11,10 +13,13 @@ import Data.Bifunctor (first)
 import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix (Fix), cata)
-import qualified Data.Text
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import Servant.Interop (Endpoint (..), Path (..))
 import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF' (..))
 import Servant.Interop.Elm.Values
 import qualified Wire
+import qualified Wire.Parameter as Parameter
 
 elmEncoder :: ElmType -> ElmValue (Any -> Value)
 elmEncoder =
@@ -69,7 +74,7 @@ elmEncoder =
     Lambda _ _ -> error "Cannot encode lambda function"
     Defined name -> v (decoderNameForType name)
 
-encoderNameForType :: Wire.TypeName -> Data.Text.Text
+encoderNameForType :: Wire.TypeName -> T.Text
 encoderNameForType name =
   mconcat
     [ "encode",
@@ -117,9 +122,9 @@ encoderForType typeName typeDef =
         mkCase x $ toList $ matchConstructor <$> constructors
       where
         lowerCasedTypeName =
-          case Data.Text.uncons (Wire.typeConstructor typeName) of
+          case T.uncons (Wire.typeConstructor typeName) of
             Nothing -> mempty
-            Just (x, rest) -> Data.Text.cons (Char.toLower x) rest
+            Just (x, rest) -> T.cons (Char.toLower x) rest
         matchConstructor :: (Wire.ConstructorName, [ElmType]) -> (Pattern a0, ElmValue Value)
         matchConstructor (name, params) =
           case params of
@@ -146,7 +151,7 @@ encoderForType typeName typeDef =
                 (fn2 (var _Json_Encode_list) (var _identity) . list)
               where
                 keyedParams =
-                  zipWith (\i param -> ("param" <> (Data.Text.pack $ show i), param)) [(1 :: Int) ..] params
+                  zipWith (\i param -> ("param" <> (T.pack $ show i), param)) [(1 :: Int) ..] params
 
 data Any
 
@@ -231,7 +236,7 @@ elmDecoder =
       where
         fields = first Wire.unFieldName <$> fields'
         recordLambda = recordLambda' (fst <$> reverse fields) emptyRecord
-        recordLambda' :: [Data.Text.Text] -> Record -> ElmValue r
+        recordLambda' :: [T.Text] -> Record -> ElmValue r
         recordLambda' [] record = mkRecord record
         recordLambda' (name : rest) record =
           anyType $ lambda $ matchVar name $ \x -> recordLambda' rest (addField name x record)
@@ -256,7 +261,7 @@ decodeMapN decoders fn =
 anyDecoder :: ElmValue (Decoder a) -> ElmValue (Decoder Any)
 anyDecoder = anyType
 
-decoderNameForType :: Wire.TypeName -> Data.Text.Text
+decoderNameForType :: Wire.TypeName -> T.Text
 decoderNameForType name =
   mconcat
     [ "decoder",
@@ -284,3 +289,33 @@ decoderForType typeDef =
           ( matchString ctorName,
             decodeMapN (elmDecoder <$> params) (var (fromVarName ctorName))
           )
+
+generateClient :: Endpoint -> ElmFunction
+generateClient endpoint =
+  ElmFunction
+    { fnName = endpointFunctionName endpoint,
+      fnType = Fix Unit,
+      fnImplementation = anyType unit
+    }
+
+endpointFunctionName :: Endpoint -> T.Text
+endpointFunctionName endpoint =
+  method' <> foldMap T.toTitle (reverse $ segments $ path endpoint)
+  where
+    method' =
+      T.toLower $ TE.decodeUtf8 (method endpoint)
+    segments path' =
+      case path' of
+        Static name rest -> name : segments rest
+        Capture param rest -> paramName param : segments rest
+        CaptureAll param -> [paramName param]
+        Root -> []
+    paramName param =
+      case Parameter.wrapper param of
+        Just (_, name) -> name
+        Nothing ->
+          case Parameter.type_ param of
+            Parameter.Int -> "int"
+            Parameter.Float -> "float"
+            Parameter.String -> "string"
+            Parameter.Bool -> "bool"
