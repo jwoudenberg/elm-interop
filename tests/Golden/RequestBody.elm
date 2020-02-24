@@ -1,7 +1,4 @@
-getFish :
-    { body : Money
-    }
-    -> Cmd Fish
+getFish : { body : Money } -> Cmd Fish
 getFish =
     ()
 
@@ -12,9 +9,7 @@ type Fish
     | Salmon
 
 
-encodeFish :
-    Fish
-    -> Value
+encodeFish : Fish -> Value
 encodeFish fish =
     case fish of
         Herring ->
@@ -25,8 +20,7 @@ encodeFish fish =
             Json.Encode.list identity []
 
 
-decoderFish :
-    Decoder
+decoderFish : Decoder
 decoderFish =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -48,9 +42,7 @@ type Money
     = Money { amount : Int, currency : String }
 
 
-encodeMoney :
-    Money
-    -> Value
+encodeMoney : Money -> Value
 encodeMoney money =
     case money of
         Money { amount, currency } ->
@@ -60,8 +52,7 @@ encodeMoney money =
                 ]
 
 
-decoderMoney :
-    Decoder
+decoderMoney : Decoder
 decoderMoney =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

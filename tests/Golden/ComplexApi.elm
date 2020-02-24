@@ -1,32 +1,19 @@
-getNameDogs :
-    { name : Name
-    }
-    -> Cmd Dog
+getNameDogs : { name : Name } -> Cmd Dog
 getNameDogs =
     ()
 
 
-getDogs :
-    { minAge : Int
-    }
-    -> Cmd Dog
+getDogs : { minAge : Int } -> Cmd Dog
 getDogs =
     ()
 
 
-getToys :
-    { fun : Bool
-    }
-    -> Cmd Toy
+getToys : { fun : Bool } -> Cmd Toy
 getToys =
     ()
 
 
-postToys :
-    { body : Toy
-    , authSmell : String
-    }
-    -> Cmd ()
+postToys : { body : Toy, authSmell : String } -> Cmd ()
 postToys =
     ()
 
@@ -35,9 +22,7 @@ type Dog
     = Dog { name : Name, age : Int }
 
 
-encodeDog :
-    Dog
-    -> Value
+encodeDog : Dog -> Value
 encodeDog dog =
     case dog of
         Dog { name, age } ->
@@ -45,8 +30,7 @@ encodeDog dog =
                 [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
 
 
-decoderDog :
-    Decoder
+decoderDog : Decoder
 decoderDog =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -68,17 +52,14 @@ type Name
     = Name String
 
 
-encodeName :
-    Name
-    -> Value
+encodeName : Name -> Value
 encodeName name =
     case name of
         Name param1 ->
             Json.Encode.list identity [ Json.Encode.string param1 ]
 
 
-decoderName :
-    Decoder
+decoderName : Decoder
 decoderName =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -97,9 +78,7 @@ type Toy
     | Ball
 
 
-encodeToy :
-    Toy
-    -> Value
+encodeToy : Toy -> Value
 encodeToy toy =
     case toy of
         Bone ->
@@ -108,8 +87,7 @@ encodeToy toy =
             Json.Encode.list identity []
 
 
-decoderToy :
-    Decoder
+decoderToy : Decoder
 decoderToy =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
