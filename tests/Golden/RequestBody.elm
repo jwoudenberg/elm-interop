@@ -1,7 +1,7 @@
 getFish :
     { body : Money
     }
-    -> ()
+    -> Cmd Fish
 getFish =
     ()
 

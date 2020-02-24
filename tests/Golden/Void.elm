@@ -1,6 +1,6 @@
 getWish :
     {}
-    -> ()
+    -> Cmd Either
 getWish =
     ()
 

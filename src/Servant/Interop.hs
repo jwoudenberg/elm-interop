@@ -53,7 +53,7 @@ data Endpoint
         method :: Method,
         headers :: [(Text, Parameter.Parameter)],
         body :: Maybe Wire.Type_,
-        responseBody :: Maybe Wire.Type_
+        responseBody :: Wire.Type_
       }
 
 data QueryVal
@@ -219,7 +219,7 @@ instance
           method = reflectMethod (Proxy @method),
           headers = [],
           body = Nothing,
-          responseBody = Just t
+          responseBody = t
         }
 
 instance
@@ -235,7 +235,7 @@ instance
           method = reflectMethod (Proxy @method),
           headers = [],
           body = Nothing,
-          responseBody = Just t
+          responseBody = t
         }
 
 type family CheckContentType (ys :: [*]) :: Constraint where

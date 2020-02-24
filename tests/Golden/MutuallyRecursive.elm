@@ -1,6 +1,6 @@
 getDuet :
     {}
-    -> ()
+    -> Cmd BackAndForth
 getDuet =
     ()
 

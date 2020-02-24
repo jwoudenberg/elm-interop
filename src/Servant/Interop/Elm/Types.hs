@@ -59,6 +59,7 @@ data ElmTypeF' s a
   | Lambda
       a
       a
+  | Cmd a
   | Defined Wire.TypeName
   deriving (Functor)
 
@@ -96,6 +97,7 @@ namesInType =
     Tuple3 x y z -> x <> y <> z
     Record x -> foldMap snd x
     Defined n -> [n]
+    Cmd x -> x
     Lambda x y -> x <> y
 
 printType :: ElmType -> PP.Doc
@@ -116,6 +118,7 @@ printType =
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
     Defined name -> PP.textStrict $ unqualifiedName name
+    Cmd (a, i) -> "Cmd" <+> parens a i
     Lambda (ai, i) (_, o) -> idoc <++> "->" <+> o
       where
         -- We only need to parenthesize the input argument if it is a
@@ -170,6 +173,7 @@ appearance =
     Tuple3 _ _ _ -> SingleWord
     Record _ -> SingleWord
     Defined _ -> SingleWord
+    Cmd _ -> MultipleWord
     Lambda _ _ -> MultipleWordLambda
 
 printRecordField :: (Wire.FieldName, (a, PP.Doc)) -> PP.Doc

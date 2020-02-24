@@ -73,6 +73,7 @@ elmEncoder =
                   tuple (string (varName field)) (fn1 encoder (var field))
           )
           (fn1 (var _Json_Encode_object) . list)
+    Cmd _ -> error "Cannot encode Cmd"
     Lambda _ _ -> error "Cannot encode lambda function"
     Defined name -> v (decoderNameForType name)
 
@@ -243,6 +244,7 @@ elmDecoder =
         recordLambda' (name : rest) record =
           anyType $ lambda $ matchVar name $ \x -> recordLambda' rest (addField name x record)
     Lambda _ _ -> error "Cannot decode lambda function from JSON"
+    Cmd _ -> error "Cannot decode Cmd"
     Defined name -> v (decoderNameForType name)
 
 decodeMapN :: [ElmValue (Decoder g)] -> ElmValue (Decoder value) -> ElmValue (Decoder value)
@@ -296,7 +298,7 @@ generateClient :: Endpoint -> ElmFunction
 generateClient endpoint =
   ElmFunction
     { fnName = endpointFunctionName endpoint,
-      fnType = Fix (Lambda inputRec (Fix Unit)),
+      fnType = Fix $ Lambda inputRec $ Fix $ Cmd $ fromWireType $ responseBody endpoint,
       fnImplementation = anyType unit
     }
   where

@@ -1,7 +1,7 @@
 getNameDogs :
     { name : Name
     }
-    -> ()
+    -> Cmd Dog
 getNameDogs =
     ()
 
@@ -9,7 +9,7 @@ getNameDogs =
 getDogs :
     { minAge : Int
     }
-    -> ()
+    -> Cmd Dog
 getDogs =
     ()
 
@@ -17,7 +17,7 @@ getDogs =
 getToys :
     { fun : Bool
     }
-    -> ()
+    -> Cmd Toy
 getToys =
     ()
 
@@ -26,7 +26,7 @@ postToys :
     { body : Toy
     , authSmell : String
     }
-    -> ()
+    -> Cmd ()
 postToys =
     ()
 

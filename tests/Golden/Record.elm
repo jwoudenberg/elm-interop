@@ -1,6 +1,6 @@
 getSocks :
     {}
-    -> ()
+    -> Cmd Sock
 getSocks =
     ()
 

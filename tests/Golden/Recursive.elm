@@ -1,6 +1,6 @@
 getTurtles :
     {}
-    -> ()
+    -> Cmd Turtle
 getTurtles =
     ()
 
