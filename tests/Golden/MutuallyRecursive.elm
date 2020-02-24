@@ -1,4 +1,5 @@
-getDuet : {} -> ()
+getDuet :
+    {} -> ()
 getDuet =
     ()
 
@@ -7,7 +8,8 @@ type Forth
     = Forth String BackAndForth
 
 
-encodeForth : Forth -> Value
+encodeForth :
+    Forth -> Value
 encodeForth forth =
     case forth of
         Forth param1 param2 ->
@@ -16,7 +18,8 @@ encodeForth forth =
                 [ Json.Encode.string param1, decoderBackAndForth param2 ]
 
 
-decoderForth : Decoder
+decoderForth :
+    Decoder
 decoderForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -37,7 +40,8 @@ type BackAndForth
     = Back String Forth
 
 
-encodeBackAndForth : BackAndForth -> Value
+encodeBackAndForth :
+    BackAndForth -> Value
 encodeBackAndForth backAndForth =
     case backAndForth of
         Back param1 param2 ->
@@ -46,7 +50,8 @@ encodeBackAndForth backAndForth =
                 [ Json.Encode.string param1, decoderForth param2 ]
 
 
-decoderBackAndForth : Decoder
+decoderBackAndForth :
+    Decoder
 decoderBackAndForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

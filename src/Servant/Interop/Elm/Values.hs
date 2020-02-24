@@ -363,7 +363,7 @@ data ElmFunction where
 printFunction :: ElmFunction -> PP.Doc
 printFunction ElmFunction {fnName, fnType, fnImplementation} =
   PP.vsep
-    [ PP.nest elmIndent $ PP.textStrict fnName <+> ":" <+> printType fnType,
+    [ PP.nest elmIndent $ PP.textStrict fnName <+> ":" <++> printType fnType,
       PP.nest elmIndent $ PP.textStrict fnName <+> go (unT fnImplementation)
     ]
   where

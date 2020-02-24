@@ -1,4 +1,5 @@
-getTurtles : {} -> ()
+getTurtles :
+    {} -> ()
 getTurtles =
     ()
 
@@ -7,7 +8,8 @@ type Turtle
     = Turtle { name : String, onBackOf : Turtle }
 
 
-encodeTurtle : Turtle -> Value
+encodeTurtle :
+    Turtle -> Value
 encodeTurtle turtle =
     case turtle of
         Turtle { name, onBackOf } ->
@@ -17,7 +19,8 @@ encodeTurtle turtle =
                 ]
 
 
-decoderTurtle : Decoder
+decoderTurtle :
+    Decoder
 decoderTurtle =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

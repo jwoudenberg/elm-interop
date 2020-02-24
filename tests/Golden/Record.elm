@@ -1,4 +1,5 @@
-getSocks : {} -> ()
+getSocks :
+    {} -> ()
 getSocks =
     ()
 
@@ -7,7 +8,8 @@ type Sock
     = Sock { color : String, pattern : Pattern, holes : Int }
 
 
-encodeSock : Sock -> Value
+encodeSock :
+    Sock -> Value
 encodeSock sock =
     case sock of
         Sock { color, pattern, holes } ->
@@ -18,7 +20,8 @@ encodeSock sock =
                 ]
 
 
-decoderSock : Decoder
+decoderSock :
+    Decoder
 decoderSock =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -49,7 +52,8 @@ type Pattern
     | Other
 
 
-encodePattern : Pattern -> Value
+encodePattern :
+    Pattern -> Value
 encodePattern pattern =
     case pattern of
         None ->
@@ -62,7 +66,8 @@ encodePattern pattern =
             Json.Encode.list identity []
 
 
-decoderPattern : Decoder
+decoderPattern :
+    Decoder
 decoderPattern =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
