@@ -1,5 +1,6 @@
 getDuet :
-    {} -> ()
+    {}
+    -> ()
 getDuet =
     ()
 
@@ -9,7 +10,8 @@ type Forth
 
 
 encodeForth :
-    Forth -> Value
+    Forth
+    -> Value
 encodeForth forth =
     case forth of
         Forth param1 param2 ->
@@ -41,7 +43,8 @@ type BackAndForth
 
 
 encodeBackAndForth :
-    BackAndForth -> Value
+    BackAndForth
+    -> Value
 encodeBackAndForth backAndForth =
     case backAndForth of
         Back param1 param2 ->

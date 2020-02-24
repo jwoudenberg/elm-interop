@@ -1,5 +1,6 @@
 getSocks :
-    {} -> ()
+    {}
+    -> ()
 getSocks =
     ()
 
@@ -9,7 +10,8 @@ type Sock
 
 
 encodeSock :
-    Sock -> Value
+    Sock
+    -> Value
 encodeSock sock =
     case sock of
         Sock { color, pattern, holes } ->
@@ -53,7 +55,8 @@ type Pattern
 
 
 encodePattern :
-    Pattern -> Value
+    Pattern
+    -> Value
 encodePattern pattern =
     case pattern of
         None ->

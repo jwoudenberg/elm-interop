@@ -1,5 +1,6 @@
 getTurtles :
-    {} -> ()
+    {}
+    -> ()
 getTurtles =
     ()
 
@@ -9,7 +10,8 @@ type Turtle
 
 
 encodeTurtle :
-    Turtle -> Value
+    Turtle
+    -> Value
 encodeTurtle turtle =
     case turtle of
         Turtle { name, onBackOf } ->

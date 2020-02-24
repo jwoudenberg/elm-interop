@@ -116,7 +116,7 @@ printType =
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
     Defined name -> PP.textStrict $ unqualifiedName name
-    Lambda (ai, i) (_, o) -> idoc <+> "->" <+> o
+    Lambda (ai, i) (_, o) -> idoc <++> "->" <+> o
       where
         -- We only need to parenthesize the input argument if it is a
         -- lambda function itself.

@@ -1,5 +1,6 @@
 getWish :
-    {} -> ()
+    {}
+    -> ()
 getWish =
     ()
 
@@ -9,7 +10,8 @@ type alias Unicorn =
 
 
 encodeUnicorn :
-    Unicorn -> Value
+    Unicorn
+    -> Value
 encodeUnicorn =
     never
 

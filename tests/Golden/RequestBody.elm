@@ -1,6 +1,7 @@
 getFish :
     { body : Money
-    } -> ()
+    }
+    -> ()
 getFish =
     ()
 
@@ -12,7 +13,8 @@ type Fish
 
 
 encodeFish :
-    Fish -> Value
+    Fish
+    -> Value
 encodeFish fish =
     case fish of
         Herring ->
@@ -47,7 +49,8 @@ type Money
 
 
 encodeMoney :
-    Money -> Value
+    Money
+    -> Value
 encodeMoney money =
     case money of
         Money { amount, currency } ->

@@ -1,20 +1,23 @@
 getNameDogs :
     { name : Name
-    } -> ()
+    }
+    -> ()
 getNameDogs =
     ()
 
 
 getDogs :
     { minAge : Int
-    } -> ()
+    }
+    -> ()
 getDogs =
     ()
 
 
 getToys :
     { fun : Bool
-    } -> ()
+    }
+    -> ()
 getToys =
     ()
 
@@ -22,7 +25,8 @@ getToys =
 postToys :
     { body : Toy
     , authSmell : String
-    } -> ()
+    }
+    -> ()
 postToys =
     ()
 
@@ -32,7 +36,8 @@ type Dog
 
 
 encodeDog :
-    Dog -> Value
+    Dog
+    -> Value
 encodeDog dog =
     case dog of
         Dog { name, age } ->
@@ -64,7 +69,8 @@ type Name
 
 
 encodeName :
-    Name -> Value
+    Name
+    -> Value
 encodeName name =
     case name of
         Name param1 ->
@@ -92,7 +98,8 @@ type Toy
 
 
 encodeToy :
-    Toy -> Value
+    Toy
+    -> Value
 encodeToy toy =
     case toy of
         Bone ->
