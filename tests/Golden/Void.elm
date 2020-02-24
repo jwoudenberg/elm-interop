@@ -1,4 +1,4 @@
-getWish : ()
+getWish : {} -> ()
 getWish =
     ()
 

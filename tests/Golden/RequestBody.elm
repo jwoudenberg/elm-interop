@@ -1,4 +1,5 @@
-getFish : ()
+getFish : { body : Money
+    } -> ()
 getFish =
     ()
 

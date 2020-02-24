@@ -42,7 +42,6 @@ import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError, symbolVal)
 import Network.HTTP.Media ((//))
 import Network.HTTP.Types.Method (Method)
 import Servant.API
-import Servant.API.Modifiers (RequiredArgument)
 import Servant.Server (HasServer (ServerT, hoistServerWithContext, route))
 import qualified Wire
 import qualified Wire.Parameter as Parameter
@@ -161,13 +160,13 @@ instance
 
 instance
   ( KnownSymbol sym,
-    Parameter.ParameterType (RequiredArgument mods a),
+    Parameter.ParameterType a,
     HasWireFormat api
   ) =>
   HasWireFormat (QueryParam' mods sym a :> api)
   where
   wireFormat _ =
-    let t = Parameter.parameterType (Proxy @(RequiredArgument mods a))
+    let t = Parameter.parameterType (Proxy @a)
      in fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
     where
       addQueryFlag t e =
@@ -175,13 +174,13 @@ instance
 
 instance
   ( KnownSymbol sym,
-    Parameter.ParameterType (RequiredArgument mods a),
+    Parameter.ParameterType a,
     HasWireFormat api
   ) =>
   HasWireFormat (Header' mods sym a :> api)
   where
   wireFormat _ =
-    let t = Parameter.parameterType (Proxy @(RequiredArgument mods a))
+    let t = Parameter.parameterType (Proxy @a)
      in fmap (addHeader' t) <$> wireFormat (Proxy @api)
     where
       addHeader' t e =

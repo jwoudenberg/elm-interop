@@ -1,4 +1,4 @@
-getDuet : ()
+getDuet : {} -> ()
 getDuet =
     ()
 
