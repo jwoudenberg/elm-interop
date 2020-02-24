@@ -17,7 +17,7 @@ encodeSock sock =
         Sock { color, pattern, holes } ->
             Json.Encode.object
                 [ ( "color", Json.Encode.string color )
-                , ( "pattern", decoderPattern pattern )
+                , ( "pattern", encodePattern pattern )
                 , ( "holes", Json.Encode.int holes )
                 ]
 

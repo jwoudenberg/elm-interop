@@ -75,7 +75,7 @@ elmEncoder =
           (fn1 (var _Json_Encode_object) . list)
     Cmd _ -> error "Cannot encode Cmd"
     Lambda _ _ -> error "Cannot encode lambda function"
-    Defined name -> v (decoderNameForType name)
+    Defined name -> v (encoderNameForType name)
 
 encoderNameForType :: Wire.TypeName -> T.Text
 encoderNameForType name =

@@ -17,7 +17,7 @@ encodeForth forth =
         Forth param1 param2 ->
             Json.Encode.list
                 identity
-                [ Json.Encode.string param1, decoderBackAndForth param2 ]
+                [ Json.Encode.string param1, encodeBackAndForth param2 ]
 
 
 decoderForth :
@@ -50,7 +50,7 @@ encodeBackAndForth backAndForth =
         Back param1 param2 ->
             Json.Encode.list
                 identity
-                [ Json.Encode.string param1, decoderForth param2 ]
+                [ Json.Encode.string param1, encodeForth param2 ]
 
 
 decoderBackAndForth :

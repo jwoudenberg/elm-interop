@@ -42,7 +42,7 @@ encodeDog dog =
     case dog of
         Dog { name, age } ->
             Json.Encode.object
-                [ ( "name", decoderName name ), ( "age", Json.Encode.int age ) ]
+                [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
 
 
 decoderDog :

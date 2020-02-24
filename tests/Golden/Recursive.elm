@@ -17,7 +17,7 @@ encodeTurtle turtle =
         Turtle { name, onBackOf } ->
             Json.Encode.object
                 [ ( "name", Json.Encode.string name )
-                , ( "onBackOf", decoderTurtle onBackOf )
+                , ( "onBackOf", encodeTurtle onBackOf )
                 ]
 
 
