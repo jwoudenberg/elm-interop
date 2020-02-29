@@ -1,7 +1,12 @@
 module Generated exposing (..)
 
 
-getFish : { body : Money } -> Cmd (Result Error Fish)
+import Json.Decode
+import Json.Encode
+import Http
+
+
+getFish : { body : Money } -> Cmd (Result Http.Error Fish)
 getFish { body } =
     Http.request
         { tracker = Nothing
@@ -25,7 +30,7 @@ type Fish
     | Salmon
 
 
-encodeFish : Fish -> Value
+encodeFish : Fish -> Json.Encode.Value
 encodeFish fish =
     case fish of
         Herring ->
@@ -36,7 +41,7 @@ encodeFish fish =
             Json.Encode.list identity []
 
 
-decoderFish : Decoder
+decoderFish : Json.Decode.Decoder
 decoderFish =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -58,7 +63,7 @@ type Money
     = Money { amount : Int, currency : String }
 
 
-encodeMoney : Money -> Value
+encodeMoney : Money -> Json.Encode.Value
 encodeMoney money =
     case money of
         Money { amount, currency } ->
@@ -68,7 +73,7 @@ encodeMoney money =
                 ]
 
 
-decoderMoney : Decoder
+decoderMoney : Json.Decode.Decoder
 decoderMoney =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

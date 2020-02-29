@@ -1,7 +1,12 @@
 module Generated exposing (..)
 
 
-getNameDogs : { name : Name } -> Cmd (Result Error Dog)
+import Json.Decode
+import Json.Encode
+import Http
+
+
+getNameDogs : { name : Name } -> Cmd (Result Http.Error Dog)
 getNameDogs { name } =
     Http.request
         { tracker = Nothing
@@ -19,7 +24,7 @@ getNameDogs { name } =
         }
 
 
-getDogs : { minAge : Int } -> Cmd (Result Error Dog)
+getDogs : { minAge : Int } -> Cmd (Result Http.Error Dog)
 getDogs { minAge } =
     Http.request
         { tracker = Nothing
@@ -39,7 +44,7 @@ getDogs { minAge } =
         }
 
 
-getToys : { fun : Bool } -> Cmd (Result Error Toy)
+getToys : { fun : Bool } -> Cmd (Result Http.Error Toy)
 getToys { fun } =
     Http.request
         { tracker = Nothing
@@ -58,7 +63,7 @@ getToys { fun } =
         }
 
 
-postToys : { body : Toy, authSmell : SmellRight } -> Cmd (Result Error ())
+postToys : { body : Toy, authSmell : SmellRight } -> Cmd (Result Http.Error ())
 postToys { body, authSmell } =
     Http.request
         { tracker = Nothing
@@ -86,7 +91,7 @@ type Dog
     = Dog { name : Name, age : Int }
 
 
-encodeDog : Dog -> Value
+encodeDog : Dog -> Json.Encode.Value
 encodeDog dog =
     case dog of
         Dog { name, age } ->
@@ -94,7 +99,7 @@ encodeDog dog =
                 [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
 
 
-decoderDog : Decoder
+decoderDog : Json.Decode.Decoder
 decoderDog =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -116,14 +121,14 @@ type Name
     = Name String
 
 
-encodeName : Name -> Value
+encodeName : Name -> Json.Encode.Value
 encodeName name =
     case name of
         Name param1 ->
             Json.Encode.list identity [ Json.Encode.string param1 ]
 
 
-decoderName : Decoder
+decoderName : Json.Decode.Decoder
 decoderName =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -142,7 +147,7 @@ type Toy
     | Ball
 
 
-encodeToy : Toy -> Value
+encodeToy : Toy -> Json.Encode.Value
 encodeToy toy =
     case toy of
         Bone ->
@@ -151,7 +156,7 @@ encodeToy toy =
             Json.Encode.list identity []
 
 
-decoderToy : Decoder
+decoderToy : Json.Decode.Decoder
 decoderToy =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

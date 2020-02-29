@@ -1,7 +1,12 @@
 module Generated exposing (..)
 
 
-getWish : {} -> Cmd (Result Error Either)
+import Json.Decode
+import Json.Encode
+import Http
+
+
+getWish : {} -> Cmd (Result Http.Error Either)
 getWish {} =
     Http.request
         { tracker = Nothing
@@ -23,11 +28,11 @@ type alias Unicorn =
     Never
 
 
-encodeUnicorn : Unicorn -> Value
+encodeUnicorn : Unicorn -> Json.Encode.Value
 encodeUnicorn =
     never
 
 
-decoderUnicorn : Decoder
+decoderUnicorn : Json.Decode.Decoder
 decoderUnicorn =
     Json.Decode.fail "Cannot decode Never type from JSON"

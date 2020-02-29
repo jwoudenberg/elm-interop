@@ -1,7 +1,12 @@
 module Generated exposing (..)
 
 
-getTurtles : {} -> Cmd (Result Error Turtle)
+import Json.Decode
+import Json.Encode
+import Http
+
+
+getTurtles : {} -> Cmd (Result Http.Error Turtle)
 getTurtles {} =
     Http.request
         { tracker = Nothing
@@ -23,7 +28,7 @@ type Turtle
     = Turtle { name : String, onBackOf : Turtle }
 
 
-encodeTurtle : Turtle -> Value
+encodeTurtle : Turtle -> Json.Encode.Value
 encodeTurtle turtle =
     case turtle of
         Turtle { name, onBackOf } ->
@@ -33,7 +38,7 @@ encodeTurtle turtle =
                 ]
 
 
-decoderTurtle : Decoder
+decoderTurtle : Json.Decode.Decoder
 decoderTurtle =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

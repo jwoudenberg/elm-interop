@@ -63,10 +63,26 @@ data Definition
 
 printModule' :: Module -> PP.Doc
 printModule' module_ =
-  printedHeader <> PP.linebreak <> PP.linebreak <> PP.linebreak <> printedDefinitions
+  printedHeader
+    <> PP.linebreak
+    <> PP.linebreak
+    <> PP.linebreak
+    <> printedImports
+    <> PP.linebreak
+    <> PP.linebreak
+    <> PP.linebreak
+    <> printedDefinitions
   where
     printedHeader :: PP.Doc
     printedHeader = PP.sep [PP.textStrict "module", PP.textStrict (name module_), PP.textStrict "exposing (..)"]
+    printedImports :: PP.Doc
+    printedImports =
+      PP.vcat $
+        PP.textStrict
+          <$> [ "import Json.Decode",
+                "import Json.Encode",
+                "import Http"
+              ]
     printedDefinitions :: PP.Doc
     printedDefinitions = PP.vcat $ intersperse PP.linebreak $ printDefinition <$> definitions module_
     printDefinition =

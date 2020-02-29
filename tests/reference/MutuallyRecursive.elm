@@ -1,7 +1,12 @@
 module Generated exposing (..)
 
 
-getDuet : {} -> Cmd (Result Error BackAndForth)
+import Json.Decode
+import Json.Encode
+import Http
+
+
+getDuet : {} -> Cmd (Result Http.Error BackAndForth)
 getDuet {} =
     Http.request
         { tracker = Nothing
@@ -23,7 +28,7 @@ type Forth
     = Forth String BackAndForth
 
 
-encodeForth : Forth -> Value
+encodeForth : Forth -> Json.Encode.Value
 encodeForth forth =
     case forth of
         Forth param1 param2 ->
@@ -32,7 +37,7 @@ encodeForth forth =
                 [ Json.Encode.string param1, encodeBackAndForth param2 ]
 
 
-decoderForth : Decoder
+decoderForth : Json.Decode.Decoder
 decoderForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -53,7 +58,7 @@ type BackAndForth
     = Back String Forth
 
 
-encodeBackAndForth : BackAndForth -> Value
+encodeBackAndForth : BackAndForth -> Json.Encode.Value
 encodeBackAndForth backAndForth =
     case backAndForth of
         Back param1 param2 ->
@@ -62,7 +67,7 @@ encodeBackAndForth backAndForth =
                 [ Json.Encode.string param1, encodeForth param2 ]
 
 
-decoderBackAndForth : Decoder
+decoderBackAndForth : Json.Decode.Decoder
 decoderBackAndForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

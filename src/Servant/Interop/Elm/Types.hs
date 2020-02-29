@@ -117,7 +117,7 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined name -> PP.textStrict $ unqualifiedName name
+    Defined name -> PP.textStrict $ unqualifiedIfUnknownName name
     Cmd (a, i) -> "Cmd" <+> parens a i
     Lambda (ai, i) (_, o) -> idoc <++> "->" <+> o
       where
@@ -145,6 +145,23 @@ printTypeDefinition name =
 
 unqualifiedName :: Wire.TypeName -> Text
 unqualifiedName = Wire.typeConstructor
+
+qualifiedName :: Wire.TypeName -> Text
+qualifiedName name =
+  Wire.fromModule name <> "." <> Wire.typeConstructor name
+
+unqualifiedIfUnknownName :: Wire.TypeName -> Text
+unqualifiedIfUnknownName name =
+  if Wire.fromModule name `elem` knownModules
+    then qualifiedName name
+    else unqualifiedName name
+
+knownModules :: [Text]
+knownModules =
+  [ "Http",
+    "Json.Decode",
+    "Json.Encode"
+  ]
 
 printConstructor :: (Wire.ConstructorName, [ElmType]) -> PP.Doc
 printConstructor (name, params) =
