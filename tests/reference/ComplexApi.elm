@@ -12,14 +12,13 @@ getNameDogs { name } =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderDog
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , String.join
-                          "/"
-                          [ "dogs", (\(Name string) -> string) name ]
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , String.join "/" [ "dogs", (\(Name string) -> string) name ]
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }
@@ -32,14 +31,15 @@ getDogs { minAge } =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderDog
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , "dogs"
-                    , "?"
-                    , [ String.concat [ "min-age=", String.fromInt minAge ] ]
-                          |> List.intersperse "&"
-                          |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "dogs"
+                , "?"
+                , [ String.concat [ "min-age=", String.fromInt minAge ] ]
+                      |> List.intersperse "&"
+                      |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }
@@ -52,13 +52,14 @@ getToys { fun } =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderToy
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , "toys"
-                    , "?"
-                    , [ if fun then "fun" else "" ] |> List.intersperse "&"
-                          |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "toys"
+                , "?"
+                , [ if fun then "fun" else "" ] |> List.intersperse "&"
+                      |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }
@@ -71,23 +72,20 @@ postToys { body, authSmell } =
         , timeout = Nothing
         , expect = Http.expectJson identity (Json.Decode.succeed ())
         , body = body |> encodeToy |> Http.jsonBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , "toys"
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
-        , headers = [ Http.header
-                          "auth-smell"
-                          ((\(SmellRight bool) ->
-                                if bool then
-                                "true"
-                                else
-                                "false"
-                               )
-                               authSmell
-                          )
-          ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "toys"
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
+        , headers =
+            [ Http.header
+                  "auth-smell"
+                  ((\(SmellRight bool) -> if bool then "true" else "false")
+                       authSmell
+                  )
+            ]
         , method = "POST"
         }
 

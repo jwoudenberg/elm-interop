@@ -12,12 +12,13 @@ getSocks {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderSock
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , "socks"
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "socks"
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }

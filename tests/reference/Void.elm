@@ -12,12 +12,13 @@ getWish {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderEither
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , "wish"
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "wish"
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }

@@ -412,7 +412,7 @@ printValue' =
       where
         printField :: (Text, PP.Doc) -> PP.Doc
         printField (name, value) =
-          PP.textStrict name <+> fromString "=" <+> value
+          PP.nest 2 $ PP.group $ PP.textStrict name <+> fromString "=" <++> value
     MkLambda pattern1 body1 -> nextArg [pattern1] body1
       where
         nextArg :: [Pattern a] -> Cofree ElmValueF PP.Doc -> PP.Doc

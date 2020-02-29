@@ -12,12 +12,13 @@ getTurtles {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderTurtle
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , "turtles"
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "turtles"
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }

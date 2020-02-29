@@ -12,12 +12,13 @@ getDuet {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderBackAndForth
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "http://example.com/"
-                    , "duet"
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "duet"
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }
