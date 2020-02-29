@@ -31,7 +31,7 @@ type Forth
 encodeForth : Forth -> Json.Encode.Value
 encodeForth forth =
     case forth of
-        Forth param1 param2 ->
+        (Forth param1 param2) ->
             Json.Encode.list
                 identity
                 [ Json.Encode.string param1, encodeBackAndForth param2 ]
@@ -61,7 +61,7 @@ type BackAndForth
 encodeBackAndForth : BackAndForth -> Json.Encode.Value
 encodeBackAndForth backAndForth =
     case backAndForth of
-        Back param1 param2 ->
+        (Back param1 param2) ->
             Json.Encode.list
                 identity
                 [ Json.Encode.string param1, encodeForth param2 ]

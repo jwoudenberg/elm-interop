@@ -15,7 +15,9 @@ getNameDogs { name } =
         , body = Http.emptyBody
         , url = String.concat
                     [ "http://example.com/"
-                    , String.join "/" [ "dogs", (\Name string -> string) name ]
+                    , String.join
+                          "/"
+                          [ "dogs", (\(Name string) -> string) name ]
                     , "?"
                     , [] |> List.intersperse "&" |> String.concat
                     ]
@@ -78,7 +80,11 @@ postToys { body, authSmell } =
                     ]
         , headers = [ Http.header
                           "auth-smell"
-                          ((\SmellRight bool -> if bool then "true" else "false"
+                          ((\(SmellRight bool) ->
+                                if bool then
+                                "true"
+                                else
+                                "false"
                                )
                                authSmell
                           )
@@ -94,7 +100,7 @@ type Dog
 encodeDog : Dog -> Json.Encode.Value
 encodeDog dog =
     case dog of
-        Dog { name, age } ->
+        (Dog { name, age }) ->
             Json.Encode.object
                 [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
 
@@ -124,7 +130,7 @@ type Name
 encodeName : Name -> Json.Encode.Value
 encodeName name =
     case name of
-        Name param1 ->
+        (Name param1) ->
             Json.Encode.list identity [ Json.Encode.string param1 ]
 
 
@@ -149,7 +155,7 @@ type SmellRight
 encodeSmellRight : SmellRight -> Json.Encode.Value
 encodeSmellRight smellRight =
     case smellRight of
-        SmellRight param1 ->
+        (SmellRight param1) ->
             Json.Encode.list identity [ Json.Encode.bool param1 ]
 
 

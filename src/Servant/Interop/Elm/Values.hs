@@ -493,7 +493,9 @@ printPattern =
     VarPat name -> PP.textStrict name
     StringPat str -> PP.dquotes (PP.textStrict str)
     ConstructorPat ctor vars ->
-      PP.group $ PP.sep $ (PP.textStrict ctor) : vars
+      case vars of
+        [] -> PP.textStrict ctor
+        _ -> PP.group $ PP.parens $ PP.sep $ (PP.textStrict ctor) : vars
     Tuple2Pat x y ->
       PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y]
     Tuple3Pat x y z ->

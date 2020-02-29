@@ -66,7 +66,7 @@ type Money
 encodeMoney : Money -> Json.Encode.Value
 encodeMoney money =
     case money of
-        Money { amount, currency } ->
+        (Money { amount, currency }) ->
             Json.Encode.object
                 [ ( "amount", Json.Encode.int amount )
                 , ( "currency", Json.Encode.string currency )

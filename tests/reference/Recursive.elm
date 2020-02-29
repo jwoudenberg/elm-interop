@@ -31,7 +31,7 @@ type Turtle
 encodeTurtle : Turtle -> Json.Encode.Value
 encodeTurtle turtle =
     case turtle of
-        Turtle { name, onBackOf } ->
+        (Turtle { name, onBackOf }) ->
             Json.Encode.object
                 [ ( "name", Json.Encode.string name )
                 , ( "onBackOf", encodeTurtle onBackOf )

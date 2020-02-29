@@ -31,7 +31,7 @@ type Sock
 encodeSock : Sock -> Json.Encode.Value
 encodeSock sock =
     case sock of
-        Sock { color, pattern, holes } ->
+        (Sock { color, pattern, holes }) ->
             Json.Encode.object
                 [ ( "color", Json.Encode.string color )
                 , ( "pattern", encodePattern pattern )
