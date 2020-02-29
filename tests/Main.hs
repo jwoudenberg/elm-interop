@@ -37,7 +37,7 @@ goldenTests =
 goldenTestFor ::
   Servant.Interop.HasWireFormat api => String -> Proxy api -> TestTree
 goldenTestFor name api =
-  Golden.goldenVsString name ("tests/Golden/reference/" <> name <> ".elm") go
+  Golden.goldenVsString name ("tests/reference/" <> name <> ".elm") go
   where
     go =
       pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
