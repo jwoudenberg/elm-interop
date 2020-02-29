@@ -19,9 +19,10 @@ import qualified Servant.Interop
 import qualified Servant.Interop.Elm as Elm
 import Test.Tasty
 import qualified Test.Tasty.Golden as Golden
+import qualified Test.Tasty.Program as Program
 
 main :: IO ()
-main = defaultMain goldenTests
+main = defaultMain tests
 
 data Example where
   Example :: Servant.Interop.HasWireFormat api => String -> Proxy api -> Example
@@ -36,18 +37,34 @@ examples =
     Example "ComplexApi" (Proxy :: Proxy Examples.ComplexApi.API)
   ]
 
+tests :: TestTree
+tests = testGroup "servant-interop" [goldenTests, elmMakeTests]
+
 goldenTests :: TestTree
 goldenTests =
   testGroup "golden" $ goldenTestFor <$> examples
 
-goldenTestFor ::
-  Example -> TestTree
+elmMakeTests :: TestTree
+elmMakeTests =
+  testGroup "elm make" $ elmMakeTestFor <$> examples
+
+goldenTestFor :: Example -> TestTree
 goldenTestFor (Example name api) =
   Golden.goldenVsString name (generatedElmFor name) go
   where
     go =
       pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
         Elm.printModule (Elm.Options "http://example.com" "Generated") api
+
+elmMakeTestFor :: Example -> TestTree
+elmMakeTestFor (Example name _) =
+  Program.testProgram
+    file
+    "elm"
+    ["make", file]
+    (Just "tests/reference")
+  where
+    file = generatedElmFor name
 
 generatedElmFor :: String -> FilePath
 generatedElmFor name = "tests/reference/" <> name <> ".elm"
