@@ -50,7 +50,7 @@ elmMakeTests =
 
 goldenTestFor :: Example -> TestTree
 goldenTestFor (Example name api) =
-  Golden.goldenVsString name (generatedElmFor name) go
+  Golden.goldenVsString name ("tests/reference/" <> name <> ".elm") go
   where
     go =
       pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
@@ -64,7 +64,4 @@ elmMakeTestFor (Example name _) =
     ["make", file]
     (Just "tests/reference")
   where
-    file = generatedElmFor name
-
-generatedElmFor :: String -> FilePath
-generatedElmFor name = "tests/reference/" <> name <> ".elm"
+    file = name <> ".elm"
