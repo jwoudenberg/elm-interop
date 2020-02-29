@@ -392,7 +392,7 @@ printFunction ElmFunction {fnName, fnType, fnImplementation} =
     go =
       \case
         Fix (MkLambda pattern rest) ->
-          printPattern pattern <+> go rest
+          printPattern True pattern <+> go rest
         x -> "=" <> PP.line <> printValue' x
 
 printValue' :: Fix ElmValueF -> PP.Doc
@@ -423,7 +423,7 @@ printValue' =
             _ ->
               hangCollapse $
                 fromString "\\"
-                  <> PP.hsep (printPattern <$> patterns)
+                  <> PP.hsep (printPattern True <$> patterns)
                   <+> fromString "->"
                   <++> body
     MkApply rest1 x1 ->
@@ -461,7 +461,7 @@ printValue' =
       where
         printBranch :: Pattern t -> PP.Doc -> PP.Doc
         printBranch match body =
-          printPattern match <+> fromString "->" <++> PP.indent elmIndent body
+          printPattern False match <+> fromString "->" <++> PP.indent elmIndent body
     MkIfThenElse cond if_ else_ ->
       fromString "if"
         <+> extract cond
@@ -493,15 +493,19 @@ appearance =
     MkCase _ _ -> MultipleWord
     MkIfThenElse _ _ _ -> MultipleWord
 
-printPattern :: Pattern t -> PP.Doc
-printPattern =
+printPattern :: Bool -> Pattern t -> PP.Doc
+printPattern needsConstructorParens =
   cata $ \case
     VarPat name -> PP.textStrict name
     StringPat str -> PP.dquotes (PP.textStrict str)
     ConstructorPat ctor vars ->
       case vars of
         [] -> PP.textStrict ctor
-        _ -> PP.group $ PP.parens $ PP.sep $ (PP.textStrict ctor) : vars
+        _ ->
+          PP.group
+            $ (if needsConstructorParens then PP.parens else id)
+            $ PP.sep
+            $ (PP.textStrict ctor) : vars
     Tuple2Pat x y ->
       PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y]
     Tuple3Pat x y z ->

@@ -97,7 +97,7 @@ type Dog
 encodeDog : Dog -> Json.Encode.Value
 encodeDog dog =
     case dog of
-        (Dog { name, age }) ->
+        Dog { name, age } ->
             Json.Encode.object
                 [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
 
@@ -128,7 +128,7 @@ type Name
 encodeName : Name -> Json.Encode.Value
 encodeName name =
     case name of
-        (Name param1) ->
+        Name param1 ->
             Json.Encode.list identity [ Json.Encode.string param1 ]
 
 
@@ -154,7 +154,7 @@ type SmellRight
 encodeSmellRight : SmellRight -> Json.Encode.Value
 encodeSmellRight smellRight =
     case smellRight of
-        (SmellRight param1) ->
+        SmellRight param1 ->
             Json.Encode.list identity [ Json.Encode.bool param1 ]
 
 
