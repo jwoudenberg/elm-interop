@@ -38,7 +38,13 @@ examples =
   ]
 
 tests :: TestTree
-tests = testGroup "servant-interop" [goldenTests, elmMakeTests]
+tests =
+  testGroup
+    "servant-interop"
+    [ goldenTests,
+      elmMakeTests,
+      elmFormatTests
+    ]
 
 goldenTests :: TestTree
 goldenTests =
@@ -46,7 +52,11 @@ goldenTests =
 
 elmMakeTests :: TestTree
 elmMakeTests =
-  testGroup "elm make" $ elmMakeTestFor <$> examples
+  testGroup "elm make <file>" $ elmMakeTestFor <$> examples
+
+elmFormatTests :: TestTree
+elmFormatTests =
+  testGroup "elm-format --validate <file>" $ elmFormatTestFor <$> examples
 
 goldenTestFor :: Example -> TestTree
 goldenTestFor (Example name api) =
@@ -62,6 +72,16 @@ elmMakeTestFor (Example name _) =
     file
     "elm"
     ["make", file]
+    (Just "tests/reference")
+  where
+    file = name <> ".elm"
+
+elmFormatTestFor :: Example -> TestTree
+elmFormatTestFor (Example name _) =
+  Program.testProgram
+    file
+    "elm-format"
+    ["--validate", file]
     (Just "tests/reference")
   where
     file = name <> ".elm"
