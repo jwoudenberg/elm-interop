@@ -37,7 +37,7 @@ getDogs { minAge } =
                 , "dogs"
                 , "?"
                 , [ String.concat [ "min-age=", String.fromInt minAge ] ]
-                          |> List.intersperse "&"
+                      |> List.intersperse "&"
                       |> String.concat
                 ]
         , headers = []
@@ -111,9 +111,9 @@ decoderDog =
                     case ctor of
                         "Dog" ->
                             Json.Decode.map2
-                                    (\name age -> { name = name, age = age })
-                                    decoderName
-                                    Json.Decode.int
+                                (\name age -> { name = name, age = age })
+                                decoderName
+                                Json.Decode.int
                                 |> Json.Decode.map Dog
 
                         _ ->

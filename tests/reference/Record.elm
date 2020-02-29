@@ -48,15 +48,15 @@ decoderSock =
                     case ctor of
                         "Sock" ->
                             Json.Decode.map3
-                                    (\color pattern holes ->
-                                        { color = color
-                                        , pattern = pattern
-                                        , holes = holes
-                                        }
-                                    )
-                                    Json.Decode.string
-                                    decoderPattern
-                                    Json.Decode.int
+                                (\color pattern holes ->
+                                    { color = color
+                                    , pattern = pattern
+                                    , holes = holes
+                                    }
+                                )
+                                Json.Decode.string
+                                decoderPattern
+                                Json.Decode.int
                                 |> Json.Decode.map Sock
 
                         _ ->

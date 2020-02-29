@@ -427,7 +427,7 @@ printValue' =
                   <+> fromString "->"
                   <++> body
     MkApply rest1 x1 ->
-      hangCollapse $ nextArg (mempty :< MkApply rest1 x1) mempty
+      nextArg (mempty :< MkApply rest1 x1) mempty
       where
         nextArg next args =
           case next of
@@ -435,9 +435,9 @@ printValue' =
             -- could be operators that require custom formatting logic.
             (_ :< MkApply (_ :< MkApply (_ :< MkVar fn) arg1) arg2) ->
               case fn of
-                "|>" -> PP.group (extract arg1) <++> PP.textStrict fn <+> extract arg2
-                "<|" -> extract arg1 <+> PP.textStrict fn <++> extract arg2
-                _ -> PP.textStrict fn <++> extractParens arg1 <++> extractParens arg2 <++> args
+                "|>" -> hangCollapse $ (PP.indent 0 (extract arg1)) <++> PP.textStrict fn <+> extract arg2
+                "<|" -> hangCollapse $ extract arg1 <+> PP.textStrict fn <++> extract arg2
+                _ -> hangCollapse $ PP.textStrict fn <++> extractParens arg1 <++> extractParens arg2 <++> args
             -- Recursively match on function application, adding one argument at
             -- a time.
             (_ :< MkApply rest2 x2) ->
@@ -445,7 +445,7 @@ printValue' =
             -- When no more function applications are found, the value we find
             -- at the root is the function name itself.
             (f :< more) ->
-              extractParens (f :< more) <++> args
+              hangCollapse $ extractParens (f :< more) <++> args
     MkVar name -> PP.textStrict name
     MkCase matched branches ->
       fromString "case"

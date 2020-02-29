@@ -47,13 +47,13 @@ decoderTurtle =
                     case ctor of
                         "Turtle" ->
                             Json.Decode.map2
-                                    (\name onBackOf ->
-                                        { name = name
-                                        , onBackOf = onBackOf
-                                        }
-                                    )
-                                    Json.Decode.string
-                                    decoderTurtle
+                                (\name onBackOf ->
+                                    { name = name
+                                    , onBackOf = onBackOf
+                                    }
+                                )
+                                Json.Decode.string
+                                decoderTurtle
                                 |> Json.Decode.map Turtle
 
                         _ ->

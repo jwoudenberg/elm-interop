@@ -87,13 +87,13 @@ decoderMoney =
                     case ctor of
                         "Money" ->
                             Json.Decode.map2
-                                    (\amount currency ->
-                                        { amount = amount
-                                        , currency = currency
-                                        }
-                                    )
-                                    Json.Decode.int
-                                    Json.Decode.string
+                                (\amount currency ->
+                                    { amount = amount
+                                    , currency = currency
+                                    }
+                                )
+                                Json.Decode.int
+                                Json.Decode.string
                                 |> Json.Decode.map Money
 
                         _ ->
