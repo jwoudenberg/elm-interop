@@ -47,21 +47,21 @@ decoderFish : Json.Decode.Decoder Fish
 decoderFish =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Herring" ->
-                                Json.Decode.succeed Herring
-                            
-                            "Carp" ->
-                                Json.Decode.succeed Carp
-                            
-                            "Salmon" ->
-                                Json.Decode.succeed Salmon
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Herring" ->
+                            Json.Decode.succeed Herring
+                        
+                        "Carp" ->
+                            Json.Decode.succeed Carp
+                        
+                        "Salmon" ->
+                            Json.Decode.succeed Salmon
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Money
@@ -82,20 +82,20 @@ decoderMoney : Json.Decode.Decoder Money
 decoderMoney =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Money" ->
-                                Json.Decode.map2
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Money" ->
+                            Json.Decode.map2
                                     (\amount currency ->
-                                         { amount = amount
-                                         , currency = currency
-                                         }
+                                        { amount = amount
+                                        , currency = currency
+                                        }
                                     )
                                     Json.Decode.int
                                     Json.Decode.string
-                                    |> Json.Decode.map Money
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+                                |> Json.Decode.map Money
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

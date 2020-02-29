@@ -37,7 +37,7 @@ getDogs { minAge } =
                 , "dogs"
                 , "?"
                 , [ String.concat [ "min-age=", String.fromInt minAge ] ]
-                      |> List.intersperse "&"
+                          |> List.intersperse "&"
                       |> String.concat
                 ]
         , headers = []
@@ -83,7 +83,7 @@ postToys { body, authSmell } =
             [ Http.header
                   "auth-smell"
                   ((\(SmellRight bool) -> if bool then "true" else "false")
-                       authSmell
+                      authSmell
                   )
             ]
         , method = "POST"
@@ -106,19 +106,19 @@ decoderDog : Json.Decode.Decoder Dog
 decoderDog =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Dog" ->
-                                Json.Decode.map2
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Dog" ->
+                            Json.Decode.map2
                                     (\name age -> { name = name, age = age })
                                     decoderName
                                     Json.Decode.int
-                                    |> Json.Decode.map Dog
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+                                |> Json.Decode.map Dog
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Name
@@ -136,15 +136,15 @@ decoderName : Json.Decode.Decoder Name
 decoderName =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Name" ->
-                                Json.Decode.string |> Json.Decode.map Name
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Name" ->
+                            Json.Decode.string |> Json.Decode.map Name
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type SmellRight
@@ -162,15 +162,15 @@ decoderSmellRight : Json.Decode.Decoder SmellRight
 decoderSmellRight =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "SmellRight" ->
-                                Json.Decode.bool |> Json.Decode.map SmellRight
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "SmellRight" ->
+                            Json.Decode.bool |> Json.Decode.map SmellRight
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Toy
@@ -192,15 +192,15 @@ decoderToy : Json.Decode.Decoder Toy
 decoderToy =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Bone" ->
-                                Json.Decode.succeed Bone
-                            
-                            "Ball" ->
-                                Json.Decode.succeed Ball
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Bone" ->
+                            Json.Decode.succeed Bone
+                        
+                        "Ball" ->
+                            Json.Decode.succeed Ball
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

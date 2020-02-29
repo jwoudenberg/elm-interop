@@ -435,7 +435,7 @@ printValue' =
             -- could be operators that require custom formatting logic.
             (_ :< MkApply (_ :< MkApply (_ :< MkVar fn) arg1) arg2) ->
               case fn of
-                "|>" -> extract arg1 <++> PP.textStrict fn <+> extract arg2
+                "|>" -> PP.group (extract arg1) <++> PP.textStrict fn <+> extract arg2
                 "<|" -> extract arg1 <+> PP.textStrict fn <++> extract arg2
                 _ -> PP.textStrict fn <++> extractParens arg1 <++> extractParens arg2 <++> args
             -- Recursively match on function application, adding one argument at

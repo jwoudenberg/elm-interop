@@ -41,18 +41,18 @@ decoderForth : Json.Decode.Decoder Forth
 decoderForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Forth" ->
-                                Json.Decode.map2
-                                    Forth
-                                    Json.Decode.string
-                                    decoderBackAndForth
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Forth" ->
+                            Json.Decode.map2
+                                Forth
+                                Json.Decode.string
+                                decoderBackAndForth
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type BackAndForth Text
@@ -72,15 +72,15 @@ decoderBackAndForth : Json.Decode.Decoder BackAndForth
 decoderBackAndForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Back" ->
-                                Json.Decode.map2
-                                    Back
-                                    Json.Decode.string
-                                    decoderForth
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Back" ->
+                            Json.Decode.map2
+                                Back
+                                Json.Decode.string
+                                decoderForth
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

@@ -47,7 +47,7 @@ encloseSep' left right sp ds =
 --
 --     line1 line2 line3
 hangCollapse :: PP.Doc -> PP.Doc
-hangCollapse = PP.hang elmIndent . PP.group
+hangCollapse = PP.nest elmIndent . PP.group
 
 data TypeAppearance
   = -- | The printed type consists of a single word, like `Int` or `Thing`.

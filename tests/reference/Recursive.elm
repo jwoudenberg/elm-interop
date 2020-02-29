@@ -42,20 +42,20 @@ decoderTurtle : Json.Decode.Decoder Turtle
 decoderTurtle =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Turtle" ->
-                                Json.Decode.map2
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Turtle" ->
+                            Json.Decode.map2
                                     (\name onBackOf ->
-                                         { name = name
-                                         , onBackOf = onBackOf
-                                         }
+                                        { name = name
+                                        , onBackOf = onBackOf
+                                        }
                                     )
                                     Json.Decode.string
                                     decoderTurtle
-                                    |> Json.Decode.map Turtle
-                            
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+                                |> Json.Decode.map Turtle
+                        
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
