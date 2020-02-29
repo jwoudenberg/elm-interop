@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Golden.RequestBody
+module Examples.MutuallyRecursive
   ( API,
   )
 where
@@ -13,17 +13,18 @@ import GHC.Generics (Generic)
 import Servant.API
 import Servant.Interop (Rep, WIRE)
 
-type API = "fish" :> ReqBody '[WIRE] Money :> Get '[WIRE] Fish
+type API = "duet" :> Get '[WIRE] (BackAndForth Line)
 
-data Money
-  = Money
-      { amount :: Int,
-        currency :: Text
-      }
+type Line = Text
+
+data BackAndForth a
+  = Back
+      a
+      (Forth a)
   deriving (Generic, Rep)
 
-data Fish
-  = Herring
-  | Carp
-  | Salmon
+data Forth a
+  = Forth
+      a
+      (BackAndForth a)
   deriving (Generic, Rep)

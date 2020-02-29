@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Golden.MutuallyRecursive
+module Examples.Record
   ( API,
   )
 where
@@ -13,18 +13,19 @@ import GHC.Generics (Generic)
 import Servant.API
 import Servant.Interop (Rep, WIRE)
 
-type API = "duet" :> Get '[WIRE] (BackAndForth Line)
+type API = "socks" :> Get '[WIRE] Sock
 
-type Line = Text
-
-data BackAndForth a
-  = Back
-      a
-      (Forth a)
+data Sock
+  = Sock
+      { color :: Text,
+        pattern :: Pattern,
+        holes :: Int
+      }
   deriving (Generic, Rep)
 
-data Forth a
-  = Forth
-      a
-      (BackAndForth a)
+data Pattern
+  = None
+  | Stripes
+  | Dots
+  | Other
   deriving (Generic, Rep)

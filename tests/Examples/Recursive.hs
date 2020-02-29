@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Golden.Recursive
+module Examples.Recursive
   ( API,
   )
 where

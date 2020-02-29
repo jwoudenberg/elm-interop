@@ -8,12 +8,12 @@ where
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
-import qualified Golden.ComplexApi
-import qualified Golden.MutuallyRecursive
-import qualified Golden.Record
-import qualified Golden.Recursive
-import qualified Golden.RequestBody
-import qualified Golden.Void
+import qualified Examples.ComplexApi
+import qualified Examples.MutuallyRecursive
+import qualified Examples.Record
+import qualified Examples.Recursive
+import qualified Examples.RequestBody
+import qualified Examples.Void
 import qualified Servant.Interop
 import qualified Servant.Interop.Elm as Elm
 import Test.Tasty
@@ -26,12 +26,12 @@ goldenTests :: TestTree
 goldenTests =
   testGroup
     "golden"
-    [ goldenTestFor "Record" (Proxy :: Proxy Golden.Record.API),
-      goldenTestFor "Recursive" (Proxy :: Proxy Golden.Recursive.API),
-      goldenTestFor "MutuallyRecursive" (Proxy :: Proxy Golden.MutuallyRecursive.API),
-      goldenTestFor "RequestBody" (Proxy :: Proxy Golden.RequestBody.API),
-      goldenTestFor "Void" (Proxy :: Proxy Golden.Void.API),
-      goldenTestFor "ComplexApi" (Proxy :: Proxy Golden.ComplexApi.API)
+    [ goldenTestFor "Record" (Proxy :: Proxy Examples.Record.API),
+      goldenTestFor "Recursive" (Proxy :: Proxy Examples.Recursive.API),
+      goldenTestFor "MutuallyRecursive" (Proxy :: Proxy Examples.MutuallyRecursive.API),
+      goldenTestFor "RequestBody" (Proxy :: Proxy Examples.RequestBody.API),
+      goldenTestFor "Void" (Proxy :: Proxy Examples.Void.API),
+      goldenTestFor "ComplexApi" (Proxy :: Proxy Examples.ComplexApi.API)
     ]
 
 goldenTestFor ::

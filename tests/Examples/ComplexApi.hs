@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Golden.ComplexApi
+module Examples.ComplexApi
   ( API,
   )
 where

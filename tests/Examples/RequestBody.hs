@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Golden.Record
+module Examples.RequestBody
   ( API,
   )
 where
@@ -13,19 +13,17 @@ import GHC.Generics (Generic)
 import Servant.API
 import Servant.Interop (Rep, WIRE)
 
-type API = "socks" :> Get '[WIRE] Sock
+type API = "fish" :> ReqBody '[WIRE] Money :> Get '[WIRE] Fish
 
-data Sock
-  = Sock
-      { color :: Text,
-        pattern :: Pattern,
-        holes :: Int
+data Money
+  = Money
+      { amount :: Int,
+        currency :: Text
       }
   deriving (Generic, Rep)
 
-data Pattern
-  = None
-  | Stripes
-  | Dots
-  | Other
+data Fish
+  = Herring
+  | Carp
+  | Salmon
   deriving (Generic, Rep)
