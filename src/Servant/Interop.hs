@@ -35,7 +35,9 @@ module Servant.Interop
   )
 where
 
+import Data.Functor.Foldable (Fix (Fix))
 import Data.Kind (Constraint)
+import qualified Data.Map.Strict as Map
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (Text, pack)
 import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError, symbolVal)
@@ -151,9 +153,9 @@ instance
   (KnownSymbol sym, Parameter.ParameterType a, HasWireFormat api) =>
   HasWireFormat (QueryParams sym a :> api)
   where
-  wireFormat _ =
-    let t = Parameter.parameterType (Proxy @a)
-     in fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
+  wireFormat _ = do
+    t <- parameterType (Proxy @a)
+    fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
     where
       addQueryFlag t e =
         e {query = (pack (symbolVal (Proxy @sym)), QueryList t) : query e}
@@ -165,9 +167,9 @@ instance
   ) =>
   HasWireFormat (QueryParam' mods sym a :> api)
   where
-  wireFormat _ =
-    let t = Parameter.parameterType (Proxy @a)
-     in fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
+  wireFormat _ = do
+    t <- parameterType (Proxy @a)
+    fmap (addQueryFlag t) <$> wireFormat (Proxy @api)
     where
       addQueryFlag t e =
         e {query = (pack (symbolVal (Proxy @sym)), QueryParam t) : query e}
@@ -179,9 +181,9 @@ instance
   ) =>
   HasWireFormat (Header' mods sym a :> api)
   where
-  wireFormat _ =
-    let t = Parameter.parameterType (Proxy @a)
-     in fmap (addHeader' t) <$> wireFormat (Proxy @api)
+  wireFormat _ = do
+    t <- parameterType (Proxy @a)
+    fmap (addHeader' t) <$> wireFormat (Proxy @api)
     where
       addHeader' t e =
         e {headers = (pack (symbolVal (Proxy @sym)), t) : headers e}
@@ -190,9 +192,9 @@ instance
   (KnownSymbol sym, Parameter.ParameterType t, HasWireFormat api) =>
   HasWireFormat (CaptureAll sym t :> api)
   where
-  wireFormat _ =
-    let t = Parameter.parameterType (Proxy @t)
-     in fmap (setPath t) <$> wireFormat (Proxy @api)
+  wireFormat _ = do
+    t <- parameterType (Proxy @t)
+    fmap (setPath t) <$> wireFormat (Proxy @api)
     where
       setPath t e = e {path = CaptureAll (pack (symbolVal (Proxy @sym))) t}
 
@@ -200,9 +202,9 @@ instance
   (KnownSymbol sym, Parameter.ParameterType t, HasWireFormat api) =>
   HasWireFormat (Capture' mods sym t :> api)
   where
-  wireFormat _ =
-    let t = Parameter.parameterType (Proxy @t)
-     in fmap (addSegment t) <$> wireFormat (Proxy @api)
+  wireFormat _ = do
+    t <- parameterType (Proxy @t)
+    fmap (addSegment t) <$> wireFormat (Proxy @api)
     where
       addSegment t e = e {path = Capture (pack (symbolVal (Proxy @sym))) t (path e)}
 
@@ -290,3 +292,22 @@ type family HasWIREContentType (ys :: [*]) :: Constraint where
   HasWIREContentType '[] = TypeError MissingWIREContentTypeMessage
   HasWIREContentType (WIRE ': ys) = ()
   HasWIREContentType (_ ': ys) = HasWIREContentType ys
+
+parameterType :: Parameter.ParameterType a => Proxy a -> (Wire.UserTypes, Parameter.Parameter)
+parameterType p =
+  let parameter = Parameter.parameterType p
+   in ( case Parameter.wrapper parameter of
+          Nothing -> mempty
+          Just (typeName, ctor) ->
+            Wire.UserTypes
+              $ Map.singleton typeName
+              $ pure
+                ( Wire.ConstructorName ctor,
+                  case Parameter.type_ parameter of
+                    Parameter.Int -> Fix Wire.Int
+                    Parameter.Float -> Fix Wire.Float
+                    Parameter.String -> Fix Wire.String
+                    Parameter.Bool -> Fix Wire.Bool
+                ),
+        parameter
+      )

@@ -142,6 +142,31 @@ decoderName =
                )
 
 
+type SmellRight
+    = SmellRight Bool
+
+
+encodeSmellRight : SmellRight -> Json.Encode.Value
+encodeSmellRight smellRight =
+    case smellRight of
+        SmellRight param1 ->
+            Json.Encode.list identity [ Json.Encode.bool param1 ]
+
+
+decoderSmellRight : Json.Decode.Decoder
+decoderSmellRight =
+    Json.Decode.field "ctor" Json.Decode.string
+        |> Json.Decode.andThen
+               (\ctor ->
+                    Json.Decode.field "val" <|
+                        case ctor of
+                            "SmellRight" ->
+                                Json.Decode.bool |> Json.Decode.map SmellRight
+                            _ ->
+                                Json.Decode.fail "Unexpected constructor"
+               )
+
+
 type Toy
     = Bone
     | Ball
