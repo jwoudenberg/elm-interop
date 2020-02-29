@@ -35,7 +35,7 @@ getDogs { minAge } =
                     [ "http://example.com/"
                     , "dogs"
                     , "?"
-                    , [ String.concat [ "min-age=", fromInt minAge ] ]
+                    , [ String.concat [ "min-age=", String.fromInt minAge ] ]
                           |> List.intersperse "&"
                           |> String.concat
                     ]

@@ -502,8 +502,8 @@ nameOfPrimitive primitive =
 encodedPrimitive :: Parameter.Primitive -> ElmValue Any -> ElmValue (String)
 encodedPrimitive primitive val =
   case primitive of
-    Parameter.Int -> fn1 (var _fromInt) (anyType val)
-    Parameter.Float -> fn1 (var _fromFloat) (anyType val)
+    Parameter.Int -> fn1 (var _String_fromInt) (anyType val)
+    Parameter.Float -> fn1 (var _String_fromFloat) (anyType val)
     Parameter.String -> anyType val
     Parameter.Bool -> ifThenElse (anyType val) "true" "false"
 

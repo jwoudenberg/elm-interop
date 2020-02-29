@@ -70,8 +70,8 @@ module Servant.Interop.Elm.Values
     _always,
     _identity,
     _never,
-    _fromInt,
-    _fromFloat,
+    _String_fromInt,
+    _String_fromFloat,
 
     -- ** String
     _String_join,
@@ -528,11 +528,11 @@ data Never
 _never :: Variable (Never -> a)
 _never = "never"
 
-_fromInt :: Variable (Int -> String)
-_fromInt = "fromInt"
+_String_fromInt :: Variable (Int -> String)
+_String_fromInt = "String.fromInt"
 
-_fromFloat :: Variable (Float -> String)
-_fromFloat = "fromFloat"
+_String_fromFloat :: Variable (Float -> String)
+_String_fromFloat = "String.fromFloat"
 
 _String_join :: Variable (String -> [String] -> String)
 _String_join = "String.join"
