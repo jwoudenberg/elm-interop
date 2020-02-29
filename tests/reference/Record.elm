@@ -58,7 +58,7 @@ decoderSock =
                                     decoderPattern
                                     Json.Decode.int
                                 |> Json.Decode.map Sock
-                        
+
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
             )
@@ -76,13 +76,13 @@ encodePattern pattern =
     case pattern of
         None ->
             Json.Encode.list identity []
-        
+
         Stripes ->
             Json.Encode.list identity []
-        
+
         Dots ->
             Json.Encode.list identity []
-        
+
         Other ->
             Json.Encode.list identity []
 
@@ -96,16 +96,16 @@ decoderPattern =
                     case ctor of
                         "None" ->
                             Json.Decode.succeed None
-                        
+
                         "Stripes" ->
                             Json.Decode.succeed Stripes
-                        
+
                         "Dots" ->
                             Json.Decode.succeed Dots
-                        
+
                         "Other" ->
                             Json.Decode.succeed Other
-                        
+
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
             )

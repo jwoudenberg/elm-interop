@@ -115,7 +115,7 @@ decoderDog =
                                     decoderName
                                     Json.Decode.int
                                 |> Json.Decode.map Dog
-                        
+
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
             )
@@ -141,7 +141,7 @@ decoderName =
                     case ctor of
                         "Name" ->
                             Json.Decode.string |> Json.Decode.map Name
-                        
+
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
             )
@@ -167,7 +167,7 @@ decoderSmellRight =
                     case ctor of
                         "SmellRight" ->
                             Json.Decode.bool |> Json.Decode.map SmellRight
-                        
+
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
             )
@@ -183,7 +183,7 @@ encodeToy toy =
     case toy of
         Bone ->
             Json.Encode.list identity []
-        
+
         Ball ->
             Json.Encode.list identity []
 
@@ -197,10 +197,10 @@ decoderToy =
                     case ctor of
                         "Bone" ->
                             Json.Decode.succeed Bone
-                        
+
                         "Ball" ->
                             Json.Decode.succeed Ball
-                        
+
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
             )

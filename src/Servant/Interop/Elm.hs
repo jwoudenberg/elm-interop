@@ -40,7 +40,7 @@ data Options
 
 printModule :: Servant.Interop.HasWireFormat a => Options -> Proxy a -> T.Text
 printModule options api =
-  printDoc . printModule' . Module (moduleName options) $ clients <> helpers
+  removeTrailingWhitespace . printDoc . printModule' . Module (moduleName options) $ clients <> helpers
   where
     (userTypes, endpoints) = Servant.Interop.wireFormat api
     clients = FunctionDefinition . Generate.generateClient (domain options) <$> endpoints
@@ -50,6 +50,9 @@ printModule options api =
         . fst
         . fromWireUserTypes
         $ userTypes
+
+removeTrailingWhitespace :: T.Text -> T.Text
+removeTrailingWhitespace = T.unlines . fmap T.stripEnd . T.lines
 
 data Module
   = Module
