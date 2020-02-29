@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main
   ( main,
   )
@@ -39,4 +41,4 @@ goldenTestFor name api =
   where
     go =
       pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
-        Elm.printModule api
+        Elm.printModule "example.com" api

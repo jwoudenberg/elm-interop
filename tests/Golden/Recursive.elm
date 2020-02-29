@@ -1,6 +1,19 @@
-getTurtles : {} -> Cmd Turtle
-getTurtles =
-    ()
+getTurtles : {} -> Cmd (Result Error Turtle)
+getTurtles {} =
+    Http.request
+        { tracker = Nothing
+        , timeout = Nothing
+        , expect = Http.expectJson identity decoderTurtle
+        , body = Http.emptyBody
+        , url = String.concat
+                    [ "example.com/"
+                    , "turtles"
+                    , "?"
+                    , [] |> List.intersperse "&" |> String.concat
+                    ]
+        , headers = []
+        , method = "GET"
+        }
 
 
 type Turtle

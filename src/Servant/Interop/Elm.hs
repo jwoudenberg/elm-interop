@@ -31,12 +31,12 @@ import Servant.Interop.Elm.Values (ElmFunction, printFunction)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
-printModule :: Servant.Interop.HasWireFormat a => Proxy a -> Text
-printModule api =
+printModule :: Servant.Interop.HasWireFormat a => Text -> Proxy a -> Text
+printModule domain api =
   printDoc . printModule' . Module $ clients <> helpers
   where
     (userTypes, endpoints) = Servant.Interop.wireFormat api
-    clients = FunctionDefinition . Generate.generateClient <$> endpoints
+    clients = FunctionDefinition . Generate.generateClient domain <$> endpoints
     helpers =
       foldMap (uncurry definitionsForType)
         . sortUserTypes

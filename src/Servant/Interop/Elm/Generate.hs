@@ -13,6 +13,7 @@ where
 import Data.Bifunctor (first)
 import qualified Data.Char as Char
 import Data.Foldable (toList)
+import Data.Function ((&))
 import Data.Functor.Foldable (Fix (Fix), cata)
 import Data.Maybe (maybeToList)
 import qualified Data.Text as T
@@ -72,7 +73,7 @@ elmEncoder =
                 Just encoder ->
                   tuple (string (varName field)) (fn1 encoder (var field))
           )
-          (fn1 (var _Json_Encode_object) . list)
+          (fn1 (var _Json_Encode_object) . list . fmap snd)
     Cmd _ -> error "Cannot encode Cmd"
     Lambda _ _ -> error "Cannot encode lambda function"
     Defined name -> v (encoderNameForType name)
@@ -141,7 +142,7 @@ encoderForType typeName typeDef =
                       Just elmType ->
                         tuple (string (varName field)) (fn1 (elmEncoder elmType) (var field))
                 )
-                (fn1 (var _Json_Encode_object) . list)
+                (fn1 (var _Json_Encode_object) . list . fmap snd)
             _ ->
               matchCtorN
                 (fromVarName $ Wire.unConstructorName name)
@@ -294,25 +295,70 @@ decoderForType typeDef =
             decodeMapN (elmDecoder <$> params) (var (fromVarName ctorName))
           )
 
-generateClient :: Endpoint -> ElmFunction
-generateClient endpoint =
+generateClient :: T.Text -> Endpoint -> ElmFunction
+generateClient domain endpoint =
   ElmFunction
     { fnName = endpointFunctionName endpoint,
-      fnType = Fix $ Lambda inputRec $ Fix $ Cmd $ fromWireType $ responseBody endpoint,
-      fnImplementation = anyType unit
+      fnType = Fix $ Lambda inputRec $ Fix $ Cmd $ Fix $ Result (Fix _Http_Error) $ fromWireType $ responseBody endpoint,
+      fnImplementation =
+        lambda $
+          matchRecordN
+            (Wire.unFieldName . fst <$> fields)
+            (anyType . var)
+            ( \_options ->
+                fn1
+                  (var _Http_request)
+                  ( emptyRecord
+                      & addField "method" (string $ TE.decodeUtf8 $ method endpoint)
+                      & addField "headers" (list $ uncurry headerOption <$> headers endpoint)
+                      & addField "url" (urlOption endpoint)
+                      & addField "body" bodyOption
+                      & addField "expect" expectOption
+                      & addField "timeout" (var _Nothing)
+                      & addField "tracker" (var _Nothing)
+                      & mkRecord
+                  )
+            )
     }
   where
+    _Http_Error =
+      Defined Wire.TypeName
+        { Wire.typeConstructor = "Error",
+          Wire.fromModule = "Http",
+          Wire.parameters = []
+        }
     inputRec :: ElmType
-    inputRec =
-      Fix $ Record $
-        mconcat
-          [ maybeToList $ bodyField <$> body endpoint,
-            uncurry headerField <$> headers endpoint,
-            uncurry queryField <$> query endpoint,
-            paramFields (path endpoint)
-          ]
+    inputRec = Fix $ Record $ fields
+    fields =
+      mconcat
+        [ maybeToList $ bodyField <$> body endpoint,
+          uncurry headerField <$> headers endpoint,
+          uncurry queryField <$> query endpoint,
+          paramFields (path endpoint)
+        ]
     bodyField :: Wire.Type_ -> (Wire.FieldName, ElmType)
     bodyField wireType = ("body", fromWireType wireType)
+    expectOption :: ElmValue (Expect (Result Error Any))
+    expectOption =
+      fn2
+        (var _Http_expectJson)
+        (var _identity)
+        (elmDecoder (fromWireType (responseBody endpoint)))
+    bodyOption :: ElmValue Body
+    bodyOption =
+      case body endpoint of
+        Nothing ->
+          var _Http_emptyBody
+        Just type_ ->
+          var (fromVarName "body")
+            |> elmEncoder (fromWireType type_)
+            |> var _Http_jsonBody
+    headerOption :: T.Text -> Parameter.Parameter -> ElmValue Header
+    headerOption name param =
+      fn2
+        (var _Http_header)
+        (string name)
+        (encodedParam param (var (fromVarName (toCamelCase name))))
     headerField :: T.Text -> Parameter.Parameter -> (Wire.FieldName, ElmType)
     headerField name val = (toFieldName name, elmTypeForParameter val)
     queryField :: T.Text -> QueryVal -> (Wire.FieldName, ElmType)
@@ -334,6 +380,77 @@ generateClient endpoint =
           [ ( toFieldName name,
               Fix (List (elmTypeForParameter param))
             )
+          ]
+        Root -> []
+    urlOption :: Endpoint -> ElmValue String
+    urlOption endpoint' =
+      fn1
+        (var _String_concat)
+        ( list
+            [ domainWithTrailingSlash domain,
+              urlPath (path endpoint'),
+              string "?",
+              queryPath (query endpoint')
+            ]
+        )
+    domainWithTrailingSlash :: T.Text -> ElmValue String
+    domainWithTrailingSlash domain' =
+      string $
+        if T.isSuffixOf "/" domain'
+          then domain'
+          else domain' <> "/"
+    queryPath :: [(T.Text, QueryVal)] -> ElmValue String
+    queryPath segments =
+      list (uncurry querySegment <$> segments)
+        |> fn1 (var _List_intersperse) (string "&")
+        |> var _String_concat
+    querySegment :: T.Text -> QueryVal -> ElmValue String
+    querySegment name val =
+      case val of
+        QueryFlag ->
+          ifThenElse
+            (var (fromVarName (toCamelCase name)))
+            (string name)
+            ""
+        QueryParam param ->
+          fn1
+            (var _String_concat)
+            ( list
+                [ string (name <> "="),
+                  encodedParam param (var (fromVarName (toCamelCase name)))
+                ]
+            )
+        QueryList param ->
+          fn2
+            (var _List_map)
+            ( lambda $ matchVar "x" $ \x ->
+                fn1
+                  (var _String_concat)
+                  ( list
+                      [ string (name <> "[]="),
+                        encodedParam param x
+                      ]
+                  )
+            )
+            (var (fromVarName (toCamelCase name)))
+            |> fn1 (var _String_join) (string "&")
+    urlPath :: Path -> ElmValue String
+    urlPath path =
+      case pathSegments path of
+        [] -> ""
+        [one] -> one
+        more -> fn2 (var _String_join) (string "/") $ list more
+    pathSegments :: Path -> [ElmValue String]
+    pathSegments path =
+      case path of
+        Static name rest -> string name : pathSegments rest
+        Capture name param rest -> encodedParam param (var (fromVarName (toCamelCase name))) : pathSegments rest
+        CaptureAll name param ->
+          [ fn2
+              (var _List_map)
+              (lambda $ matchVar "x" (encodedParam param))
+              (var (fromVarName (toCamelCase name)))
+              |> fn1 (var _String_join) (string "/")
           ]
         Root -> []
 
@@ -358,6 +475,37 @@ elmTypeForParameter param =
         Parameter.Float -> Fix Float
         Parameter.String -> Fix String
         Parameter.Bool -> Fix Bool
+
+-- TODO: URL encoding
+encodedParam :: Parameter.Parameter -> ElmValue Any -> ElmValue String
+encodedParam param val =
+  case Parameter.wrapper param of
+    Nothing -> encodedPrimitive (Parameter.type_ param) val
+    Just (_, ctor) ->
+      fn1
+        ( lambda $
+            matchCtor1
+              (fromVarName ctor)
+              (nameOfPrimitive (Parameter.type_ param))
+              (encodedPrimitive (Parameter.type_ param))
+        )
+        val
+
+nameOfPrimitive :: Parameter.Primitive -> T.Text
+nameOfPrimitive primitive =
+  case primitive of
+    Parameter.Int -> "int"
+    Parameter.Float -> "float"
+    Parameter.String -> "string"
+    Parameter.Bool -> "bool"
+
+encodedPrimitive :: Parameter.Primitive -> ElmValue Any -> ElmValue (String)
+encodedPrimitive primitive val =
+  case primitive of
+    Parameter.Int -> fn1 (var _fromInt) (anyType val)
+    Parameter.Float -> fn1 (var _fromFloat) (anyType val)
+    Parameter.String -> anyType val
+    Parameter.Bool -> ifThenElse (anyType val) "true" "false"
 
 endpointFunctionName :: Endpoint -> T.Text
 endpointFunctionName endpoint =

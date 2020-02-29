@@ -49,6 +49,7 @@ module Servant.Interop.Elm.Values
     p0,
     list,
     string,
+    int,
     var,
     v,
     tuple,
@@ -57,6 +58,7 @@ module Servant.Interop.Elm.Values
     emptyRecord,
     addField,
     mkRecord,
+    ifThenElse,
 
     -- * Library functions
 
@@ -68,14 +70,22 @@ module Servant.Interop.Elm.Values
     _always,
     _identity,
     _never,
+    _fromInt,
+    _fromFloat,
+
+    -- ** String
+    _String_join,
+    _String_concat,
 
     -- ** Tuple
     _Tuple_pair,
 
     -- ** List
     _List_map,
+    _List_intersperse,
 
     -- ** Json.Encode
+    _Json_Encode_encode,
     _Json_Encode_list,
     _Json_Encode_bool,
     _Json_Encode_int,
@@ -118,13 +128,18 @@ module Servant.Interop.Elm.Values
 
     -- * Http
     _Http_request,
+    _Http_header,
     _Http_emptyBody,
     _Http_jsonBody,
     _Http_expectWhatever,
     _Http_expectJson,
 
     -- * Phantom types
+    Body,
     Decoder,
+    Error,
+    Expect,
+    Header,
     Array,
     Value,
     Result,
@@ -160,6 +175,7 @@ data ElmValueF a
   | MkApply a a
   | MkVar Text
   | MkCase a [(Fix PatternF, a)]
+  | MkIfThenElse a a a
   deriving (Functor)
 
 type ElmValue' = Fix ElmValueF
@@ -259,18 +275,18 @@ matchTuple3 name1 name2 name3 withMatch =
 matchRecordN ::
   [Text] ->
   (Variable a -> ElmValue b) ->
-  ([ElmValue b] -> ElmValue c) ->
+  ([(Text, ElmValue b)] -> ElmValue c) ->
   (Pattern x, ElmValue c)
 matchRecordN fields perField combine =
   ( Fix (RecordPat fields),
-    combine $ perField . Variable <$> fields
+    combine . zip fields $ perField . Variable <$> fields
   )
 
 matchCtorRecord ::
   Variable (y -> x) ->
   [Text] ->
   (Variable a -> ElmValue b) ->
-  ([ElmValue b] -> ElmValue c) ->
+  ([(Text, ElmValue b)] -> ElmValue c) ->
   (Pattern x, ElmValue c)
 matchCtorRecord (Variable ctor) fields perField combine =
   (Fix (ConstructorPat ctor [recPattern]), body)
@@ -340,11 +356,17 @@ mkRecord :: Record -> ElmValue a
 mkRecord (Record fields) =
   T (Fix (MkRecord fields))
 
+ifThenElse :: ElmValue Bool -> ElmValue a -> ElmValue a -> ElmValue a
+ifThenElse (T cond) (T if_) (T else_) = T (Fix (MkIfThenElse cond if_ else_))
+
 list :: [ElmValue a] -> ElmValue [a]
 list = T . Fix . MkList . fmap unT
 
 string :: Text -> ElmValue String
 string = T . Fix . MkString
+
+int :: Int32 -> ElmValue Int
+int = T . Fix . MkInt
 
 v :: Text -> ElmValue a
 v name = T $ Fix $ MkVar name
@@ -378,7 +400,7 @@ printValue' =
   histo $ \case
     MkUnit -> fromString "()"
     MkBool bool -> PP.textStrict . Text.pack $ show bool
-    MkInt int -> PP.textStrict . Text.pack $ show int
+    MkInt int' -> PP.textStrict . Text.pack $ show int'
     MkFloat double -> PP.textStrict . Text.pack $ show double
     MkString text -> PP.dquotes (PP.textStrict text)
     MkList items -> PP.group $ encloseSep' PP.lbracket PP.rbracket PP.comma (extract <$> items)
@@ -434,6 +456,13 @@ printValue' =
         printBranch :: Pattern t -> PP.Doc -> PP.Doc
         printBranch match body =
           printPattern match <+> fromString "->" <++> PP.indent elmIndent body
+    MkIfThenElse cond if_ else_ ->
+      fromString "if"
+        <+> extract cond
+        <+> fromString "then"
+        <++> extract if_
+        <++> fromString "else"
+        <++> extract else_
 
 extractParens :: Cofree ElmValueF PP.Doc -> PP.Doc
 extractParens (val :< prev) =
@@ -456,6 +485,7 @@ appearance =
     MkApply _ _ -> MultipleWord
     MkVar _ -> SingleWord
     MkCase _ _ -> MultipleWord
+    MkIfThenElse _ _ _ -> MultipleWord
 
 printPattern :: Pattern t -> PP.Doc
 printPattern =
@@ -498,13 +528,31 @@ data Never
 _never :: Variable (Never -> a)
 _never = "never"
 
+_fromInt :: Variable (Int -> String)
+_fromInt = "fromInt"
+
+_fromFloat :: Variable (Float -> String)
+_fromFloat = "fromFloat"
+
+_String_join :: Variable (String -> [String] -> String)
+_String_join = "String.join"
+
+_String_concat :: Variable ([String] -> String)
+_String_concat = "String.concat"
+
 _Tuple_pair :: Variable (a -> b -> (a, b))
 _Tuple_pair = "Tuple.pair"
 
 _List_map :: Variable ((a -> b) -> [a] -> [b])
 _List_map = "List.map"
 
+_List_intersperse :: Variable (a -> [a] -> [a])
+_List_intersperse = "List.intersperse"
+
 data Value
+
+_Json_Encode_encode :: Variable (Int -> Value -> String)
+_Json_Encode_encode = "Json.Encode.encode"
 
 _Json_Encode_list :: Variable ((a -> Value) -> [a] -> Value)
 _Json_Encode_list = "Json.Encode.list"
@@ -631,6 +679,11 @@ data Cmd msg
 
 _Http_request :: Variable (Request -> Cmd msg)
 _Http_request = "Http.request"
+
+data Header
+
+_Http_header :: Variable (String -> String -> Header)
+_Http_header = "Http.header"
 
 data Body
 

@@ -1,6 +1,19 @@
-getSocks : {} -> Cmd Sock
-getSocks =
-    ()
+getSocks : {} -> Cmd (Result Error Sock)
+getSocks {} =
+    Http.request
+        { tracker = Nothing
+        , timeout = Nothing
+        , expect = Http.expectJson identity decoderSock
+        , body = Http.emptyBody
+        , url = String.concat
+                    [ "example.com/"
+                    , "socks"
+                    , "?"
+                    , [] |> List.intersperse "&" |> String.concat
+                    ]
+        , headers = []
+        , method = "GET"
+        }
 
 
 type Sock

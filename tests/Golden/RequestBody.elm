@@ -1,6 +1,19 @@
-getFish : { body : Money } -> Cmd Fish
-getFish =
-    ()
+getFish : { body : Money } -> Cmd (Result Error Fish)
+getFish { body } =
+    Http.request
+        { tracker = Nothing
+        , timeout = Nothing
+        , expect = Http.expectJson identity decoderFish
+        , body = body |> encodeMoney |> Http.jsonBody
+        , url = String.concat
+                    [ "example.com/"
+                    , "fish"
+                    , "?"
+                    , [] |> List.intersperse "&" |> String.concat
+                    ]
+        , headers = []
+        , method = "GET"
+        }
 
 
 type Fish

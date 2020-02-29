@@ -1,6 +1,19 @@
-getDuet : {} -> Cmd BackAndForth
-getDuet =
-    ()
+getDuet : {} -> Cmd (Result Error BackAndForth)
+getDuet {} =
+    Http.request
+        { tracker = Nothing
+        , timeout = Nothing
+        , expect = Http.expectJson identity decoderBackAndForth
+        , body = Http.emptyBody
+        , url = String.concat
+                    [ "example.com/"
+                    , "duet"
+                    , "?"
+                    , [] |> List.intersperse "&" |> String.concat
+                    ]
+        , headers = []
+        , method = "GET"
+        }
 
 
 type Forth

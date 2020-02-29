@@ -33,9 +33,14 @@ type GetToy =
 
 type PostToy =
   "toys"
-    :> Header "auth-smell" Text
+    :> Header "auth-smell" SmellRight
     :> ReqBody '[WIRE] Toy
     :> Post '[WIRE] ()
+
+newtype SmellRight = SmellRight Bool
+  deriving (Generic)
+
+instance ParameterType SmellRight
 
 data Dog
   = Dog
