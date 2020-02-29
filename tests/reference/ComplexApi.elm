@@ -57,7 +57,13 @@ getToys { fun } =
                 [ "http://example.com/"
                 , "toys"
                 , "?"
-                , [ if fun then "fun" else "" ] |> List.intersperse "&"
+                , [ if fun then
+                        "fun"
+
+                    else
+                        ""
+                  ]
+                      |> List.intersperse "&"
                       |> String.concat
                 ]
         , headers = []
@@ -82,7 +88,13 @@ postToys { body, authSmell } =
         , headers =
             [ Http.header
                   "auth-smell"
-                  ((\(SmellRight bool) -> if bool then "true" else "false")
+                  ((\(SmellRight bool) ->
+                          if bool then
+                              "true"
+
+                          else
+                              "false"
+                      )
                       authSmell
                   )
             ]

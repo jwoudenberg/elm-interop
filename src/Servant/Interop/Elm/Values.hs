@@ -466,9 +466,16 @@ printValue' =
       fromString "if"
         <+> extract cond
         <+> fromString "then"
-        <++> extract if_
-        <++> fromString "else"
-        <++> extract else_
+          <> hardbreak
+          <> PP.indent elmIndent (extract if_)
+          <> hardbreak
+          <> hardbreak
+          <> fromString "else"
+          <> hardbreak
+          <> PP.indent elmIndent (extract else_)
+
+hardbreak :: PP.Doc
+hardbreak = PP.fill 1000 PP.empty <> PP.linebreak
 
 extractParens :: Cofree ElmValueF PP.Doc -> PP.Doc
 extractParens (val :< prev) =
