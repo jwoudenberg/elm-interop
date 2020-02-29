@@ -55,6 +55,7 @@ decoderTurtle =
                                     Json.Decode.string
                                     decoderTurtle
                                     |> Json.Decode.map Turtle
+                            
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )

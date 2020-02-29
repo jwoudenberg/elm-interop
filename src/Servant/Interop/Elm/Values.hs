@@ -451,7 +451,13 @@ printValue' =
       fromString "case"
         <+> extract matched
         <+> fromString "of"
-        <++> PP.indent elmIndent (PP.vsep (uncurry printBranch . fmap extract <$> branches))
+        <++> PP.indent
+          elmIndent
+          ( PP.vcat $
+              PP.punctuate
+                (PP.linebreak)
+                (uncurry printBranch . fmap extract <$> branches)
+          )
       where
         printBranch :: Pattern t -> PP.Doc -> PP.Doc
         printBranch match body =

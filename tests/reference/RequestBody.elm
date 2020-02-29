@@ -35,8 +35,10 @@ encodeFish fish =
     case fish of
         Herring ->
             Json.Encode.list identity []
+        
         Carp ->
             Json.Encode.list identity []
+        
         Salmon ->
             Json.Encode.list identity []
 
@@ -50,10 +52,13 @@ decoderFish =
                         case ctor of
                             "Herring" ->
                                 Json.Decode.succeed Herring
+                            
                             "Carp" ->
                                 Json.Decode.succeed Carp
+                            
                             "Salmon" ->
                                 Json.Decode.succeed Salmon
+                            
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )
@@ -90,6 +95,7 @@ decoderMoney =
                                     Json.Decode.int
                                     Json.Decode.string
                                     |> Json.Decode.map Money
+                            
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )

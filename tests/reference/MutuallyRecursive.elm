@@ -49,6 +49,7 @@ decoderForth =
                                     Forth
                                     Json.Decode.string
                                     decoderBackAndForth
+                            
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )
@@ -79,6 +80,7 @@ decoderBackAndForth =
                                     Back
                                     Json.Decode.string
                                     decoderForth
+                            
                             _ ->
                                 Json.Decode.fail "Unexpected constructor"
                )
