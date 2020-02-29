@@ -1,3 +1,6 @@
+module Generated exposing (..)
+
+
 getNameDogs : { name : Name } -> Cmd (Result Error Dog)
 getNameDogs { name } =
     Http.request
@@ -5,12 +8,13 @@ getNameDogs { name } =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderDog
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "example.com/"
-                    , String.join "/" [ "dogs", (\Name string -> string) name ]
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , String.join "/" [ "dogs", (\Name string -> string) name ]
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }
@@ -23,14 +27,15 @@ getDogs { minAge } =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderDog
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "example.com/"
-                    , "dogs"
-                    , "?"
-                    , [ String.concat [ "min-age=", fromInt minAge ] ]
-                          |> List.intersperse "&"
-                          |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "dogs"
+                , "?"
+                , [ String.concat [ "min-age=", fromInt minAge ] ]
+                    |> List.intersperse "&"
+                    |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }
@@ -43,13 +48,20 @@ getToys { fun } =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderToy
         , body = Http.emptyBody
-        , url = String.concat
-                    [ "example.com/"
-                    , "toys"
-                    , "?"
-                    , [ if fun then "fun" else "" ] |> List.intersperse "&"
-                          |> String.concat
-                    ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "toys"
+                , "?"
+                , [ if fun then
+                        "fun"
+
+                    else
+                        ""
+                  ]
+                    |> List.intersperse "&"
+                    |> String.concat
+                ]
         , headers = []
         , method = "GET"
         }
@@ -62,19 +74,26 @@ postToys { body, authSmell } =
         , timeout = Nothing
         , expect = Http.expectJson identity (Json.Decode.succeed ())
         , body = body |> encodeToy |> Http.jsonBody
-        , url = String.concat
-                    [ "example.com/"
-                    , "toys"
-                    , "?"
-                    , [] |> List.intersperse "&" |> String.concat
-                    ]
-        , headers = [ Http.header
-                          "auth-smell"
-                          ((\SmellRight bool -> if bool then "true" else "false"
-                               )
-                               authSmell
-                          )
-          ]
+        , url =
+            String.concat
+                [ "http://example.com/"
+                , "toys"
+                , "?"
+                , [] |> List.intersperse "&" |> String.concat
+                ]
+        , headers =
+            [ Http.header
+                "auth-smell"
+                ((\SmellRight bool ->
+                    if bool then
+                        "true"
+
+                    else
+                        "false"
+                 )
+                    authSmell
+                )
+            ]
         , method = "POST"
         }
 
@@ -95,18 +114,19 @@ decoderDog : Decoder
 decoderDog =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Dog" ->
-                                Json.Decode.map2
-                                    (\name age -> { name = name, age = age })
-                                    decoderName
-                                    Json.Decode.int
-                                    |> Json.Decode.map Dog
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Dog" ->
+                            Json.Decode.map2
+                                (\name age -> { name = name, age = age })
+                                decoderName
+                                Json.Decode.int
+                                |> Json.Decode.map Dog
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Name
@@ -124,14 +144,15 @@ decoderName : Decoder
 decoderName =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Name" ->
-                                Json.Decode.string |> Json.Decode.map Name
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Name" ->
+                            Json.Decode.string |> Json.Decode.map Name
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Toy
@@ -144,6 +165,7 @@ encodeToy toy =
     case toy of
         Bone ->
             Json.Encode.list identity []
+
         Ball ->
             Json.Encode.list identity []
 
@@ -152,13 +174,15 @@ decoderToy : Decoder
 decoderToy =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
-               (\ctor ->
-                    Json.Decode.field "val" <|
-                        case ctor of
-                            "Bone" ->
-                                Json.Decode.succeed Bone
-                            "Ball" ->
-                                Json.Decode.succeed Ball
-                            _ ->
-                                Json.Decode.fail "Unexpected constructor"
-               )
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        "Bone" ->
+                            Json.Decode.succeed Bone
+
+                        "Ball" ->
+                            Json.Decode.succeed Ball
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

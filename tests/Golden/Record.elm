@@ -1,3 +1,6 @@
+module Generated exposing (..)
+
+
 getSocks : {} -> Cmd (Result Error Sock)
 getSocks {} =
     Http.request
@@ -6,7 +9,7 @@ getSocks {} =
         , expect = Http.expectJson identity decoderSock
         , body = Http.emptyBody
         , url = String.concat
-                    [ "example.com/"
+                    [ "http://example.com/"
                     , "socks"
                     , "?"
                     , [] |> List.intersperse "&" |> String.concat

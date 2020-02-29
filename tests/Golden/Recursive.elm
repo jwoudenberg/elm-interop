@@ -1,3 +1,6 @@
+module Generated exposing (..)
+
+
 getTurtles : {} -> Cmd (Result Error Turtle)
 getTurtles {} =
     Http.request
@@ -6,7 +9,7 @@ getTurtles {} =
         , expect = Http.expectJson identity decoderTurtle
         , body = Http.emptyBody
         , url = String.concat
-                    [ "example.com/"
+                    [ "http://example.com/"
                     , "turtles"
                     , "?"
                     , [] |> List.intersperse "&" |> String.concat

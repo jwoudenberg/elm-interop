@@ -1,3 +1,6 @@
+module Generated exposing (..)
+
+
 getFish : { body : Money } -> Cmd (Result Error Fish)
 getFish { body } =
     Http.request
@@ -6,7 +9,7 @@ getFish { body } =
         , expect = Http.expectJson identity decoderFish
         , body = body |> encodeMoney |> Http.jsonBody
         , url = String.concat
-                    [ "example.com/"
+                    [ "http://example.com/"
                     , "fish"
                     , "?"
                     , [] |> List.intersperse "&" |> String.concat

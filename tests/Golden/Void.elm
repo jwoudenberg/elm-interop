@@ -1,3 +1,6 @@
+module Generated exposing (..)
+
+
 getWish : {} -> Cmd (Result Error Either)
 getWish {} =
     Http.request
@@ -6,7 +9,7 @@ getWish {} =
         , expect = Http.expectJson identity decoderEither
         , body = Http.emptyBody
         , url = String.concat
-                    [ "example.com/"
+                    [ "http://example.com/"
                     , "wish"
                     , "?"
                     , [] |> List.intersperse "&" |> String.concat

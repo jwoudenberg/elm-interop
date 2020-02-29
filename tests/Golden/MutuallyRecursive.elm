@@ -1,3 +1,6 @@
+module Generated exposing (..)
+
+
 getDuet : {} -> Cmd (Result Error BackAndForth)
 getDuet {} =
     Http.request
@@ -6,7 +9,7 @@ getDuet {} =
         , expect = Http.expectJson identity decoderBackAndForth
         , body = Http.emptyBody
         , url = String.concat
-                    [ "example.com/"
+                    [ "http://example.com/"
                     , "duet"
                     , "?"
                     , [] |> List.intersperse "&" |> String.concat
