@@ -144,11 +144,11 @@ printTypeDefinition name =
         <+> "=" <++> PP.indent elmIndent (printType base)
 
 unqualifiedName :: Wire.TypeName -> Text
-unqualifiedName = Wire.typeConstructor
+unqualifiedName name = Wire.typeConstructor name <> foldMap (" " <>) (Wire.parameters name)
 
 qualifiedName :: Wire.TypeName -> Text
 qualifiedName name =
-  Wire.fromModule name <> "." <> Wire.typeConstructor name
+  Wire.fromModule name <> "." <> unqualifiedName name
 
 unqualifiedIfUnknownName :: Wire.TypeName -> Text
 unqualifiedIfUnknownName name =

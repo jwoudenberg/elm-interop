@@ -105,7 +105,7 @@ encodeDog dog =
                 [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
 
 
-decoderDog : Json.Decode.Decoder
+decoderDog : Json.Decode.Decoder Dog
 decoderDog =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -134,7 +134,7 @@ encodeName name =
             Json.Encode.list identity [ Json.Encode.string param1 ]
 
 
-decoderName : Json.Decode.Decoder
+decoderName : Json.Decode.Decoder Name
 decoderName =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -159,7 +159,7 @@ encodeSmellRight smellRight =
             Json.Encode.list identity [ Json.Encode.bool param1 ]
 
 
-decoderSmellRight : Json.Decode.Decoder
+decoderSmellRight : Json.Decode.Decoder SmellRight
 decoderSmellRight =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -187,7 +187,7 @@ encodeToy toy =
             Json.Encode.list identity []
 
 
-decoderToy : Json.Decode.Decoder
+decoderToy : Json.Decode.Decoder Toy
 decoderToy =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

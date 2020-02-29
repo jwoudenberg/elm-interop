@@ -41,7 +41,7 @@ encodeFish fish =
             Json.Encode.list identity []
 
 
-decoderFish : Json.Decode.Decoder
+decoderFish : Json.Decode.Decoder Fish
 decoderFish =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -73,7 +73,7 @@ encodeMoney money =
                 ]
 
 
-decoderMoney : Json.Decode.Decoder
+decoderMoney : Json.Decode.Decoder Money
 decoderMoney =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

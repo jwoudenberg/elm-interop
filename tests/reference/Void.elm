@@ -6,7 +6,7 @@ import Json.Encode
 import Http
 
 
-getWish : {} -> Cmd (Result Http.Error Either)
+getWish : {} -> Cmd (Result Http.Error Either Void Unicorn)
 getWish {} =
     Http.request
         { tracker = Nothing
@@ -33,6 +33,6 @@ encodeUnicorn =
     never
 
 
-decoderUnicorn : Json.Decode.Decoder
+decoderUnicorn : Json.Decode.Decoder Unicorn
 decoderUnicorn =
     Json.Decode.fail "Cannot decode Never type from JSON"

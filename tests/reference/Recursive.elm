@@ -38,7 +38,7 @@ encodeTurtle turtle =
                 ]
 
 
-decoderTurtle : Json.Decode.Decoder
+decoderTurtle : Json.Decode.Decoder Turtle
 decoderTurtle =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

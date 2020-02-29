@@ -39,7 +39,7 @@ encodeSock sock =
                 ]
 
 
-decoderSock : Json.Decode.Decoder
+decoderSock : Json.Decode.Decoder Sock
 decoderSock =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -83,7 +83,7 @@ encodePattern pattern =
             Json.Encode.list identity []
 
 
-decoderPattern : Json.Decode.Decoder
+decoderPattern : Json.Decode.Decoder Pattern
 decoderPattern =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen

@@ -6,7 +6,7 @@ import Json.Encode
 import Http
 
 
-getDuet : {} -> Cmd (Result Http.Error BackAndForth)
+getDuet : {} -> Cmd (Result Http.Error BackAndForth Text)
 getDuet {} =
     Http.request
         { tracker = Nothing
@@ -24,11 +24,11 @@ getDuet {} =
         }
 
 
-type Forth
-    = Forth String BackAndForth
+type Forth Text
+    = Forth String BackAndForth Text
 
 
-encodeForth : Forth -> Json.Encode.Value
+encodeForth : Forth Text -> Json.Encode.Value
 encodeForth forth =
     case forth of
         (Forth param1 param2) ->
@@ -37,7 +37,7 @@ encodeForth forth =
                 [ Json.Encode.string param1, encodeBackAndForth param2 ]
 
 
-decoderForth : Json.Decode.Decoder
+decoderForth : Json.Decode.Decoder Forth
 decoderForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
@@ -54,11 +54,11 @@ decoderForth =
                )
 
 
-type BackAndForth
-    = Back String Forth
+type BackAndForth Text
+    = Back String Forth Text
 
 
-encodeBackAndForth : BackAndForth -> Json.Encode.Value
+encodeBackAndForth : BackAndForth Text -> Json.Encode.Value
 encodeBackAndForth backAndForth =
     case backAndForth of
         (Back param1 param2) ->
@@ -67,7 +67,7 @@ encodeBackAndForth backAndForth =
                 [ Json.Encode.string param1, encodeForth param2 ]
 
 
-decoderBackAndForth : Json.Decode.Decoder
+decoderBackAndForth : Json.Decode.Decoder BackAndForth
 decoderBackAndForth =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
