@@ -66,7 +66,6 @@ printModule' module_ =
   printedHeader
     <> PP.linebreak
     <> PP.linebreak
-    <> PP.linebreak
     <> printedImports
     <> PP.linebreak
     <> PP.linebreak
@@ -79,9 +78,9 @@ printModule' module_ =
     printedImports =
       PP.vcat $
         PP.textStrict
-          <$> [ "import Json.Decode",
-                "import Json.Encode",
-                "import Http"
+          <$> [ "import Http",
+                "import Json.Decode",
+                "import Json.Encode"
               ]
     printedDefinitions :: PP.Doc
     printedDefinitions = PP.vcat $ intersperse PP.linebreak $ printDefinition <$> definitions module_

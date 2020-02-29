@@ -1,9 +1,8 @@
 module Generated exposing (..)
 
-
+import Http
 import Json.Decode
 import Json.Encode
-import Http
 
 
 getTurtles : {} -> Cmd (Result Http.Error Turtle)
