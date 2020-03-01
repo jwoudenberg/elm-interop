@@ -1,4 +1,4 @@
-module Generated exposing (..)
+module Record exposing (..)
 
 import Http
 import Json.Decode

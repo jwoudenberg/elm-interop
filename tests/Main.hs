@@ -7,6 +7,7 @@ module Main
 where
 
 import Data.Proxy (Proxy (Proxy))
+import qualified Data.Text as T
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
 import qualified Examples.ComplexApi
@@ -64,7 +65,7 @@ goldenTestFor (Example name api) =
   where
     go =
       pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
-        Elm.printModule (Elm.Options "http://example.com" "Generated") api
+        Elm.printModule (Elm.Options "http://example.com" (T.pack name)) api
 
 elmMakeTestFor :: Example -> TestTree
 elmMakeTestFor (Example name _) =

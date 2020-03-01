@@ -1,4 +1,4 @@
-module Generated exposing (..)
+module ComplexApi exposing (..)
 
 import Http
 import Json.Decode

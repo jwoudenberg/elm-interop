@@ -1,4 +1,4 @@
-module Generated exposing (..)
+module MutuallyRecursive exposing (..)
 
 import Http
 import Json.Decode

@@ -1,4 +1,4 @@
-module Generated exposing (..)
+module RequestBody exposing (..)
 
 import Http
 import Json.Decode
