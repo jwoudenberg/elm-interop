@@ -10,7 +10,7 @@ import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text as T
 import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
-import qualified Examples.ComplexApi
+import qualified Examples.MultipleEndpoints
 import qualified Examples.MutuallyRecursive
 import qualified Examples.Record
 import qualified Examples.Recursive
@@ -35,7 +35,7 @@ examples =
     Example "MutuallyRecursive" (Proxy :: Proxy Examples.MutuallyRecursive.API),
     Example "RequestBody" (Proxy :: Proxy Examples.RequestBody.API),
     Example "Void" (Proxy :: Proxy Examples.Void.API),
-    Example "ComplexApi" (Proxy :: Proxy Examples.ComplexApi.API)
+    Example "MultipleEndpoints" (Proxy :: Proxy Examples.MultipleEndpoints.API)
   ]
 
 tests :: TestTree

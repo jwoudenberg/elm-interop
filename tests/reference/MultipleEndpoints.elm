@@ -1,4 +1,4 @@
-module ComplexApi exposing (..)
+module MultipleEndpoints exposing (..)
 
 import Http
 import Json.Decode

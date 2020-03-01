@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Examples.ComplexApi
+module Examples.MultipleEndpoints
   ( API,
   )
 where
