@@ -13,21 +13,14 @@ import Servant.API
 import Servant.Interop (ParameterType, Rep, WIRE)
 
 type API =
-  GetDog :<|> ListDogs :<|> GetToy :<|> PostToy
-
-type GetDog =
-  "dogs"
-    :> Capture "name" Name
-    :> Get '[WIRE] Dog
+  ListDogs :<|> GetToy :<|> PostToy
 
 type ListDogs =
   "dogs"
-    :> QueryParam "min-age" Int
-    :> Get '[WIRE] Dog
+    :> Get '[WIRE] [Dog]
 
 type GetToy =
   "toys"
-    :> QueryFlag "fun"
     :> Get '[WIRE] Toy
 
 type PostToy =
@@ -51,8 +44,6 @@ data Dog
 newtype Name = Name Text deriving (Generic)
 
 instance Rep Name
-
-instance ParameterType Name
 
 instance Rep Dog
 

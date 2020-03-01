@@ -5,17 +5,17 @@ import Json.Decode
 import Json.Encode
 
 
-getNameDogs : { name : Name } -> Cmd (Result Http.Error Dog)
-getNameDogs { name } =
+getDogs : {} -> Cmd (Result Http.Error (List Dog))
+getDogs {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderDog
+        , expect = Http.expectJson identity (Json.Decode.list decoderDog)
         , body = Http.emptyBody
         , url =
             String.concat
                 [ "http://example.com/"
-                , String.join "/" [ "dogs", (\(Name string) -> string) name ]
+                , "dogs"
                 , "?"
                 , []
                     |> List.intersperse "&"
@@ -26,29 +26,8 @@ getNameDogs { name } =
         }
 
 
-getDogs : { minAge : Int } -> Cmd (Result Http.Error Dog)
-getDogs { minAge } =
-    Http.request
-        { tracker = Nothing
-        , timeout = Nothing
-        , expect = Http.expectJson identity decoderDog
-        , body = Http.emptyBody
-        , url =
-            String.concat
-                [ "http://example.com/"
-                , "dogs"
-                , "?"
-                , [ String.concat [ "min-age=", String.fromInt minAge ] ]
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
-        , headers = []
-        , method = "GET"
-        }
-
-
-getToys : { fun : Bool } -> Cmd (Result Http.Error Toy)
-getToys { fun } =
+getToys : {} -> Cmd (Result Http.Error Toy)
+getToys {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
@@ -59,12 +38,7 @@ getToys { fun } =
                 [ "http://example.com/"
                 , "toys"
                 , "?"
-                , [ if fun then
-                        "fun"
-
-                    else
-                        ""
-                  ]
+                , []
                     |> List.intersperse "&"
                     |> String.concat
                 ]
