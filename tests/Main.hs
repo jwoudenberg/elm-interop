@@ -12,6 +12,7 @@ import qualified Data.Text.Lazy
 import qualified Data.Text.Lazy.Encoding
 import qualified Examples.MultipleEndpoints
 import qualified Examples.MutuallyRecursive
+import qualified Examples.PathParams
 import qualified Examples.QueryParams
 import qualified Examples.Record
 import qualified Examples.Recursive
@@ -39,6 +40,7 @@ examples =
     Example "Void" (Proxy :: Proxy Examples.Void.API),
     Example "QueryParams" (Proxy :: Proxy Examples.QueryParams.API),
     Example "RequestHeaders" (Proxy :: Proxy Examples.RequestHeaders.API),
+    Example "PathParams" (Proxy :: Proxy Examples.PathParams.API),
     Example "MultipleEndpoints" (Proxy :: Proxy Examples.MultipleEndpoints.API)
   ]
 
