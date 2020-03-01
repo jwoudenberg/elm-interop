@@ -5,7 +5,7 @@ import Json.Decode
 import Json.Encode
 
 
-getNameDogs : { name : Name String } -> Cmd (Result Http.Error Dog)
+getNameDogs : { name : Name } -> Cmd (Result Http.Error Dog)
 getNameDogs { name } =
     Http.request
         { tracker = Nothing
@@ -73,11 +73,7 @@ getToys { fun } =
         }
 
 
-postToys :
-    { body : Toy
-    , authSmell : SmellRight Bool
-    }
-    -> Cmd (Result Http.Error ())
+postToys : { body : Toy, authSmell : SmellRight } -> Cmd (Result Http.Error ())
 postToys { body, authSmell } =
     Http.request
         { tracker = Nothing

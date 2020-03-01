@@ -447,10 +447,8 @@ toCamelCase name =
 elmTypeForParameter :: Parameter.Parameter -> ElmType
 elmTypeForParameter param =
   case Parameter.wrapper param of
-    Just (name, _) -> Fix (Defined (toElmTypeName name) [primitive])
-    Nothing -> primitive
-  where
-    primitive =
+    Just (name, _) -> Fix (Defined (toElmTypeName name) [])
+    Nothing ->
       case Parameter.type_ param of
         Parameter.Int -> Fix Int
         Parameter.Float -> Fix Float
