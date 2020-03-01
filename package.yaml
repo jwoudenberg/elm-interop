@@ -25,21 +25,21 @@ library:
   - aeson
   - base
   - bytestring
-  - containers
   - comonad
+  - containers
   - free
   - hashable
-  - http-types
   - http-media
+  - http-types
   - mtl
+  - prettyprinter
   - recursion-schemes
+  - scientific
   - servant
   - servant-server
   - text
-  - scientific
   - unordered-containers
   - vector
-  - wl-pprint-text
   exposed-modules:
   - Servant.Interop.Elm
   - Servant.Interop
