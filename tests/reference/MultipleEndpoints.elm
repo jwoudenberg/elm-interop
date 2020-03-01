@@ -47,42 +47,6 @@ getToys {} =
         }
 
 
-postToys : { body : Toy, authSmell : SmellRight } -> Cmd (Result Http.Error ())
-postToys { body, authSmell } =
-    Http.request
-        { tracker = Nothing
-        , timeout = Nothing
-        , expect = Http.expectJson identity (Json.Decode.succeed ())
-        , body =
-            body
-                |> encodeToy
-                |> Http.jsonBody
-        , url =
-            String.concat
-                [ "http://example.com/"
-                , "toys"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
-        , headers =
-            [ Http.header
-                "auth-smell"
-                ((\(SmellRight bool) ->
-                    if bool then
-                        "true"
-
-                    else
-                        "false"
-                 )
-                    authSmell
-                )
-            ]
-        , method = "POST"
-        }
-
-
 type Dog
     = Dog { name : Name, age : Int }
 
@@ -135,33 +99,6 @@ decoderName =
                         "Name" ->
                             Json.Decode.string
                                 |> Json.Decode.map Name
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
-
-
-type SmellRight
-    = SmellRight Bool
-
-
-encodeSmellRight : SmellRight -> Json.Encode.Value
-encodeSmellRight smellRight =
-    case smellRight of
-        SmellRight param1 ->
-            Json.Encode.list identity [ Json.Encode.bool param1 ]
-
-
-decoderSmellRight : Json.Decode.Decoder SmellRight
-decoderSmellRight =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "SmellRight" ->
-                            Json.Decode.bool
-                                |> Json.Decode.map SmellRight
 
                         _ ->
                             Json.Decode.fail "Unexpected constructor"

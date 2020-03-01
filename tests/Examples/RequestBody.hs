@@ -12,7 +12,7 @@ import GHC.Generics (Generic)
 import Servant.API
 import Servant.Interop (Rep, WIRE)
 
-type API = "fish" :> ReqBody '[WIRE] Money :> Get '[WIRE] Fish
+type API = "fish" :> ReqBody '[WIRE] Money :> Post '[WIRE] Fish
 
 data Money
   = Money

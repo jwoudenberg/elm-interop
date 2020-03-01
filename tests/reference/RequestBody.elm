@@ -5,8 +5,8 @@ import Json.Decode
 import Json.Encode
 
 
-getFish : { body : Money } -> Cmd (Result Http.Error Fish)
-getFish { body } =
+postFish : { body : Money } -> Cmd (Result Http.Error Fish)
+postFish { body } =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
@@ -25,7 +25,7 @@ getFish { body } =
                     |> String.concat
                 ]
         , headers = []
-        , method = "GET"
+        , method = "POST"
         }
 
 
