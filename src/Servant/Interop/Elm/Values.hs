@@ -152,11 +152,10 @@ import Data.Functor.Foldable (Fix (Fix), cata, histo)
 import Data.Int (Int32)
 import Data.String (IsString (fromString))
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text.Prettyprint.Doc ((<+>))
+import qualified Data.Text.Prettyprint.Doc as PP
 import Servant.Interop.Elm.Print
 import Servant.Interop.Elm.Types (ElmType, printType)
-import Text.PrettyPrint.Leijen.Text ((<+>))
-import qualified Text.PrettyPrint.Leijen.Text as PP
 
 -- |
 -- A type representing a value in Elm.
@@ -382,11 +381,11 @@ data ElmFunction where
     } ->
     ElmFunction
 
-printFunction :: ElmFunction -> PP.Doc
+printFunction :: ElmFunction -> Doc
 printFunction ElmFunction {fnName, fnType, fnImplementation} =
   PP.vsep
-    [ PP.nest elmIndent $ PP.group $ PP.textStrict fnName <+> ":" <++> printType fnType,
-      PP.nest elmIndent $ PP.textStrict fnName <+> go (unT fnImplementation)
+    [ PP.nest elmIndent $ PP.group $ PP.pretty fnName <+> ":" <++> printType fnType,
+      PP.nest elmIndent $ PP.pretty fnName <+> go (unT fnImplementation)
     ]
   where
     go =
@@ -395,14 +394,14 @@ printFunction ElmFunction {fnName, fnType, fnImplementation} =
           printPattern True pattern <+> go rest
         x -> "=" <> PP.line <> printValue' x
 
-printValue' :: Fix ElmValueF -> PP.Doc
+printValue' :: Fix ElmValueF -> Doc
 printValue' =
   histo $ \case
     MkUnit -> fromString "()"
-    MkBool bool -> PP.textStrict . Text.pack $ show bool
-    MkInt int' -> PP.textStrict . Text.pack $ show int'
-    MkFloat double -> PP.textStrict . Text.pack $ show double
-    MkString text -> PP.dquotes (PP.textStrict text)
+    MkBool bool -> PP.pretty $ show bool
+    MkInt int' -> PP.pretty $ show int'
+    MkFloat double -> PP.pretty $ show double
+    MkString text -> PP.dquotes (PP.pretty text)
     MkList items -> PP.group $ encloseSep' PP.lbracket PP.rbracket PP.comma (extract <$> items)
     MKMaybe a -> maybe (fromString "Nothing") ((fromString "Just" <+>) . extractParens) a
     MkTuple2 x y -> PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [extract x, extract y]
@@ -410,12 +409,12 @@ printValue' =
     MkRecord fields ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printField . fmap extract <$> fields)
       where
-        printField :: (Text, PP.Doc) -> PP.Doc
+        printField :: (Text, Doc) -> Doc
         printField (name, value) =
-          PP.nest 2 $ PP.group $ PP.textStrict name <+> fromString "=" <++> value
+          PP.nest 2 $ PP.group $ PP.pretty name <+> fromString "=" <++> value
     MkLambda pattern1 body1 -> nextArg [pattern1] body1
       where
-        nextArg :: [Pattern a] -> Cofree ElmValueF PP.Doc -> PP.Doc
+        nextArg :: [Pattern a] -> Cofree ElmValueF Doc -> Doc
         nextArg patterns (body :< peek) =
           case peek of
             MkLambda nextPattern nextBody ->
@@ -427,7 +426,7 @@ printValue' =
                   <+> fromString "->"
                   <++> body
     MkApply rest1 x1 ->
-      nextArg (mempty :< MkApply rest1 x1) mempty
+      nextArg (mempty :< MkApply rest1 x1) []
       where
         nextArg next args =
           case next of
@@ -435,18 +434,18 @@ printValue' =
             -- could be operators that require custom formatting logic.
             (_ :< MkApply (_ :< MkApply (_ :< MkVar fn) arg1) arg2) ->
               case fn of
-                "|>" -> hangCollapse $ (PP.indent 0 (extract arg1)) <++> PP.textStrict fn <+> extract arg2
-                "<|" -> hangCollapse $ extract arg1 <+> PP.textStrict fn <++> extract arg2
-                _ -> hangCollapse $ PP.textStrict fn <++> extractParens arg1 <++> extractParens arg2 <++> args
+                "|>" -> hangCollapse $ (PP.indent 0 (extract arg1)) <++> PP.pretty fn <+> extract arg2
+                "<|" -> hangCollapse $ extract arg1 <+> PP.pretty fn <++> extract arg2
+                _ -> hangCollapse $ PP.vsep (PP.pretty fn : extractParens arg1 : extractParens arg2 : args)
             -- Recursively match on function application, adding one argument at
             -- a time.
             (_ :< MkApply rest2 x2) ->
-              nextArg rest2 (extractParens x2 <++> args)
+              nextArg rest2 (extractParens x2 : args)
             -- When no more function applications are found, the value we find
             -- at the root is the function name itself.
             (f :< more) ->
-              hangCollapse $ extractParens (f :< more) <++> args
-    MkVar name -> PP.textStrict name
+              hangCollapse $ PP.vsep (extractParens (f :< more) : args)
+    MkVar name -> PP.pretty name
     MkCase matched branches ->
       fromString "case"
         <+> extract matched
@@ -455,29 +454,26 @@ printValue' =
           elmIndent
           ( PP.vcat $
               PP.punctuate
-                (PP.linebreak)
+                (PP.line)
                 (uncurry printBranch . fmap extract <$> branches)
           )
       where
-        printBranch :: Pattern t -> PP.Doc -> PP.Doc
+        printBranch :: Pattern t -> Doc -> Doc
         printBranch match body =
           printPattern False match <+> fromString "->" <++> PP.indent elmIndent body
     MkIfThenElse cond if_ else_ ->
       fromString "if"
         <+> extract cond
         <+> fromString "then"
-          <> hardbreak
+          <> PP.hardline
           <> PP.indent elmIndent (extract if_)
-          <> hardbreak
-          <> hardbreak
+          <> PP.hardline
+          <> PP.hardline
           <> fromString "else"
-          <> hardbreak
+          <> PP.hardline
           <> PP.indent elmIndent (extract else_)
 
-hardbreak :: PP.Doc
-hardbreak = PP.fill 1000 PP.empty <> PP.linebreak
-
-extractParens :: Cofree ElmValueF PP.Doc -> PP.Doc
+extractParens :: Cofree ElmValueF Doc -> Doc
 extractParens (val :< prev) =
   parens (appearance prev) val
 
@@ -500,25 +496,25 @@ appearance =
     MkCase _ _ -> MultipleWord
     MkIfThenElse _ _ _ -> MultipleWord
 
-printPattern :: Bool -> Pattern t -> PP.Doc
+printPattern :: Bool -> Pattern t -> Doc
 printPattern needsConstructorParens =
   cata $ \case
-    VarPat name -> PP.textStrict name
-    StringPat str -> PP.dquotes (PP.textStrict str)
+    VarPat name -> PP.pretty name
+    StringPat str -> PP.dquotes (PP.pretty str)
     ConstructorPat ctor vars ->
       case vars of
-        [] -> PP.textStrict ctor
+        [] -> PP.pretty ctor
         _ ->
           PP.group
             $ (if needsConstructorParens then PP.parens else id)
             $ PP.sep
-            $ (PP.textStrict ctor) : vars
+            $ PP.pretty ctor : vars
     Tuple2Pat x y ->
       PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y]
     Tuple3Pat x y z ->
       PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
     RecordPat fields ->
-      PP.group $ encloseSep' PP.lbrace PP.rbrace PP.comma (PP.textStrict <$> fields)
+      PP.group $ encloseSep' PP.lbrace PP.rbrace PP.comma (PP.pretty <$> fields)
 
 -- * Library
 

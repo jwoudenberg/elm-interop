@@ -29,9 +29,9 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Text.Prettyprint.Doc ((<+>))
+import qualified Data.Text.Prettyprint.Doc as PP
 import Servant.Interop.Elm.Print
-import Text.PrettyPrint.Leijen.Text ((<+>))
-import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
 type ElmTypeF a = ElmTypeF' Wire.FieldName a
@@ -100,7 +100,7 @@ namesInType =
     Cmd x -> x
     Lambda x y -> x <> y
 
-printType :: ElmType -> PP.Doc
+printType :: ElmType -> Doc
 printType =
   zygo appearance $ \case
     Unit -> "()"
@@ -117,7 +117,7 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined name -> PP.textStrict $ unqualifiedIfUnknownName name
+    Defined name -> PP.pretty (unqualifiedIfUnknownName name)
     Cmd (a, i) -> "Cmd" <+> parens a i
     Lambda (ai, i) (_, o) -> idoc <++> "->" <+> o
       where
@@ -129,18 +129,18 @@ printType =
             MultipleWord -> i
             MultipleWordLambda -> PP.parens i
 
-printTypeDefinition :: Wire.TypeName -> ElmTypeDefinition -> PP.Doc
+printTypeDefinition :: Wire.TypeName -> ElmTypeDefinition -> Doc
 printTypeDefinition name =
   \case
     Custom constructors ->
-      "type" <+> PP.textStrict (unqualifiedName name) <++> printedConstructors
+      "type" <+> PP.pretty (unqualifiedName name) <++> printedConstructors
       where
         printedConstructors =
           PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
             printConstructor <$> toList constructors
     Alias base ->
       "type alias"
-        <+> PP.textStrict (unqualifiedName name)
+        <+> PP.pretty (unqualifiedName name)
         <+> "=" <++> PP.indent elmIndent (printType base)
 
 unqualifiedName :: Wire.TypeName -> Text
@@ -163,15 +163,15 @@ knownModules =
     "Json.Encode"
   ]
 
-printConstructor :: (Wire.ConstructorName, [ElmType]) -> PP.Doc
+printConstructor :: (Wire.ConstructorName, [ElmType]) -> Doc
 printConstructor (name, params) =
   PP.nest
     elmIndent
     ( PP.sep
-        (PP.textStrict (Wire.unConstructorName name) : (printParam <$> params))
+        (PP.pretty (Wire.unConstructorName name) : (printParam <$> params))
     )
   where
-    printParam :: ElmType -> PP.Doc
+    printParam :: ElmType -> Doc
     printParam t = parens (appearance (unfix t)) (printType t)
 
 appearance :: ElmTypeF a -> TypeAppearance
@@ -193,9 +193,9 @@ appearance =
     Cmd _ -> MultipleWord
     Lambda _ _ -> MultipleWordLambda
 
-printRecordField :: (Wire.FieldName, (a, PP.Doc)) -> PP.Doc
+printRecordField :: (Wire.FieldName, (a, Doc)) -> Doc
 printRecordField (k, (_, v)) =
-  hangCollapse $ PP.textStrict (Wire.unFieldName k) <+> ":" <++> v
+  hangCollapse $ PP.pretty (Wire.unFieldName k) <+> ":" <++> v
 
 -- |
 -- The wire format is intentionally very limited and does not include many types

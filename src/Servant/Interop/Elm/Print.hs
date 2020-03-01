@@ -8,15 +8,17 @@
 
 module Servant.Interop.Elm.Print where
 
-import Text.PrettyPrint.Leijen.Text ((<+>))
-import qualified Text.PrettyPrint.Leijen.Text as PP
+import Data.Text.Prettyprint.Doc ((<+>))
+import qualified Data.Text.Prettyprint.Doc as PP
+
+type Doc = PP.Doc ()
 
 -- |
 -- Replacement for the `PP.<$>` operator, which we use for `fmap` instead.
 infixr 5 <++>
 
-(<++>) :: PP.Doc -> PP.Doc -> PP.Doc
-(<++>) = (PP.<$>)
+(<++>) :: Doc -> Doc -> Doc
+(<++>) x y = x <> PP.line <> y
 
 elmIndent :: Int
 elmIndent = 4
@@ -26,7 +28,7 @@ elmIndent = 4
 -- adds a space between the separator and the content.
 --
 -- Used for printing lists and records in a fashion compatible with elm-format.
-encloseSep' :: PP.Doc -> PP.Doc -> PP.Doc -> [PP.Doc] -> PP.Doc
+encloseSep' :: Doc -> Doc -> Doc -> [Doc] -> Doc
 encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
@@ -46,7 +48,7 @@ encloseSep' left right sp ds =
 -- Single-line notation:
 --
 --     line1 line2 line3
-hangCollapse :: PP.Doc -> PP.Doc
+hangCollapse :: Doc -> Doc
 hangCollapse = PP.nest elmIndent . PP.group
 
 data TypeAppearance
@@ -57,14 +59,14 @@ data TypeAppearance
   | -- | The type is a lambda, like `Text -> Int`. Implies `MultipleWord`.
     MultipleWordLambda
 
-parens :: TypeAppearance -> PP.Doc -> PP.Doc
+parens :: TypeAppearance -> Doc -> Doc
 parens a doc =
   case a of
     SingleWord -> doc
     MultipleWord -> parens' doc
     MultipleWordLambda -> parens' doc
 
-parens' :: PP.Doc -> PP.Doc
+parens' :: Doc -> Doc
 parens' doc =
   PP.cat
     [ PP.lparen <> doc,

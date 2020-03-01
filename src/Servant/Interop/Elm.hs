@@ -22,14 +22,15 @@ module Servant.Interop.Elm
   )
 where
 
-import Data.List (intersperse)
 import Data.Proxy (Proxy)
 import qualified Data.Text as T
+import qualified Data.Text.Prettyprint.Doc as PP
+import qualified Data.Text.Prettyprint.Doc.Render.Text as PP.Render
 import qualified Servant.Interop
 import qualified Servant.Interop.Elm.Generate as Generate
+import Servant.Interop.Elm.Print
 import Servant.Interop.Elm.Types
 import Servant.Interop.Elm.Values (ElmFunction, printFunction)
-import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Wire
 
 data Options
@@ -64,29 +65,28 @@ data Definition
   = TypeDefinition Wire.TypeName ElmTypeDefinition
   | FunctionDefinition ElmFunction
 
-printModule' :: Module -> PP.Doc
+printModule' :: Module -> Doc
 printModule' module_ =
   printedHeader
-    <> PP.linebreak
-    <> PP.linebreak
+    <> PP.hardline
+    <> PP.hardline
     <> printedImports
-    <> PP.linebreak
-    <> PP.linebreak
-    <> PP.linebreak
+    <> PP.hardline
+    <> PP.hardline
+    <> PP.hardline
     <> printedDefinitions
   where
-    printedHeader :: PP.Doc
-    printedHeader = PP.sep [PP.textStrict "module", PP.textStrict (name module_), PP.textStrict "exposing (..)"]
-    printedImports :: PP.Doc
+    printedHeader :: Doc
+    printedHeader = PP.sep ["module", PP.pretty (name module_), "exposing (..)"]
+    printedImports :: Doc
     printedImports =
       PP.vcat $
-        PP.textStrict
-          <$> [ "import Http",
-                "import Json.Decode",
-                "import Json.Encode"
-              ]
-    printedDefinitions :: PP.Doc
-    printedDefinitions = PP.vcat $ intersperse PP.linebreak $ printDefinition <$> definitions module_
+        [ "import Http",
+          "import Json.Decode",
+          "import Json.Encode"
+        ]
+    printedDefinitions :: Doc
+    printedDefinitions = mconcat $ PP.punctuate (PP.hardline <> PP.hardline <> PP.hardline) $ printDefinition <$> definitions module_
     printDefinition =
       \case
         TypeDefinition name' t ->
@@ -101,5 +101,5 @@ definitionsForType name' definition =
     FunctionDefinition $ Generate.generateDecoder name' definition
   ]
 
-printDoc :: PP.Doc -> T.Text
-printDoc = PP.displayTStrict . PP.renderPretty 1 80
+printDoc :: Doc -> T.Text
+printDoc = PP.Render.renderStrict . PP.layoutPretty PP.defaultLayoutOptions
