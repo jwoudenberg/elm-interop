@@ -32,9 +32,18 @@ encloseSep' :: Doc -> Doc -> Doc -> [Doc] -> Doc
 encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
-    _ -> PP.align $ PP.vcat entries <++> right
+    _ ->
+      PP.group $
+        PP.column
+          ( \start ->
+              PP.vcat (setIndent start <$> entries) <++> setIndent start right
+          )
       where
         entries = zipWith (<+>) (left : repeat sp) ds
+
+setIndent :: Int -> Doc -> Doc
+setIndent target doc =
+  PP.column (\current -> PP.indent (target - current) doc)
 
 -- |
 -- Switch between hanging formatting or single-line formatting.

@@ -384,7 +384,7 @@ data ElmFunction where
 printFunction :: ElmFunction -> Doc
 printFunction ElmFunction {fnName, fnType, fnImplementation} =
   PP.vsep
-    [ PP.nest elmIndent $ PP.group $ PP.pretty fnName <+> ":" <++> printType fnType,
+    [ hangCollapse $ PP.pretty fnName <+> ":" <++> printType fnType,
       PP.nest elmIndent $ PP.pretty fnName <+> go (unT fnImplementation)
     ]
   where
@@ -402,16 +402,16 @@ printValue' =
     MkInt int' -> PP.pretty $ show int'
     MkFloat double -> PP.pretty $ show double
     MkString text -> PP.dquotes (PP.pretty text)
-    MkList items -> PP.group $ encloseSep' PP.lbracket PP.rbracket PP.comma (extract <$> items)
+    MkList items -> encloseSep' PP.lbracket PP.rbracket PP.comma (extract <$> items)
     MKMaybe a -> maybe (fromString "Nothing") ((fromString "Just" <+>) . extractParens) a
-    MkTuple2 x y -> PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [extract x, extract y]
-    MkTuple3 x y z -> PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [extract x, extract y, extract z]
+    MkTuple2 x y -> encloseSep' PP.lparen PP.rparen PP.comma [extract x, extract y]
+    MkTuple3 x y z -> encloseSep' PP.lparen PP.rparen PP.comma [extract x, extract y, extract z]
     MkRecord fields ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printField . fmap extract <$> fields)
       where
         printField :: (Text, Doc) -> Doc
         printField (name, value) =
-          PP.nest elmIndent $ PP.group $ PP.pretty name <+> fromString "=" <++> value
+          hangCollapse $ PP.pretty name <+> fromString "=" <++> value
     MkLambda pattern1 body1 -> nextArg [pattern1] body1
       where
         nextArg :: [Pattern a] -> Cofree ElmValueF Doc -> Doc
@@ -444,7 +444,7 @@ printValue' =
             -- When no more function applications are found, the value we find
             -- at the root is the function name itself.
             (f :< more) ->
-              hangCollapse $ PP.vsep (PP.nest (- elmIndent) (extractParens (f :< more)) : args)
+              hangCollapse $ PP.vsep (extractParens (f :< more) : args)
     MkVar name -> PP.pretty name
     MkCase matched branches ->
       fromString "case"
@@ -511,11 +511,11 @@ printPattern needsConstructorParens =
             $ PP.sep
             $ PP.pretty ctor : vars
     Tuple2Pat x y ->
-      PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y]
+      encloseSep' PP.lparen PP.rparen PP.comma [x, y]
     Tuple3Pat x y z ->
-      PP.group $ encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
+      encloseSep' PP.lparen PP.rparen PP.comma [x, y, z]
     RecordPat fields ->
-      PP.group $ encloseSep' PP.lbrace PP.rbrace PP.comma (PP.pretty <$> fields)
+      encloseSep' PP.lbrace PP.rbrace PP.comma (PP.pretty <$> fields)
 
 -- * Library
 

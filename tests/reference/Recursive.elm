@@ -50,9 +50,7 @@ decoderTurtle =
                         "Turtle" ->
                             Json.Decode.map2
                                 (\name onBackOf ->
-                                    { name = name
-                                    , onBackOf = onBackOf
-                                    }
+                                    { name = name, onBackOf = onBackOf }
                                 )
                                 Json.Decode.string
                                 decoderTurtle

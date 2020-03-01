@@ -6,9 +6,7 @@ import Json.Encode
 
 
 getStopStartRoute :
-    { start : City
-    , stop : List City
-    }
+    { start : City, stop : List City }
     -> Cmd (Result Http.Error Kilometers)
 getStopStartRoute { start, stop } =
     Http.request

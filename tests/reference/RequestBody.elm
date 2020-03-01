@@ -93,9 +93,7 @@ decoderMoney =
                         "Money" ->
                             Json.Decode.map2
                                 (\amount currency ->
-                                    { amount = amount
-                                    , currency = currency
-                                    }
+                                    { amount = amount, currency = currency }
                                 )
                                 Json.Decode.int
                                 Json.Decode.string

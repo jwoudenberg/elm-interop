@@ -6,10 +6,7 @@ import Json.Encode
 
 
 getSecret :
-    { password : Password
-    , fingerprint : Float
-    , voiceprint : Float
-    }
+    { password : Password, fingerprint : Float, voiceprint : Float }
     -> Cmd (Result Http.Error Secret)
 getSecret { password, fingerprint, voiceprint } =
     Http.request
