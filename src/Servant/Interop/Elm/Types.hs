@@ -5,16 +5,19 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Servant.Interop.Elm.Types
   ( ElmTypeF (..),
     ElmType,
+    TypeName (..),
     ElmTypeDefinition (..),
     sortUserTypes,
     fromWireUserTypes,
     printTypeDefinition,
     printType,
     fromWireType,
+    toElmTypeName,
   )
 where
 
@@ -26,12 +29,15 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
+import Data.String (IsString)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Prettyprint.Doc ((<+>))
 import qualified Data.Text.Prettyprint.Doc as PP
 import Servant.Interop.Elm.Print
 import qualified Wire
+
+type ElmType = Fix ElmTypeF
 
 data ElmTypeF a
   = Unit
@@ -57,14 +63,15 @@ data ElmTypeF a
       a
       a
   | Cmd a
-  | Defined Wire.TypeName
+  | Defined TypeName [a]
   deriving (Functor)
 
-type ElmType = Fix ElmTypeF
+newtype TypeName = TypeName Text
+  deriving (Eq, IsString, Ord)
 
 newtype UserTypes
   = UserTypes
-      { unUserTypes :: Map Wire.TypeName ElmTypeDefinition
+      { unUserTypes :: Map TypeName ElmTypeDefinition
       }
   deriving (Monoid, Semigroup)
 
@@ -72,13 +79,13 @@ data ElmTypeDefinition
   = Custom (NonEmpty (Wire.ConstructorName, [ElmType]))
   | Alias ElmType
 
-namesInTypeDefinition :: ElmTypeDefinition -> [Wire.TypeName]
+namesInTypeDefinition :: ElmTypeDefinition -> [TypeName]
 namesInTypeDefinition =
   \case
     Alias t -> namesInType t
     Custom xs -> foldMap namesInType . foldMap snd $ toList xs
 
-namesInType :: ElmType -> [Wire.TypeName]
+namesInType :: ElmType -> [TypeName]
 namesInType =
   cata $ \case
     Unit -> mempty
@@ -93,7 +100,7 @@ namesInType =
     Tuple2 x y -> x <> y
     Tuple3 x y z -> x <> y <> z
     Record x -> foldMap snd x
-    Defined n -> [n]
+    Defined n params -> n : mconcat params
     Cmd x -> x
     Lambda x y -> x <> y
 
@@ -114,7 +121,8 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined name -> PP.pretty (unqualifiedIfUnknownName name)
+    Defined (TypeName name) params ->
+      hangCollapse $ PP.vsep (PP.pretty name : (uncurry parens <$> params))
     Cmd (a, i) -> "Cmd" <+> parens a i
     Lambda (ai, i) (_, o) -> idoc <++> "->" <+> o
       where
@@ -126,46 +134,26 @@ printType =
             MultipleWord -> i
             MultipleWordLambda -> PP.parens i
 
-printTypeDefinition :: Wire.TypeName -> ElmTypeDefinition -> Doc
-printTypeDefinition name =
+printTypeDefinition :: TypeName -> ElmTypeDefinition -> Doc
+printTypeDefinition (TypeName name) =
   \case
     Custom constructors ->
-      "type" <+> PP.pretty (unqualifiedName name) <++> printedConstructors
+      "type" <+> PP.pretty name <++> printedConstructors
       where
         printedConstructors =
           PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
             printConstructor <$> toList constructors
     Alias base ->
       "type alias"
-        <+> PP.pretty (unqualifiedName name)
+        <+> PP.pretty name
         <+> "=" <++> PP.indent elmIndent (printType base)
 
-unqualifiedName :: Wire.TypeName -> Text
-unqualifiedName name = Wire.typeConstructor name <> foldMap (" " <>) (Wire.parameters name)
-
-qualifiedName :: Wire.TypeName -> Text
-qualifiedName name =
-  Wire.fromModule name <> "." <> unqualifiedName name
-
-unqualifiedIfUnknownName :: Wire.TypeName -> Text
-unqualifiedIfUnknownName name =
-  if Wire.fromModule name `elem` knownModules
-    then qualifiedName name
-    else unqualifiedName name
-
-knownModules :: [Text]
-knownModules =
-  [ "Http",
-    "Json.Decode",
-    "Json.Encode"
-  ]
-
 printConstructor :: (Wire.ConstructorName, [ElmType]) -> Doc
-printConstructor (name, params) =
+printConstructor (name, params') =
   PP.nest
     elmIndent
     ( PP.sep
-        (PP.pretty (Wire.unConstructorName name) : (printParam <$> params))
+        (PP.pretty (Wire.unConstructorName name) : (printParam <$> params'))
     )
   where
     printParam :: ElmType -> Doc
@@ -186,7 +174,7 @@ appearance =
     Tuple2 _ _ -> SingleWord
     Tuple3 _ _ _ -> SingleWord
     Record _ -> SingleWord
-    Defined _ -> SingleWord
+    Defined _ params -> if null params then SingleWord else MultipleWord
     Cmd _ -> MultipleWord
     Lambda _ _ -> MultipleWordLambda
 
@@ -206,7 +194,7 @@ useElmCoreTypes userTypes =
     replace
   )
   where
-    replacements :: Map Wire.TypeName ElmType
+    replacements :: Map TypeName ElmType
     replacements = elmCoreTypeReplacements userTypes
     replaceInTypeDefinition :: ElmTypeDefinition -> ElmTypeDefinition
     replaceInTypeDefinition (Alias x) = Alias (replace x)
@@ -215,24 +203,25 @@ useElmCoreTypes userTypes =
     replace :: ElmType -> ElmType
     replace =
       cata $ \case
-        x@(Defined name) -> fromMaybe (Fix x) $ Map.lookup name replacements
+        x@(Defined name _) -> fromMaybe (Fix x) $ Map.lookup name replacements
         x -> Fix x
 
 fromWireUserTypes :: Wire.UserTypes -> (UserTypes, ElmType -> ElmType)
 fromWireUserTypes =
   useElmCoreTypes
     . UserTypes
+    . Map.mapKeys toElmTypeName
     . fmap (fromWireUserType . toList)
     . Wire.unUserTypes
 
-elmCoreTypeReplacements :: UserTypes -> Map Wire.TypeName ElmType
+elmCoreTypeReplacements :: UserTypes -> Map TypeName ElmType
 elmCoreTypeReplacements =
   Map.mapMaybeWithKey replaceWithElmCoreType . unUserTypes
 
-replaceWithElmCoreType :: Wire.TypeName -> ElmTypeDefinition -> Maybe ElmType
+replaceWithElmCoreType :: TypeName -> ElmTypeDefinition -> Maybe ElmType
 replaceWithElmCoreType _ (Alias _) = Nothing
 replaceWithElmCoreType typeName (Custom typeDef) =
-  case (Wire.typeConstructor typeName, orderedConstructors) of
+  case (typeName, orderedConstructors) of
     ("Maybe", [("Just", [a]), ("Nothing", [])]) -> Just (Fix $ Maybe a)
     ("Either", [("Left", [a]), ("Right", [b])]) -> Just (Fix $ Result a b)
     -- There's not a `Result` type in the Haskell standard library, but if you
@@ -250,7 +239,7 @@ fromWireUserType (c : cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
     mkConstructors :: Wire.Type_ -> [ElmType]
     mkConstructors =
       \case
-        Fix (Wire.Tuple params) -> toList $ fmap fromWireType params
+        Fix (Wire.Tuple params') -> toList $ fmap fromWireType params'
         -- We don't expect anything but a product here, but should we get one
         -- we'll assume it's a single parameter to the constructor.
         Fix (Wire.Record fields) ->
@@ -262,7 +251,7 @@ fromWireType =
   cata $ \case
     Wire.Tuple xs -> mkElmTuple $ toList xs
     Wire.Record xs -> Fix . Record $ toList xs
-    Wire.User name -> Fix $ Defined name
+    Wire.User name -> Fix $ Defined (toElmTypeName name) []
     Wire.Void -> Fix Never
     Wire.Int -> Fix Int
     Wire.Float -> Fix Float
@@ -289,7 +278,7 @@ mkElmTuple values =
           Wire.FieldName . ("field" <>) . Text.pack . show
             <$> ([1 ..] :: [Int])
 
-sortUserTypes :: UserTypes -> [(Wire.TypeName, ElmTypeDefinition)]
+sortUserTypes :: UserTypes -> [(TypeName, ElmTypeDefinition)]
 sortUserTypes =
   reverse
     . Graph.flattenSCCs
@@ -299,6 +288,25 @@ sortUserTypes =
     . unUserTypes
   where
     toNode ::
-      (Wire.TypeName, ElmTypeDefinition) ->
-      ((Wire.TypeName, ElmTypeDefinition), Wire.TypeName, [Wire.TypeName])
+      (TypeName, ElmTypeDefinition) ->
+      ((TypeName, ElmTypeDefinition), TypeName, [TypeName])
     toNode (name, t) = ((name, t), name, namesInTypeDefinition t)
+
+toElmTypeName :: Wire.TypeName -> TypeName
+toElmTypeName name =
+  TypeName $
+    if Wire.fromModule name `elem` knownModules
+      then qualifiedName name
+      else unqualifiedName name
+  where
+    unqualifiedName :: Wire.TypeName -> Text
+    unqualifiedName name' = Wire.typeConstructor name' <> mconcat (Wire.parameters name')
+    qualifiedName :: Wire.TypeName -> Text
+    qualifiedName name' =
+      Wire.fromModule name' <> "." <> unqualifiedName name'
+    knownModules :: [Text]
+    knownModules =
+      [ "Http",
+        "Json.Decode",
+        "Json.Encode"
+      ]

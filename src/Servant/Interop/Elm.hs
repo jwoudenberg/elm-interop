@@ -31,7 +31,6 @@ import qualified Servant.Interop.Elm.Generate as Generate
 import Servant.Interop.Elm.Print
 import Servant.Interop.Elm.Types
 import Servant.Interop.Elm.Values (ElmFunction, printFunction)
-import qualified Wire
 
 data Options
   = Options
@@ -62,7 +61,7 @@ data Module
       }
 
 data Definition
-  = TypeDefinition Wire.TypeName ElmTypeDefinition
+  = TypeDefinition TypeName ElmTypeDefinition
   | FunctionDefinition ElmFunction
 
 printModule' :: Module -> Doc
@@ -94,7 +93,7 @@ printModule' module_ =
         FunctionDefinition f ->
           printFunction f
 
-definitionsForType :: Wire.TypeName -> ElmTypeDefinition -> [Definition]
+definitionsForType :: TypeName -> ElmTypeDefinition -> [Definition]
 definitionsForType name' definition =
   [ TypeDefinition name' definition,
     FunctionDefinition $ Generate.generateEncoder name' definition,

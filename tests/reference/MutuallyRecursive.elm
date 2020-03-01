@@ -5,12 +5,12 @@ import Json.Decode
 import Json.Encode
 
 
-getDuet : {} -> Cmd (Result Http.Error BackAndForth Text)
+getDuet : {} -> Cmd (Result Http.Error BackAndForthText)
 getDuet {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderBackAndForth
+        , expect = Http.expectJson identity decoderBackAndForthText
         , body = Http.emptyBody
         , url =
             String.concat
@@ -26,21 +26,21 @@ getDuet {} =
         }
 
 
-type Forth Text
-    = Forth String BackAndForth Text
+type ForthText
+    = Forth String BackAndForthText
 
 
-encodeForth : Forth Text -> Json.Encode.Value
-encodeForth forth =
-    case forth of
+encodeForthText : ForthText -> Json.Encode.Value
+encodeForthText forthText =
+    case forthText of
         Forth param1 param2 ->
             Json.Encode.list
                 identity
-                [ Json.Encode.string param1, encodeBackAndForth param2 ]
+                [ Json.Encode.string param1, encodeBackAndForthText param2 ]
 
 
-decoderForth : Json.Decode.Decoder Forth
-decoderForth =
+decoderForthText : Json.Decode.Decoder ForthText
+decoderForthText =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
             (\ctor ->
@@ -50,28 +50,28 @@ decoderForth =
                             Json.Decode.map2
                                 Forth
                                 Json.Decode.string
-                                decoderBackAndForth
+                                decoderBackAndForthText
 
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
             )
 
 
-type BackAndForth Text
-    = Back String Forth Text
+type BackAndForthText
+    = Back String ForthText
 
 
-encodeBackAndForth : BackAndForth Text -> Json.Encode.Value
-encodeBackAndForth backAndForth =
-    case backAndForth of
+encodeBackAndForthText : BackAndForthText -> Json.Encode.Value
+encodeBackAndForthText backAndForthText =
+    case backAndForthText of
         Back param1 param2 ->
             Json.Encode.list
                 identity
-                [ Json.Encode.string param1, encodeForth param2 ]
+                [ Json.Encode.string param1, encodeForthText param2 ]
 
 
-decoderBackAndForth : Json.Decode.Decoder BackAndForth
-decoderBackAndForth =
+decoderBackAndForthText : Json.Decode.Decoder BackAndForthText
+decoderBackAndForthText =
     Json.Decode.field "ctor" Json.Decode.string
         |> Json.Decode.andThen
             (\ctor ->
@@ -81,7 +81,7 @@ decoderBackAndForth =
                             Json.Decode.map2
                                 Back
                                 Json.Decode.string
-                                decoderForth
+                                decoderForthText
 
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
