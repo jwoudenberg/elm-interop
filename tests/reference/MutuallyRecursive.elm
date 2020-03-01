@@ -17,7 +17,9 @@ getDuet {} =
                 [ "http://example.com/"
                 , "duet"
                 , "?"
-                , [] |> List.intersperse "&" |> String.concat
+                , []
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers = []
         , method = "GET"

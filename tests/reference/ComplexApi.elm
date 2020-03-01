@@ -17,7 +17,9 @@ getNameDogs { name } =
                 [ "http://example.com/"
                 , String.join "/" [ "dogs", (\(Name string) -> string) name ]
                 , "?"
-                , [] |> List.intersperse "&" |> String.concat
+                , []
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers = []
         , method = "GET"
@@ -37,8 +39,8 @@ getDogs { minAge } =
                 , "dogs"
                 , "?"
                 , [ String.concat [ "min-age=", String.fromInt minAge ] ]
-                      |> List.intersperse "&"
-                      |> String.concat
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers = []
         , method = "GET"
@@ -63,8 +65,8 @@ getToys { fun } =
                     else
                         ""
                   ]
-                      |> List.intersperse "&"
-                      |> String.concat
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers = []
         , method = "GET"
@@ -77,26 +79,31 @@ postToys { body, authSmell } =
         { tracker = Nothing
         , timeout = Nothing
         , expect = Http.expectJson identity (Json.Decode.succeed ())
-        , body = body |> encodeToy |> Http.jsonBody
+        , body =
+            body
+                |> encodeToy
+                |> Http.jsonBody
         , url =
             String.concat
                 [ "http://example.com/"
                 , "toys"
                 , "?"
-                , [] |> List.intersperse "&" |> String.concat
+                , []
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers =
             [ Http.header
-                  "auth-smell"
-                  ((\(SmellRight bool) ->
-                          if bool then
-                              "true"
+                "auth-smell"
+                ((\(SmellRight bool) ->
+                    if bool then
+                        "true"
 
-                          else
-                              "false"
-                      )
-                      authSmell
-                  )
+                    else
+                        "false"
+                 )
+                    authSmell
+                )
             ]
         , method = "POST"
         }
@@ -152,7 +159,8 @@ decoderName =
                 Json.Decode.field "val" <|
                     case ctor of
                         "Name" ->
-                            Json.Decode.string |> Json.Decode.map Name
+                            Json.Decode.string
+                                |> Json.Decode.map Name
 
                         _ ->
                             Json.Decode.fail "Unexpected constructor"
@@ -178,7 +186,8 @@ decoderSmellRight =
                 Json.Decode.field "val" <|
                     case ctor of
                         "SmellRight" ->
-                            Json.Decode.bool |> Json.Decode.map SmellRight
+                            Json.Decode.bool
+                                |> Json.Decode.map SmellRight
 
                         _ ->
                             Json.Decode.fail "Unexpected constructor"

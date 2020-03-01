@@ -17,7 +17,9 @@ getWish {} =
                 [ "http://example.com/"
                 , "wish"
                 , "?"
-                , [] |> List.intersperse "&" |> String.concat
+                , []
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers = []
         , method = "GET"

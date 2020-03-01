@@ -32,9 +32,9 @@ encloseSep' :: Doc -> Doc -> Doc -> [Doc] -> Doc
 encloseSep' left right sp ds =
   case ds of
     [] -> left <> right
-    _ -> PP.vcat entries <++> right
+    _ -> PP.align $ PP.vcat entries <++> right
       where
-        entries = zipWith (\pre x -> pre <+> PP.align x) (left : repeat sp) ds
+        entries = zipWith (<+>) (left : repeat sp) ds
 
 -- |
 -- Switch between hanging formatting or single-line formatting.
@@ -68,7 +68,15 @@ parens a doc =
 
 parens' :: Doc -> Doc
 parens' doc =
-  PP.cat
-    [ PP.lparen <> doc,
-      PP.rparen
-    ]
+  PP.column
+    ( \open ->
+        PP.cat
+          [ PP.lparen <> doc,
+            PP.column
+              ( \close ->
+                  -- Ensure the opening and closing bracket of parens that have
+                  -- been broken over multiple lines are in the same column.
+                  PP.indent (open - close) PP.rparen
+              )
+          ]
+    )

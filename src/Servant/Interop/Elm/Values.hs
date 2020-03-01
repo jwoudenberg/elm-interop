@@ -411,7 +411,7 @@ printValue' =
       where
         printField :: (Text, Doc) -> Doc
         printField (name, value) =
-          PP.nest 2 $ PP.group $ PP.pretty name <+> fromString "=" <++> value
+          PP.nest elmIndent $ PP.group $ PP.pretty name <+> fromString "=" <++> value
     MkLambda pattern1 body1 -> nextArg [pattern1] body1
       where
         nextArg :: [Pattern a] -> Cofree ElmValueF Doc -> Doc
@@ -434,7 +434,7 @@ printValue' =
             -- could be operators that require custom formatting logic.
             (_ :< MkApply (_ :< MkApply (_ :< MkVar fn) arg1) arg2) ->
               case fn of
-                "|>" -> hangCollapse $ (PP.indent 0 (extract arg1)) <++> PP.pretty fn <+> extract arg2
+                "|>" -> extract arg1 <> PP.hardline <> PP.indent elmIndent (PP.pretty fn <+> extract arg2)
                 "<|" -> hangCollapse $ extract arg1 <+> PP.pretty fn <++> extract arg2
                 _ -> hangCollapse $ PP.vsep (PP.pretty fn : extractParens arg1 : extractParens arg2 : args)
             -- Recursively match on function application, adding one argument at
@@ -444,7 +444,7 @@ printValue' =
             -- When no more function applications are found, the value we find
             -- at the root is the function name itself.
             (f :< more) ->
-              hangCollapse $ PP.vsep (extractParens (f :< more) : args)
+              hangCollapse $ PP.vsep (PP.nest (- elmIndent) (extractParens (f :< more)) : args)
     MkVar name -> PP.pretty name
     MkCase matched branches ->
       fromString "case"
@@ -462,16 +462,17 @@ printValue' =
         printBranch match body =
           printPattern False match <+> fromString "->" <++> PP.indent elmIndent body
     MkIfThenElse cond if_ else_ ->
-      fromString "if"
-        <+> extract cond
-        <+> fromString "then"
-          <> PP.hardline
-          <> PP.indent elmIndent (extract if_)
-          <> PP.hardline
-          <> PP.hardline
-          <> fromString "else"
-          <> PP.hardline
-          <> PP.indent elmIndent (extract else_)
+      PP.align $
+        fromString "if"
+          <+> extract cond
+          <+> fromString "then"
+            <> PP.hardline
+            <> PP.indent elmIndent (extract if_)
+            <> PP.hardline
+            <> PP.hardline
+            <> fromString "else"
+            <> PP.hardline
+            <> PP.indent elmIndent (extract else_)
 
 extractParens :: Cofree ElmValueF Doc -> Doc
 extractParens (val :< prev) =

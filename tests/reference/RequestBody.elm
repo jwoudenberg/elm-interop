@@ -11,13 +11,18 @@ getFish { body } =
         { tracker = Nothing
         , timeout = Nothing
         , expect = Http.expectJson identity decoderFish
-        , body = body |> encodeMoney |> Http.jsonBody
+        , body =
+            body
+                |> encodeMoney
+                |> Http.jsonBody
         , url =
             String.concat
                 [ "http://example.com/"
                 , "fish"
                 , "?"
-                , [] |> List.intersperse "&" |> String.concat
+                , []
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers = []
         , method = "GET"

@@ -17,7 +17,9 @@ getTurtles {} =
                 [ "http://example.com/"
                 , "turtles"
                 , "?"
-                , [] |> List.intersperse "&" |> String.concat
+                , []
+                    |> List.intersperse "&"
+                    |> String.concat
                 ]
         , headers = []
         , method = "GET"
