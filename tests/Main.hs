@@ -16,6 +16,7 @@ import qualified Examples.QueryParams
 import qualified Examples.Record
 import qualified Examples.Recursive
 import qualified Examples.RequestBody
+import qualified Examples.RequestHeaders
 import qualified Examples.Void
 import qualified Servant.Interop
 import qualified Servant.Interop.Elm as Elm
@@ -37,6 +38,7 @@ examples =
     Example "RequestBody" (Proxy :: Proxy Examples.RequestBody.API),
     Example "Void" (Proxy :: Proxy Examples.Void.API),
     Example "QueryParams" (Proxy :: Proxy Examples.QueryParams.API),
+    Example "RequestHeaders" (Proxy :: Proxy Examples.RequestHeaders.API),
     Example "MultipleEndpoints" (Proxy :: Proxy Examples.MultipleEndpoints.API)
   ]
 
