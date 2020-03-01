@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -49,7 +48,9 @@ data Dog
       }
   deriving (Generic)
 
-newtype Name = Name Text deriving (Generic, Rep)
+newtype Name = Name Text deriving (Generic)
+
+instance Rep Name
 
 instance ParameterType Name
 

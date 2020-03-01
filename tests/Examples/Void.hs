@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -16,4 +15,6 @@ import Servant.Interop (Rep, WIRE)
 type API = "wish" :> Get '[WIRE] (Either Void Unicorn)
 
 data Unicorn
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep Unicorn

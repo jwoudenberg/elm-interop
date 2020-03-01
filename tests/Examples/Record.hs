@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -21,11 +20,15 @@ data Sock
         pattern :: Pattern,
         holes :: Int
       }
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep Sock
 
 data Pattern
   = None
   | Stripes
   | Dots
   | Other
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep Pattern

@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -20,10 +19,14 @@ data Money
       { amount :: Int,
         currency :: Text
       }
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep Money
 
 data Fish
   = Herring
   | Carp
   | Salmon
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep Fish

@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -21,10 +20,14 @@ data BackAndForth a
   = Back
       a
       (Forth a)
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep a => Rep (BackAndForth a)
 
 data Forth a
   = Forth
       a
       (BackAndForth a)
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep a => Rep (Forth a)

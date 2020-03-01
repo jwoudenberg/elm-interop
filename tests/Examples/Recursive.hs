@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -20,4 +19,6 @@ data Turtle
       { name :: Text,
         onBackOf :: Turtle
       }
-  deriving (Generic, Rep)
+  deriving (Generic)
+
+instance Rep Turtle
