@@ -19,7 +19,7 @@ import Data.Maybe (maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Servant.Interop (Endpoint (..), Path (..), QueryVal (..))
-import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF' (..), fromWireType)
+import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF (..), fromWireType)
 import Servant.Interop.Elm.Values
 import qualified Wire
 import qualified Wire.Parameter as Parameter

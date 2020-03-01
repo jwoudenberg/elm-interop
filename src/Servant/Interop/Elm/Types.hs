@@ -7,8 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Servant.Interop.Elm.Types
-  ( ElmTypeF,
-    ElmTypeF' (..),
+  ( ElmTypeF (..),
     ElmType,
     ElmTypeDefinition (..),
     sortUserTypes,
@@ -34,9 +33,7 @@ import qualified Data.Text.Prettyprint.Doc as PP
 import Servant.Interop.Elm.Print
 import qualified Wire
 
-type ElmTypeF a = ElmTypeF' Wire.FieldName a
-
-data ElmTypeF' s a
+data ElmTypeF a
   = Unit
   | Never
   | Bool
@@ -55,7 +52,7 @@ data ElmTypeF' s a
       a
       a
       a
-  | Record [(s, a)]
+  | Record [(Wire.FieldName, a)]
   | Lambda
       a
       a
@@ -63,7 +60,7 @@ data ElmTypeF' s a
   | Defined Wire.TypeName
   deriving (Functor)
 
-type ElmType = Fix (ElmTypeF' Wire.FieldName)
+type ElmType = Fix ElmTypeF
 
 newtype UserTypes
   = UserTypes
