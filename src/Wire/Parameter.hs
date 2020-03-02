@@ -36,9 +36,7 @@ data Parameter
 
 data Primitive
   = Int
-  | Float
   | String
-  | Bool
 
 class ParameterType a where
 
@@ -53,14 +51,8 @@ instance ParameterType Int where
 instance ParameterType Int32 where
   parameterType _ = Parameter Int Nothing
 
-instance ParameterType Double where
-  parameterType _ = Parameter Float Nothing
-
 instance ParameterType T.Text where
   parameterType _ = Parameter String Nothing
-
-instance ParameterType Bool where
-  parameterType _ = Parameter Bool Nothing
 
 class ParameterTypeG (f :: * -> *) where
   parameterTypeG :: Proxy f -> Parameter

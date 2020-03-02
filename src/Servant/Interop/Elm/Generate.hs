@@ -444,9 +444,7 @@ elmTypeForParameter param =
     Nothing ->
       case Parameter.type_ param of
         Parameter.Int -> Fix Int
-        Parameter.Float -> Fix Float
         Parameter.String -> Fix String
-        Parameter.Bool -> Fix Bool
 
 -- TODO: URL encoding
 encodedParam :: Parameter.Parameter -> ElmValue Any -> ElmValue String
@@ -467,17 +465,13 @@ nameOfPrimitive :: Parameter.Primitive -> T.Text
 nameOfPrimitive primitive =
   case primitive of
     Parameter.Int -> "int"
-    Parameter.Float -> "float"
     Parameter.String -> "string"
-    Parameter.Bool -> "bool"
 
 encodedPrimitive :: Parameter.Primitive -> ElmValue Any -> ElmValue (String)
 encodedPrimitive primitive val =
   case primitive of
     Parameter.Int -> fn1 (var _String_fromInt) (anyType val)
-    Parameter.Float -> fn1 (var _String_fromFloat) (anyType val)
     Parameter.String -> anyType val
-    Parameter.Bool -> ifThenElse (anyType val) "true" "false"
 
 endpointFunctionName :: Endpoint -> T.Text
 endpointFunctionName endpoint =

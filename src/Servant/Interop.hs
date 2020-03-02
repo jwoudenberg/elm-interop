@@ -305,9 +305,7 @@ parameterType p =
                 ( Wire.ConstructorName ctor,
                   case Parameter.type_ parameter of
                     Parameter.Int -> Fix Wire.Int
-                    Parameter.Float -> Fix Wire.Float
                     Parameter.String -> Fix Wire.String
-                    Parameter.Bool -> Fix Wire.Bool
                 ),
         parameter
       )
