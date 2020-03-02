@@ -32,10 +32,9 @@ import Servant.Interop.Elm.Print
 import Servant.Interop.Elm.Types
 import Servant.Interop.Elm.Values (ElmFunction, printFunction)
 
-data Options
+newtype Options
   = Options
-      { domain :: T.Text,
-        moduleName :: T.Text
+      { moduleName :: T.Text
       }
 
 printModule :: Servant.Interop.HasWireFormat a => Options -> Proxy a -> T.Text
@@ -43,7 +42,7 @@ printModule options api =
   removeTrailingWhitespace . printDoc . printModule' . Module (moduleName options) $ clients <> helpers
   where
     (userTypes, endpoints) = Servant.Interop.wireFormat api
-    clients = FunctionDefinition . Generate.generateClient (domain options) <$> endpoints
+    clients = FunctionDefinition . Generate.generateClient <$> endpoints
     helpers =
       foldMap (uncurry definitionsForType)
         . sortUserTypes

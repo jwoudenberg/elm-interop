@@ -279,8 +279,8 @@ decoderForType typeDef =
             decodeMapN (elmDecoder <$> params) (var (fromVarName ctorName))
           )
 
-generateClient :: T.Text -> Endpoint -> ElmFunction
-generateClient domain endpoint =
+generateClient :: Endpoint -> ElmFunction
+generateClient endpoint =
   ElmFunction
     { fnName = endpointFunctionName endpoint,
       fnType = Fix $ Lambda inputRec $ Fix $ Cmd $ Fix $ Result (Fix _Http_Error) $ fromWireType $ responseBody endpoint,
@@ -366,18 +366,11 @@ generateClient domain endpoint =
       fn1
         (var _String_concat)
         ( list
-            [ domainWithTrailingSlash domain,
-              urlPath (path endpoint'),
+            [ urlPath (path endpoint'),
               string "?",
               queryPath (query endpoint')
             ]
         )
-    domainWithTrailingSlash :: T.Text -> ElmValue String
-    domainWithTrailingSlash domain' =
-      string $
-        if T.isSuffixOf "/" domain'
-          then domain'
-          else domain' <> "/"
     queryPath :: [(T.Text, QueryVal)] -> ElmValue String
     queryPath segments =
       list (uncurry querySegment <$> segments)
@@ -416,7 +409,7 @@ generateClient domain endpoint =
     urlPath :: Path -> ElmValue String
     urlPath path =
       case pathSegments path of
-        [] -> ""
+        [] -> "/"
         [one] -> one
         more -> fn2 (var _String_join) (string "/") $ list more
     pathSegments :: Path -> [ElmValue String]
