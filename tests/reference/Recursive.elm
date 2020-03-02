@@ -14,8 +14,7 @@ getTurtles {} =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "turtles"
+                [ "turtles"
                 , "?"
                 , []
                     |> List.intersperse "&"

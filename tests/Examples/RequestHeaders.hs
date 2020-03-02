@@ -15,8 +15,8 @@ import Servant.Interop (ParameterType, Rep, WIRE)
 type API =
   "secret"
     :> Header "password" Password
-    :> Header "fingerprint" Double
-    :> Header "voiceprint" Double
+    :> Header "fingerprint" Int
+    :> Header "voiceprint" Int
     :> Get '[WIRE] Secret
 
 newtype Password = Password T.Text

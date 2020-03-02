@@ -71,7 +71,7 @@ goldenTestFor (Example name api) =
   where
     go =
       pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
-        Elm.printModule (Elm.Options "http://example.com" (T.pack name)) api
+        Elm.printModule (Elm.Options (T.pack name)) api
 
 elmMakeTestFor :: Example -> TestTree
 elmMakeTestFor (Example name _) =

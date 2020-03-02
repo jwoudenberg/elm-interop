@@ -14,8 +14,7 @@ getDuet {} =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "duet"
+                [ "duet"
                 , "?"
                 , []
                     |> List.intersperse "&"

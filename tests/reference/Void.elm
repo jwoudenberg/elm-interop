@@ -14,8 +14,7 @@ getWish {} =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "wish"
+                [ "wish"
                 , "?"
                 , []
                     |> List.intersperse "&"

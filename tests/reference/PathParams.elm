@@ -16,8 +16,7 @@ getStopStartRoute { start, stop } =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , String.join
+                [ String.join
                     "/"
                     [ "route"
                     , (\(City string) -> string) start

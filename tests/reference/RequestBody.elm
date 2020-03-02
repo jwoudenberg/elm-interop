@@ -17,8 +17,7 @@ postFish { body } =
                 |> Http.jsonBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "fish"
+                [ "fish"
                 , "?"
                 , []
                     |> List.intersperse "&"

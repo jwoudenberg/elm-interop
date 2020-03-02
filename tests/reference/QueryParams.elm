@@ -16,8 +16,7 @@ getGroceries { maxPrice, bio, brands } =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "groceries"
+                [ "groceries"
                 , "?"
                 , [ String.concat
                       [ "max-price="

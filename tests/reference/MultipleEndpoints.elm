@@ -14,8 +14,7 @@ getDogs {} =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "dogs"
+                [ "dogs"
                 , "?"
                 , []
                     |> List.intersperse "&"
@@ -35,8 +34,7 @@ getToys {} =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "toys"
+                [ "toys"
                 , "?"
                 , []
                     |> List.intersperse "&"

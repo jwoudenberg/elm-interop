@@ -6,7 +6,7 @@ import Json.Encode
 
 
 getSecret :
-    { password : Password, fingerprint : Float, voiceprint : Float }
+    { password : Password, fingerprint : Int, voiceprint : Int }
     -> Cmd (Result Http.Error Secret)
 getSecret { password, fingerprint, voiceprint } =
     Http.request
@@ -16,8 +16,7 @@ getSecret { password, fingerprint, voiceprint } =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "secret"
+                [ "secret"
                 , "?"
                 , []
                     |> List.intersperse "&"
@@ -25,8 +24,8 @@ getSecret { password, fingerprint, voiceprint } =
                 ]
         , headers =
             [ Http.header "password" ((\(Password string) -> string) password)
-            , Http.header "fingerprint" (String.fromFloat fingerprint)
-            , Http.header "voiceprint" (String.fromFloat voiceprint)
+            , Http.header "fingerprint" (String.fromInt fingerprint)
+            , Http.header "voiceprint" (String.fromInt voiceprint)
             ]
         , method = "GET"
         }

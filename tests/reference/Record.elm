@@ -14,8 +14,7 @@ getSocks {} =
         , body = Http.emptyBody
         , url =
             String.concat
-                [ "http://example.com/"
-                , "socks"
+                [ "socks"
                 , "?"
                 , []
                     |> List.intersperse "&"
