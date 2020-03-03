@@ -81,7 +81,8 @@ printModule' module_ =
       PP.vcat $
         [ "import Http",
           "import Json.Decode",
-          "import Json.Encode"
+          "import Json.Encode",
+          "import Url.Builder"
         ]
     printedDefinitions :: Doc
     printedDefinitions = mconcat $ PP.punctuate (PP.hardline <> PP.hardline <> PP.hardline) $ printDefinition <$> definitions module_

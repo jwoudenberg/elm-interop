@@ -3,6 +3,7 @@ module QueryParams exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 getGroceries :
@@ -15,24 +16,24 @@ getGroceries { maxPrice, bio, brands } =
         , expect = Http.expectJson identity (Json.Decode.list decoderGrocery)
         , body = Http.emptyBody
         , url =
-            String.concat
-                [ "groceries"
-                , "?"
-                , [ String.concat
-                      [ "max-price="
-                      , (\(EuroCents int) -> String.fromInt int) maxPrice
+            Url.Builder.absolute
+                [ "groceries" ]
+                (List.concat
+                    [ [ (\(EuroCents int) -> Url.Builder.int "max-price" int)
+                          maxPrice
                       ]
-                  , if bio then
-                        "bio"
+                    , [ Url.Builder.string
+                          "bio"
+                          (if bio then
+                               "true"
 
-                    else
-                        ""
-                  , List.map (\x -> String.concat [ "brands[]=", x ]) brands
-                      |> String.join "&"
-                  ]
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+                           else
+                               "false"
+                          )
+                      ]
+                    , List.map (\x -> Url.Builder.string "brands[]" x) brands
+                    ]
+                )
         , headers = []
         , method = "GET"
         }

@@ -337,7 +337,7 @@ generateClient endpoint =
       fn2
         (var _Http_header)
         (string name)
-        (encodedParam param (var (fromVarName (toCamelCase name))))
+        (paramToString param (var (fromVarName (toCamelCase name))))
     headerField :: T.Text -> Parameter.Parameter -> (Wire.FieldName, ElmType)
     headerField name val = (toFieldName name, elmTypeForParameter val)
     queryField :: T.Text -> QueryVal -> (Wire.FieldName, ElmType)
@@ -363,64 +363,49 @@ generateClient endpoint =
         Root -> []
     urlOption :: Endpoint -> ElmValue String
     urlOption endpoint' =
-      fn1
-        (var _String_concat)
-        ( list
-            [ urlPath (path endpoint'),
-              string "?",
-              queryPath (query endpoint')
-            ]
-        )
-    queryPath :: [(T.Text, QueryVal)] -> ElmValue String
-    queryPath segments =
-      list (uncurry querySegment <$> segments)
-        |> fn1 (var _List_intersperse) (string "&")
-        |> var _String_concat
-    querySegment :: T.Text -> QueryVal -> ElmValue String
+      fn2
+        (var _Url_Builder_absolute)
+        (list (pathSegments (path endpoint')))
+        (fn1 (var _List_concat) (list (uncurry querySegment <$> query endpoint')))
+    querySegment :: T.Text -> QueryVal -> ElmValue [QueryParameter]
     querySegment name val =
       case val of
         QueryFlag ->
-          ifThenElse
-            (var (fromVarName (toCamelCase name)))
-            (string name)
-            ""
+          list
+            [ fn2
+                (var _Url_Builder_string)
+                (string name)
+                $ ifThenElse
+                  (var (fromVarName (toCamelCase name)))
+                  "true"
+                  "false"
+            ]
         QueryParam param ->
-          fn1
-            (var _String_concat)
-            ( list
-                [ string (name <> "="),
-                  encodedParam param (var (fromVarName (toCamelCase name)))
-                ]
-            )
+          list
+            [ queryParam
+                name
+                param
+                (var (fromVarName (toCamelCase name)))
+            ]
         QueryList param ->
           fn2
             (var _List_map)
             ( lambda $ matchVar "x" $ \x ->
-                fn1
-                  (var _String_concat)
-                  ( list
-                      [ string (name <> "[]="),
-                        encodedParam param x
-                      ]
-                  )
+                queryParam
+                  (name <> "[]")
+                  param
+                  x
             )
             (var (fromVarName (toCamelCase name)))
-            |> fn1 (var _String_join) (string "&")
-    urlPath :: Path -> ElmValue String
-    urlPath path =
-      case pathSegments path of
-        [] -> "/"
-        [one] -> one
-        more -> fn2 (var _String_join) (string "/") $ list more
     pathSegments :: Path -> [ElmValue String]
     pathSegments path =
       case path of
         Static name rest -> string name : pathSegments rest
-        Capture name param rest -> encodedParam param (var (fromVarName (toCamelCase name))) : pathSegments rest
+        Capture name param rest -> paramToString param (var (fromVarName (toCamelCase name))) : pathSegments rest
         CaptureAll name param ->
           [ fn2
               (var _List_map)
-              (lambda $ matchVar "x" (encodedParam param))
+              (lambda $ matchVar "x" (paramToString param))
               (var (fromVarName (toCamelCase name)))
               |> fn1 (var _String_join) (string "/")
           ]
@@ -446,18 +431,20 @@ elmTypeForParameter param =
         Parameter.Int -> Fix Int
         Parameter.String -> Fix String
 
--- TODO: URL encoding
-encodedParam :: Parameter.Parameter -> ElmValue Any -> ElmValue String
-encodedParam param val =
+paramToString :: Parameter.Parameter -> ElmValue Any -> ElmValue String
+paramToString = withPrimitive headerPrimitive
+
+withPrimitive :: (Parameter.Primitive -> ElmValue b -> ElmValue a) -> Parameter.Parameter -> ElmValue b -> ElmValue a
+withPrimitive f param val =
   case Parameter.wrapper param of
-    Nothing -> encodedPrimitive (Parameter.type_ param) val
+    Nothing -> f (Parameter.type_ param) val
     Just (_, ctor) ->
       fn1
         ( lambda $
             matchCtor1
               (fromVarName ctor)
               (nameOfPrimitive (Parameter.type_ param))
-              (encodedPrimitive (Parameter.type_ param))
+              (f (Parameter.type_ param))
         )
         val
 
@@ -467,11 +454,21 @@ nameOfPrimitive primitive =
     Parameter.Int -> "int"
     Parameter.String -> "string"
 
-encodedPrimitive :: Parameter.Primitive -> ElmValue Any -> ElmValue (String)
-encodedPrimitive primitive val =
+headerPrimitive :: Parameter.Primitive -> ElmValue Any -> ElmValue (String)
+headerPrimitive primitive val =
   case primitive of
     Parameter.Int -> fn1 (var _String_fromInt) (anyType val)
     Parameter.String -> anyType val
+
+queryParam :: T.Text -> Parameter.Parameter -> ElmValue Any -> ElmValue QueryParameter
+queryParam key =
+  withPrimitive (queryPrimitive key)
+
+queryPrimitive :: T.Text -> Parameter.Primitive -> ElmValue Any -> ElmValue QueryParameter
+queryPrimitive key primitive val =
+  case primitive of
+    Parameter.Int -> fn2 (var _Url_Builder_int) (string key) (anyType val)
+    Parameter.String -> fn2 (var _Url_Builder_string) (string key) (anyType val)
 
 endpointFunctionName :: Endpoint -> T.Text
 endpointFunctionName endpoint =

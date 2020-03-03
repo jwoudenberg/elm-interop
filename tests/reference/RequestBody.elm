@@ -3,6 +3,7 @@ module RequestBody exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 postFish : { body : Money } -> Cmd (Result Http.Error Fish)
@@ -15,14 +16,7 @@ postFish { body } =
             body
                 |> encodeMoney
                 |> Http.jsonBody
-        , url =
-            String.concat
-                [ "fish"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+        , url = Url.Builder.absolute [ "fish" ] (List.concat [])
         , headers = []
         , method = "POST"
         }

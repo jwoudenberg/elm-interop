@@ -3,6 +3,7 @@ module PathParams exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 getStopStartRoute :
@@ -15,19 +16,13 @@ getStopStartRoute { start, stop } =
         , expect = Http.expectJson identity decoderKilometers
         , body = Http.emptyBody
         , url =
-            String.concat
-                [ String.join
-                    "/"
-                    [ "route"
-                    , (\(City string) -> string) start
-                    , List.map (\x -> (\(City string) -> string) x) stop
-                        |> String.join "/"
-                    ]
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
+            Url.Builder.absolute
+                [ "route"
+                , (\(City string) -> string) start
+                , List.map (\x -> (\(City string) -> string) x) stop
+                    |> String.join "/"
                 ]
+                (List.concat [])
         , headers = []
         , method = "GET"
         }

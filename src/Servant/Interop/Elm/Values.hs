@@ -82,6 +82,7 @@ module Servant.Interop.Elm.Values
 
     -- ** List
     _List_map,
+    _List_concat,
     _List_intersperse,
 
     -- ** Json.Encode
@@ -126,6 +127,11 @@ module Servant.Interop.Elm.Values
     _Json_Decode_fail,
     _Json_Decode_andThen,
 
+    -- * Url.Builder
+    _Url_Builder_absolute,
+    _Url_Builder_string,
+    _Url_Builder_int,
+
     -- * Http
     _Http_request,
     _Http_header,
@@ -135,6 +141,7 @@ module Servant.Interop.Elm.Values
     _Http_expectJson,
 
     -- * Phantom types
+    QueryParameter,
     Body,
     Decoder,
     Error,
@@ -562,6 +569,9 @@ _Tuple_pair = "Tuple.pair"
 _List_map :: Variable ((a -> b) -> [a] -> [b])
 _List_map = "List.map"
 
+_List_concat :: Variable ([[a]] -> [a])
+_List_concat = "List.concat"
+
 _List_intersperse :: Variable (a -> [a] -> [a])
 _List_intersperse = "List.intersperse"
 
@@ -716,3 +726,14 @@ _Http_expectWhatever = "Http.expectWhatever"
 
 _Http_expectJson :: Variable ((Result Error a -> msg) -> Decoder a -> Expect msg)
 _Http_expectJson = "Http.expectJson"
+
+data QueryParameter
+
+_Url_Builder_absolute :: Variable ([String] -> [QueryParameter] -> String)
+_Url_Builder_absolute = "Url.Builder.absolute"
+
+_Url_Builder_string :: Variable (String -> String -> QueryParameter)
+_Url_Builder_string = "Url.Builder.string"
+
+_Url_Builder_int :: Variable (String -> Int -> QueryParameter)
+_Url_Builder_int = "Url.Builder.int"

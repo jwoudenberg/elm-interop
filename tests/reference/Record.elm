@@ -3,6 +3,7 @@ module Record exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 getSocks : {} -> Cmd (Result Http.Error Sock)
@@ -12,14 +13,7 @@ getSocks {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderSock
         , body = Http.emptyBody
-        , url =
-            String.concat
-                [ "socks"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+        , url = Url.Builder.absolute [ "socks" ] (List.concat [])
         , headers = []
         , method = "GET"
         }

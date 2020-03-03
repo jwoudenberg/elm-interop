@@ -3,6 +3,7 @@ module RequestHeaders exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 getSecret :
@@ -14,14 +15,7 @@ getSecret { password, fingerprint, voiceprint } =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderSecret
         , body = Http.emptyBody
-        , url =
-            String.concat
-                [ "secret"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+        , url = Url.Builder.absolute [ "secret" ] (List.concat [])
         , headers =
             [ Http.header "password" ((\(Password string) -> string) password)
             , Http.header "fingerprint" (String.fromInt fingerprint)

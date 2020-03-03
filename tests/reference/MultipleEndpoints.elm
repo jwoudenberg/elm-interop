@@ -3,6 +3,7 @@ module MultipleEndpoints exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 getDogs : {} -> Cmd (Result Http.Error (List Dog))
@@ -12,14 +13,7 @@ getDogs {} =
         , timeout = Nothing
         , expect = Http.expectJson identity (Json.Decode.list decoderDog)
         , body = Http.emptyBody
-        , url =
-            String.concat
-                [ "dogs"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+        , url = Url.Builder.absolute [ "dogs" ] (List.concat [])
         , headers = []
         , method = "GET"
         }
@@ -32,14 +26,7 @@ getToys {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderToy
         , body = Http.emptyBody
-        , url =
-            String.concat
-                [ "toys"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+        , url = Url.Builder.absolute [ "toys" ] (List.concat [])
         , headers = []
         , method = "GET"
         }

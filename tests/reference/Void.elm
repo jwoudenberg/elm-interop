@@ -3,6 +3,7 @@ module Void exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 getWish : {} -> Cmd (Result Http.Error EitherVoidUnicorn)
@@ -12,14 +13,7 @@ getWish {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderEitherVoidUnicorn
         , body = Http.emptyBody
-        , url =
-            String.concat
-                [ "wish"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+        , url = Url.Builder.absolute [ "wish" ] (List.concat [])
         , headers = []
         , method = "GET"
         }

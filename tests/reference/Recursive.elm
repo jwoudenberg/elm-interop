@@ -3,6 +3,7 @@ module Recursive exposing (..)
 import Http
 import Json.Decode
 import Json.Encode
+import Url.Builder
 
 
 getTurtles : {} -> Cmd (Result Http.Error Turtle)
@@ -12,14 +13,7 @@ getTurtles {} =
         , timeout = Nothing
         , expect = Http.expectJson identity decoderTurtle
         , body = Http.emptyBody
-        , url =
-            String.concat
-                [ "turtles"
-                , "?"
-                , []
-                    |> List.intersperse "&"
-                    |> String.concat
-                ]
+        , url = Url.Builder.absolute [ "turtles" ] (List.concat [])
         , headers = []
         , method = "GET"
         }
