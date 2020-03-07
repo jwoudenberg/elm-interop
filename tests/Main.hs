@@ -18,6 +18,7 @@ import qualified Examples.Record
 import qualified Examples.Recursive
 import qualified Examples.RequestBody
 import qualified Examples.RequestHeaders
+import qualified Examples.Roundtrip
 import qualified Examples.Void
 import qualified Servant.Interop
 import qualified Servant.Interop.Elm as Elm
@@ -41,7 +42,8 @@ examples =
     Example "QueryParams" (Proxy :: Proxy Examples.QueryParams.API),
     Example "RequestHeaders" (Proxy :: Proxy Examples.RequestHeaders.API),
     Example "PathParams" (Proxy :: Proxy Examples.PathParams.API),
-    Example "MultipleEndpoints" (Proxy :: Proxy Examples.MultipleEndpoints.API)
+    Example "MultipleEndpoints" (Proxy :: Proxy Examples.MultipleEndpoints.API),
+    Example "Roundtrip" (Proxy :: Proxy Examples.Roundtrip.API)
   ]
 
 tests :: TestTree
