@@ -41,11 +41,11 @@ import qualified Data.Map.Strict as Map
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (Text, pack)
 import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError, symbolVal)
-import Network.HTTP.Media ((//))
 import Network.HTTP.Types.Method (Method)
 import Servant.API
 import Servant.Server (HasServer (ServerT, hoistServerWithContext, route))
 import qualified Wire
+import qualified Wire.Json
 import qualified Wire.Parameter as Parameter
 
 data Endpoint
@@ -76,6 +76,26 @@ data Path
 
 data WIRE
 
+instance Accept WIRE where
+  contentType _ = contentType (Proxy :: Proxy JSON)
+
+instance Wire.Rep a => MimeRender WIRE a where
+  mimeRender _ x =
+    case Wire.Json.encodeJson coder (Wire.toWire x) of
+      Nothing -> error "Unexpected encoding failure."
+      Just encoded -> encoded
+    where
+      coder = Wire.Json.coderForType (Wire.wireType (Proxy :: Proxy a))
+
+instance Wire.Rep a => MimeUnrender WIRE a where
+  mimeUnrender _ x =
+    case decoded of
+      Nothing -> Left "Unexpected decoding failure."
+      Just y -> Right y
+    where
+      coder = Wire.Json.coderForType (Wire.wireType (Proxy :: Proxy a))
+      decoded = Wire.Json.decodeJson coder x >>= Wire.fromWire
+
 -- | Do not generate Wire types for this endpoint.
 --
 --     NoWire :> "endpoint" :> Get '[JSON] Int
@@ -88,9 +108,6 @@ instance HasServer api c => HasServer (NoWire :> api) c where
   route _ = route (Proxy @api)
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy @api) pc nt s
-
-instance Accept WIRE where
-  contentType _ = "application" // "servant-interop-json"
 
 class HasWireFormat api where
   wireFormat :: Proxy api -> (Wire.UserTypes, [Endpoint])

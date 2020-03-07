@@ -49,8 +49,12 @@ tests:
   spec:
     dependencies:
     - base
+    - directory
     - elm-interop
+    - process
     - servant
+    - servant-server
+    - warp
     - tasty
     - tasty-golden
     - tasty-hunit

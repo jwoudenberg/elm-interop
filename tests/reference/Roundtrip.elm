@@ -19,12 +19,12 @@ getRoundtrip {} =
         }
 
 
-postRoundtrip : { body : EitherTextValue } -> Cmd (Result Http.Error Value)
+postRoundtrip : { body : EitherTextValue } -> Cmd (Result Http.Error ())
 postRoundtrip { body } =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderValue
+        , expect = Http.expectJson identity (Json.Decode.succeed ())
         , body =
             body
                 |> encodeEitherTextValue

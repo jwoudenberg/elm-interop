@@ -70,6 +70,7 @@ import Data.Void (Void, absurd)
 import GHC.Generics hiding (Rep)
 import qualified GHC.Generics as Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
+import qualified Servant
 import Type.Reflection (Typeable)
 import qualified Type.Reflection
 
@@ -281,6 +282,14 @@ instance Rep () where
   toWire () = MkTuple []
 
   fromWire _ = pure ()
+
+instance Rep Servant.NoContent where
+
+  wireType' _ = pure . Fix $ Tuple mempty
+
+  toWire Servant.NoContent = MkTuple []
+
+  fromWire _ = pure Servant.NoContent
 
 instance Rep Void where
 

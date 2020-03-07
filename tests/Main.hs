@@ -6,6 +6,8 @@ module Main
   )
 where
 
+import Control.Concurrent.MVar as MVar
+import Control.Monad.IO.Class (liftIO)
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text as T
 import qualified Data.Text.Lazy
@@ -20,10 +22,15 @@ import qualified Examples.RequestBody
 import qualified Examples.RequestHeaders
 import qualified Examples.Roundtrip
 import qualified Examples.Void
+import qualified Network.Wai.Handler.Warp as Warp
 import qualified Servant.Interop
 import qualified Servant.Interop.Elm as Elm
+import qualified Servant.Server
+import qualified System.Directory as Directory
+import qualified System.Process as Process
 import Test.Tasty
 import qualified Test.Tasty.Golden as Golden
+import qualified Test.Tasty.HUnit as HUnit
 import qualified Test.Tasty.Program as Program
 
 main :: IO ()
@@ -52,7 +59,8 @@ tests =
     "servant-interop"
     [ goldenTests,
       elmMakeTests,
-      elmFormatTests
+      elmFormatTests,
+      roundtripTests
     ]
 
 goldenTests :: TestTree
@@ -94,3 +102,21 @@ elmFormatTestFor (Example name _) =
     (Just "tests/elm-test-app")
   where
     file = "../reference/" <> name <> ".elm"
+
+roundtripTests :: TestTree
+roundtripTests =
+  HUnit.testCase "roundtrip" $ do
+    liftIO $ Directory.withCurrentDirectory "tests/elm-test-app" $ do
+      Process.callProcess "elm" ["make", "src/Main.elm", "--output", "index.html"]
+    servedValue <- liftIO $ MVar.newEmptyMVar
+    receivedValue <- liftIO $ MVar.newEmptyMVar
+    let settings = Examples.Roundtrip.Settings servedValue receivedValue
+    Warp.testWithApplication (pure (app settings)) $ \_port -> do
+      pure ()
+    HUnit.assertBool "test" True
+
+app :: Examples.Roundtrip.Settings -> Servant.Server.Application
+app settings =
+  Servant.Server.serve
+    (Proxy :: Proxy Examples.Roundtrip.API)
+    (Examples.Roundtrip.server settings)
