@@ -79,9 +79,9 @@ elmMakeTestFor (Example name _) =
     file
     "elm"
     ["make", file]
-    (Just "tests/reference")
+    (Just "tests/elm-test-app")
   where
-    file = name <> ".elm"
+    file = "../reference/" <> name <> ".elm"
 
 elmFormatTestFor :: Example -> TestTree
 elmFormatTestFor (Example name _) =
@@ -89,6 +89,6 @@ elmFormatTestFor (Example name _) =
     file
     "elm-format"
     ["--validate", file]
-    (Just "tests/reference")
+    (Just "tests/elm-test-app")
   where
-    file = name <> ".elm"
+    file = "../reference/" <> name <> ".elm"
