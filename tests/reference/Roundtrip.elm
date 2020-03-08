@@ -40,23 +40,12 @@ type Value
 
 
 encodeValue : Value -> Json.Encode.Value
-encodeValue value =
-    case value of
-        Value param1 ->
-            Json.Encode.list identity [ Json.Encode.int param1 ]
+encodeValue (Value param1) =
+    Json.Encode.list identity [ Json.Encode.int param1 ]
 
 
 decoderValue : Json.Decode.Decoder Value
 decoderValue =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "Value" ->
-                            Json.Decode.int
-                                |> Json.Decode.map Value
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
+    Json.Decode.int
+        |> Json.Decode.index 0
+        |> Json.Decode.map Value

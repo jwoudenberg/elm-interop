@@ -67,31 +67,24 @@ type Money
 
 
 encodeMoney : Money -> Json.Encode.Value
-encodeMoney money =
-    case money of
-        Money { amount, currency } ->
-            Json.Encode.object
-                [ ( "amount", Json.Encode.int amount )
-                , ( "currency", Json.Encode.string currency )
-                ]
+encodeMoney (Money param1) =
+    Json.Encode.list
+        identity
+        [ (\{ amount, currency } ->
+                Json.Encode.object
+                    [ ( "amount", Json.Encode.int amount )
+                    , ( "currency", Json.Encode.string currency )
+                    ]
+            )
+            param1
+        ]
 
 
 decoderMoney : Json.Decode.Decoder Money
 decoderMoney =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "Money" ->
-                            Json.Decode.map2
-                                (\amount currency ->
-                                    { amount = amount, currency = currency }
-                                )
-                                Json.Decode.int
-                                Json.Decode.string
-                                |> Json.Decode.map Money
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
+    Json.Decode.map2
+        (\amount currency -> { amount = amount, currency = currency })
+        Json.Decode.int
+        Json.Decode.string
+        |> Json.Decode.index 0
+        |> Json.Decode.map Money

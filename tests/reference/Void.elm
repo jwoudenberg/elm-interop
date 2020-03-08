@@ -44,10 +44,12 @@ decoderEitherVoidUnicorn =
                         "Left" ->
                             Json.Decode.fail
                                 "Cannot decode Never type from JSON"
+                                |> Json.Decode.index 0
                                 |> Json.Decode.map Left
 
                         "Right" ->
                             decoderUnicorn
+                                |> Json.Decode.index 0
                                 |> Json.Decode.map Right
 
                         _ ->

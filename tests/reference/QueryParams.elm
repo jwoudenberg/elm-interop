@@ -44,26 +44,15 @@ type EuroCents
 
 
 encodeEuroCents : EuroCents -> Json.Encode.Value
-encodeEuroCents euroCents =
-    case euroCents of
-        EuroCents param1 ->
-            Json.Encode.list identity [ Json.Encode.int param1 ]
+encodeEuroCents (EuroCents param1) =
+    Json.Encode.list identity [ Json.Encode.int param1 ]
 
 
 decoderEuroCents : Json.Decode.Decoder EuroCents
 decoderEuroCents =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "EuroCents" ->
-                            Json.Decode.int
-                                |> Json.Decode.map EuroCents
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
+    Json.Decode.int
+        |> Json.Decode.index 0
+        |> Json.Decode.map EuroCents
 
 
 type Grocery

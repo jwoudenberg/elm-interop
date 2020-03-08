@@ -24,31 +24,24 @@ type Turtle
 
 
 encodeTurtle : Turtle -> Json.Encode.Value
-encodeTurtle turtle =
-    case turtle of
-        Turtle { name, onBackOf } ->
-            Json.Encode.object
-                [ ( "name", Json.Encode.string name )
-                , ( "onBackOf", encodeTurtle onBackOf )
-                ]
+encodeTurtle (Turtle param1) =
+    Json.Encode.list
+        identity
+        [ (\{ name, onBackOf } ->
+                Json.Encode.object
+                    [ ( "name", Json.Encode.string name )
+                    , ( "onBackOf", encodeTurtle onBackOf )
+                    ]
+            )
+            param1
+        ]
 
 
 decoderTurtle : Json.Decode.Decoder Turtle
 decoderTurtle =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "Turtle" ->
-                            Json.Decode.map2
-                                (\name onBackOf ->
-                                    { name = name, onBackOf = onBackOf }
-                                )
-                                Json.Decode.string
-                                decoderTurtle
-                                |> Json.Decode.map Turtle
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
+    Json.Decode.map2
+        (\name onBackOf -> { name = name, onBackOf = onBackOf })
+        Json.Decode.string
+        decoderTurtle
+        |> Json.Decode.index 0
+        |> Json.Decode.map Turtle

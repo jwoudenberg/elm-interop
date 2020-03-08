@@ -30,26 +30,15 @@ type Password
 
 
 encodePassword : Password -> Json.Encode.Value
-encodePassword password =
-    case password of
-        Password param1 ->
-            Json.Encode.list identity [ Json.Encode.string param1 ]
+encodePassword (Password param1) =
+    Json.Encode.list identity [ Json.Encode.string param1 ]
 
 
 decoderPassword : Json.Decode.Decoder Password
 decoderPassword =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "Password" ->
-                            Json.Decode.string
-                                |> Json.Decode.map Password
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
+    Json.Decode.string
+        |> Json.Decode.index 0
+        |> Json.Decode.map Password
 
 
 type Secret
@@ -57,23 +46,12 @@ type Secret
 
 
 encodeSecret : Secret -> Json.Encode.Value
-encodeSecret secret =
-    case secret of
-        Secret param1 ->
-            Json.Encode.list identity [ Json.Encode.string param1 ]
+encodeSecret (Secret param1) =
+    Json.Encode.list identity [ Json.Encode.string param1 ]
 
 
 decoderSecret : Json.Decode.Decoder Secret
 decoderSecret =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "Secret" ->
-                            Json.Decode.string
-                                |> Json.Decode.map Secret
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
+    Json.Decode.string
+        |> Json.Decode.index 0
+        |> Json.Decode.map Secret

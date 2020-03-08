@@ -15,6 +15,8 @@ import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.Functor.Foldable (Fix (Fix), cata)
+import Data.Int (Int32)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -109,8 +111,12 @@ encoderForType (TypeName typeName) typeDef =
   case typeDef of
     Alias elmType -> elmEncoder elmType
     Custom constructors ->
-      lambda $ matchVar lowerCasedTypeName $ \x ->
-        mkCase x $ toList $ matchConstructor <$> constructors
+      case constructors of
+        (name, params) :| [] ->
+          lambda $ encodeCtor name params
+        _ ->
+          lambda $ matchVar lowerCasedTypeName $ \x ->
+            mkCase x $ toList $ matchConstructor <$> constructors
       where
         lowerCasedTypeName =
           case T.uncons typeName of
@@ -131,18 +137,21 @@ encoderForType (TypeName typeName) typeDef =
                 )
                 (fn1 (var _Json_Encode_object) . list . fmap snd)
             _ ->
-              matchCtorN
-                (fromVarName $ Wire.unConstructorName name)
-                (fst <$> keyedParams)
-                ( \param ->
-                    case lookup (varName param) keyedParams of
-                      Nothing -> error "Lookup of constructor param failed"
-                      Just elmType -> fn1 (elmEncoder elmType) (var param)
-                )
-                (fn2 (var _Json_Encode_list) (var _identity) . list)
-              where
-                keyedParams =
-                  zipWith (\i param -> ("param" <> (T.pack $ show i), param)) [(1 :: Int) ..] params
+              encodeCtor name params
+        encodeCtor :: Wire.ConstructorName -> [ElmType] -> (Pattern p, ElmValue Value)
+        encodeCtor name params =
+          matchCtorN
+            (fromVarName $ Wire.unConstructorName name)
+            (fst <$> keyedParams params)
+            ( \param ->
+                case lookup (varName param) (keyedParams params) of
+                  Nothing -> error "Lookup of constructor param failed"
+                  Just elmType -> fn1 (elmEncoder elmType) (var param)
+            )
+            (fn2 (var _Json_Encode_list) (var _identity) . list)
+        keyedParams :: [ElmType] -> [(T.Text, ElmType)]
+        keyedParams params =
+          zipWith (\i param -> ("param" <> (T.pack $ show i), param)) [(1 :: Int) ..] params
 
 data Any
 
@@ -262,22 +271,35 @@ decoderForType typeDef =
   case typeDef of
     Alias elmType -> elmDecoder elmType
     Custom constructors ->
-      fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_string)
-        |> fn1
-          (var _Json_Decode_andThen)
-          ( lambda $ matchVar "ctor" $ \ctor ->
-              fn1 (var _Json_Decode_field) "val"
-                <| ( mkCase ctor $
-                       (toList $ decodeConstructor <$> constructors) <> [catchAll]
-                   )
-          )
-      where
-        catchAll = matchVar "_" $ \_ -> fn1 (var _Json_Decode_fail) "Unexpected constructor"
-        decodeConstructor :: (Wire.ConstructorName, [ElmType]) -> (Pattern a, ElmValue (Decoder Any))
-        decodeConstructor (Wire.ConstructorName ctorName, params) =
-          ( matchString ctorName,
-            decodeMapN (elmDecoder <$> params) (var (fromVarName ctorName))
-          )
+      case constructors of
+        single :| [] ->
+          decodeParams single
+        _ ->
+          fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_string)
+            |> fn1
+              (var _Json_Decode_andThen)
+              ( lambda $ matchVar "ctor" $ \ctor ->
+                  fn1 (var _Json_Decode_field) "val"
+                    <| ( mkCase ctor $
+                           (toList $ decodeConstructor <$> constructors) <> [catchAll]
+                       )
+              )
+          where
+            catchAll = matchVar "_" $ \_ -> fn1 (var _Json_Decode_fail) "Unexpected constructor"
+            decodeConstructor :: (Wire.ConstructorName, [ElmType]) -> (Pattern a, ElmValue (Decoder Any))
+            decodeConstructor c@(Wire.ConstructorName ctorName, _) =
+              ( matchString ctorName,
+                decodeParams c
+              )
+
+decodeParams :: (Wire.ConstructorName, [ElmType]) -> ElmValue (Decoder Any)
+decodeParams (Wire.ConstructorName ctorName, params) =
+  decodeMapN
+    (zipWith paramDecoder [0 ..] params)
+    (var (fromVarName ctorName))
+  where
+    paramDecoder :: Int32 -> ElmType -> ElmValue (Decoder Any)
+    paramDecoder n param = elmDecoder param |> fn1 (var _Json_Decode_index) (int n)
 
 generateClient :: Endpoint -> ElmFunction
 generateClient endpoint =
