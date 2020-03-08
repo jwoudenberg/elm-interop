@@ -19,7 +19,7 @@ getRoundtrip {} =
         }
 
 
-postRoundtrip : { body : EitherTextValue } -> Cmd (Result Http.Error ())
+postRoundtrip : { body : Value } -> Cmd (Result Http.Error ())
 postRoundtrip { body } =
     Http.request
         { tracker = Nothing
@@ -27,47 +27,12 @@ postRoundtrip { body } =
         , expect = Http.expectJson identity (Json.Decode.succeed ())
         , body =
             body
-                |> encodeEitherTextValue
+                |> encodeValue
                 |> Http.jsonBody
         , url = Url.Builder.absolute [ "roundtrip" ] (List.concat [])
         , headers = []
         , method = "POST"
         }
-
-
-type EitherTextValue
-    = Left String
-    | Right Value
-
-
-encodeEitherTextValue : EitherTextValue -> Json.Encode.Value
-encodeEitherTextValue eitherTextValue =
-    case eitherTextValue of
-        Left param1 ->
-            Json.Encode.list identity [ Json.Encode.string param1 ]
-
-        Right param1 ->
-            Json.Encode.list identity [ encodeValue param1 ]
-
-
-decoderEitherTextValue : Json.Decode.Decoder EitherTextValue
-decoderEitherTextValue =
-    Json.Decode.field "ctor" Json.Decode.string
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        "Left" ->
-                            Json.Decode.string
-                                |> Json.Decode.map Left
-
-                        "Right" ->
-                            decoderValue
-                                |> Json.Decode.map Right
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
 
 
 type Value

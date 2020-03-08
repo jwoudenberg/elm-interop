@@ -48,10 +48,11 @@ library:
 tests:
   spec:
     dependencies:
+    - async
     - base
     - directory
     - elm-interop
-    - process
+    - typed-process
     - servant
     - servant-server
     - warp

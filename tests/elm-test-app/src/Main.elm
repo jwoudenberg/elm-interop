@@ -16,7 +16,7 @@ type alias Model =
 
 type Msg
     = Received (Result Http.Error Roundtrip.Value)
-    | NoOp
+    | Returned (Result Http.Error ())
 
 
 main : Program Flags Model Msg
@@ -45,22 +45,26 @@ view _ =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NoOp ->
-            ( model, Cmd.none )
+        Returned res ->
+            case res of
+                Err httpError ->
+                    Debug.todo (Debug.toString httpError)
+
+                Ok _ ->
+                    ( model, Cmd.none )
 
         Received res ->
-            ( model
-            , Roundtrip.postRoundtrip
-                { body =
-                    case res of
-                        Err httpError ->
-                            Roundtrip.Left (Debug.toString httpError)
+            case res of
+                Err httpError ->
+                    Debug.todo (Debug.toString httpError)
 
-                        Ok value ->
-                            Roundtrip.Right value
-                }
-                |> Cmd.map (\_ -> NoOp)
-            )
+                Ok value ->
+                    ( model
+                    , Roundtrip.postRoundtrip
+                        { body = value
+                        }
+                        |> Cmd.map Returned
+                    )
 
 
 subscriptions : Model -> Sub Msg

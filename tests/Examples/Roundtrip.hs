@@ -6,12 +6,12 @@ module Examples.Roundtrip
   ( API,
     server,
     Settings (..),
+    Value (..),
   )
 where
 
 import qualified Control.Concurrent.MVar as MVar
 import Control.Monad.IO.Class (liftIO)
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Servant.API
 import Servant.Interop (Rep, WIRE)
@@ -25,18 +25,18 @@ type GetValue =
 
 type ReturnValue =
   "roundtrip"
-    :> ReqBody '[WIRE] (Either Text Value)
+    :> ReqBody '[WIRE] Value
     :> Post '[WIRE] NoContent
 
 newtype Value = Value Int
-  deriving (Generic)
+  deriving (Generic, Show)
 
 instance Rep Value
 
 data Settings
   = Settings
       { servedValue :: MVar.MVar Value,
-        receivedValue :: MVar.MVar (Either Text Value)
+        receivedValue :: MVar.MVar Value
       }
 
 server :: Settings -> Servant.Server.Server API
@@ -44,9 +44,9 @@ server settings =
   getValue settings :<|> returnValue settings
 
 getValue :: Settings -> Servant.Server.Handler Value
-getValue = liftIO . MVar.takeMVar . servedValue
+getValue = liftIO . MVar.readMVar . servedValue
 
-returnValue :: Settings -> Either Text Value -> Servant.Server.Handler NoContent
+returnValue :: Settings -> Value -> Servant.Server.Handler NoContent
 returnValue settings value = do
   liftIO $ MVar.putMVar (receivedValue settings) value
   pure NoContent
