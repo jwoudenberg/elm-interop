@@ -35,6 +35,7 @@ module Servant.Interop
   )
 where
 
+import Data.Kind (Type)
 import Data.Functor.Foldable (Fix (Fix))
 import Data.Kind (Constraint)
 import qualified Data.Map.Strict as Map
@@ -257,7 +258,7 @@ instance
           responseBody = t
         }
 
-type family CheckContentType (ys :: [*]) :: Constraint where
+type family CheckContentType (ys :: [Type]) :: Constraint where
   CheckContentType xs = (HasWIREContentType xs, NoJSONContentType xs)
 
 -- The WIRE content type is using JSON under the hood. We cannot allow not allow
@@ -285,7 +286,7 @@ type JSONContentTypeNotAllowedMessage =
     ':$$: 'Text "    type Endpoint = NoWire :> \"api\" :> Get '[JSON] Text"
     ':$$: 'Text ""
 
-type family NoJSONContentType (ys :: [*]) :: Constraint where
+type family NoJSONContentType (ys :: [Type]) :: Constraint where
   NoJSONContentType '[] = ()
   NoJSONContentType (JSON ': ys) = TypeError JSONContentTypeNotAllowedMessage
   NoJSONContentType (_ ': ys) = NoJSONContentType ys
@@ -305,7 +306,7 @@ type MissingWIREContentTypeMessage =
     ':$$: 'Text "    type Endpoint = NoWire :> \"api\" :> Get '[PlainText] Text"
     ':$$: 'Text ""
 
-type family HasWIREContentType (ys :: [*]) :: Constraint where
+type family HasWIREContentType (ys :: [Type]) :: Constraint where
   HasWIREContentType '[] = TypeError MissingWIREContentTypeMessage
   HasWIREContentType (WIRE ': ys) = ()
   HasWIREContentType (_ ': ys) = HasWIREContentType ys

@@ -20,6 +20,7 @@ module Wire.Parameter
   )
 where
 
+import Data.Kind (Type)
 import Data.Int (Int32)
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text as T
@@ -54,7 +55,7 @@ instance ParameterType Int32 where
 instance ParameterType T.Text where
   parameterType _ = Parameter String Nothing
 
-class ParameterTypeG (f :: * -> *) where
+class ParameterTypeG (f :: Type -> Type) where
   parameterTypeG :: Proxy f -> Parameter
 
 -- | Generics instance for a data or newtype wrapper type.

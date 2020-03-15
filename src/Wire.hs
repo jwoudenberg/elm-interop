@@ -34,6 +34,7 @@ module Wire
   )
 where
 
+import Data.Kind (Type)
 import Control.Applicative ((<|>))
 import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
@@ -186,7 +187,7 @@ wireType = swap . flip runReader mempty . runWriterT . wireType'
 -- Class of types that have a wire format representation.
 class
   Typeable a =>
-  Rep (a :: *) where
+  Rep (a :: Type) where
 
   wireType' :: Proxy a -> Builder Type_
 
@@ -494,7 +495,7 @@ instance (Rep a, Rep b) => Rep (Either a b)
 -- |
 -- Helper class for constructing write types from generic representations of
 -- types.
-class WireG (f :: * -> *) where
+class WireG (f :: Type -> Type) where
 
   wireTypeG :: Proxy f -> Builder Type_
 
@@ -527,7 +528,7 @@ instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
 
 -- |
 -- Helper class for constructing sums of types.
-class SumsG (f :: * -> *) where
+class SumsG (f :: Type -> Type) where
 
   sumsG :: Proxy f -> Builder (Seq (ConstructorName, Type_))
 
@@ -590,7 +591,7 @@ instance SumsG V1 where
 
 -- |
 -- Helper class for constructing products.
-class ProductG (f :: * -> *) where
+class ProductG (f :: Type -> Type) where
 
   productG :: Proxy f -> Builder (Seq (FieldName, Type_))
 
