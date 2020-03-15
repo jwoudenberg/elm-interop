@@ -120,7 +120,7 @@ roundtripTests =
     Warp.testWithApplication (pure (app settings)) $ \port -> do
       let location = "http://localhost:" <> show port <> "/index.html"
       MVar.putMVar servedValue (Examples.Roundtrip.Value 42)
-      Process.withProcess (chromeProc location) $ \chrome -> do
+      Process.withProcessTerm (chromeProc location) $ \chrome -> do
         let _stdin = Process.getStdin chrome
         -- System.IO.hPutStrLn stdin ("location.assign('" <> location <> "');")
         -- System.IO.hFlush stdin
