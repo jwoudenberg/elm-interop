@@ -9,6 +9,7 @@ pkgs.haskellPackages.shellFor {
     pkgs.haskellPackages.ghcid
     pkgs.haskellPackages.hpack
     pkgs.libiconv
+    pkgs.ormolu
     pkgs.ncurses
     pkgs.stack
     pkgs.zlib
