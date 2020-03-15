@@ -79,6 +79,7 @@ data WIRE
 
 instance Accept WIRE where
   contentType _ = contentType (Proxy :: Proxy JSON)
+  contentTypes _ = contentTypes (Proxy :: Proxy JSON)
 
 instance Wire.Rep a => MimeRender WIRE a where
   mimeRender _ x =
