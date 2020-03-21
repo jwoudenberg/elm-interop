@@ -451,7 +451,7 @@ printValue' =
             -- When no more function applications are found, the value we find
             -- at the root is the function name itself.
             (f :< more) ->
-              hangCollapse $ PP.vsep (extractParens (f :< more) : args)
+              hangCollapse $ PP.vsep (PP.nest (- elmIndent) (extractParens (f :< more)) : args)
     MkVar name -> PP.pretty name
     MkCase matched branches ->
       fromString "case"

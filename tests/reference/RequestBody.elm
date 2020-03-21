@@ -72,11 +72,11 @@ encodeMoney (Money param1) =
     Json.Encode.list
         identity
         [ (\{ amount, currency } ->
-                Json.Encode.object
-                    [ ( "amount", Json.Encode.int amount )
-                    , ( "currency", Json.Encode.string currency )
-                    ]
-            )
+            Json.Encode.object
+                [ ( "amount", Json.Encode.int amount )
+                , ( "currency", Json.Encode.string currency )
+                ]
+          )
             param1
         ]
 

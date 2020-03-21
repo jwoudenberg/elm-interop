@@ -29,11 +29,11 @@ encodeTurtle (Turtle param1) =
     Json.Encode.list
         identity
         [ (\{ name, onBackOf } ->
-                Json.Encode.object
-                    [ ( "name", Json.Encode.string name )
-                    , ( "onBackOf", encodeTurtle onBackOf )
-                    ]
-            )
+            Json.Encode.object
+                [ ( "name", Json.Encode.string name )
+                , ( "onBackOf", encodeTurtle onBackOf )
+                ]
+          )
             param1
         ]
 

@@ -45,11 +45,9 @@ encodeDog (Dog param1) =
     Json.Encode.list
         identity
         [ (\{ name, age } ->
-                Json.Encode.object
-                    [ ( "name", encodeName name )
-                    , ( "age", Json.Encode.int age )
-                    ]
-            )
+            Json.Encode.object
+                [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
+          )
             param1
         ]
 

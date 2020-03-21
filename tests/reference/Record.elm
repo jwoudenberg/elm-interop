@@ -29,12 +29,12 @@ encodeSock (Sock param1) =
     Json.Encode.list
         identity
         [ (\{ color, pattern, holes } ->
-                Json.Encode.object
-                    [ ( "color", Json.Encode.string color )
-                    , ( "pattern", encodePattern pattern )
-                    , ( "holes", Json.Encode.int holes )
-                    ]
-            )
+            Json.Encode.object
+                [ ( "color", Json.Encode.string color )
+                , ( "pattern", encodePattern pattern )
+                , ( "holes", Json.Encode.int holes )
+                ]
+          )
             param1
         ]
 
