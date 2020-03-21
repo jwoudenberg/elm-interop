@@ -53,6 +53,7 @@ tests:
     - directory
     - elm-interop
     - typed-process
+    - safe-exceptions
     - servant
     - servant-server
     - warp

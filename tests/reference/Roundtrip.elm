@@ -37,16 +37,28 @@ postRoundtrip { body } =
 
 
 type Value
-    = Value Int
+    = Record { int : Int, text : String }
 
 
 encodeValue : Value -> Json.Encode.Value
-encodeValue (Value param1) =
-    Json.Encode.list identity [ Json.Encode.int param1 ]
+encodeValue (Record param1) =
+    Json.Encode.list
+        identity
+        [ (\{ int, text } ->
+            Json.Encode.object
+                [ ( "int", Json.Encode.int int )
+                , ( "text", Json.Encode.string text )
+                ]
+          )
+            param1
+        ]
 
 
 decoderValue : Json.Decode.Decoder Value
 decoderValue =
-    Json.Decode.int
+    Json.Decode.map2
+        (\int text -> { int = int, text = text })
+        Json.Decode.int
+        Json.Decode.string
         |> Json.Decode.index 0
-        |> Json.Decode.map Value
+        |> Json.Decode.map Record

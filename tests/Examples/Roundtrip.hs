@@ -12,6 +12,7 @@ where
 
 import qualified Control.Concurrent.MVar as MVar
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Servant.API
 import Servant.Interop (Rep, WIRE)
@@ -28,8 +29,12 @@ type ReturnValue =
     :> ReqBody '[WIRE] Value
     :> Post '[WIRE] NoContent
 
-newtype Value = Value Int
-  deriving (Generic, Show)
+data Value
+  = Record
+      { int :: Int,
+        text :: T.Text
+      }
+  deriving (Eq, Generic, Show)
 
 instance Rep Value
 

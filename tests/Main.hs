@@ -8,7 +8,7 @@ module Main
 where
 
 import Control.Concurrent.MVar as MVar
-import Control.Monad.IO.Class (liftIO)
+import qualified Control.Exception.Safe as Exception
 import Data.Function ((&))
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text as T
@@ -112,21 +112,33 @@ elmFormatTestFor (Example name _) =
 
 roundtripTests :: TestTree
 roundtripTests =
-  HUnit.testCase "roundtrip"
-    $ System.IO.withFile "test.log" System.IO.AppendMode
-    $ \logFile -> do
-      liftIO $ compileElmTestApp logFile
-      servedValue <- liftIO $ MVar.newEmptyMVar
-      receivedValue <- liftIO $ MVar.newEmptyMVar
-      let settings = Examples.Roundtrip.Settings servedValue receivedValue
-      Warp.testWithApplication (pure (app settings)) $ \port -> do
-        let location = "http://localhost:" <> show port <> "/index.html"
-        MVar.putMVar servedValue (Examples.Roundtrip.Value 42)
-        Process.withProcessTerm (logTo logFile (chromeProc location)) $ \_ -> do
-          res <- System.Timeout.timeout 1000000 $ MVar.takeMVar receivedValue
-          case res of
-            Nothing -> fail "No response from Elm app within aloted time."
-            Just val -> print val
+  HUnit.testCase "roundtrip" $ do
+    let logFilePath = "/tmp/servant-interop-haskell-tests.log"
+    logFileExists <- Directory.doesFileExist logFilePath
+    if logFileExists
+      then Directory.removeFile logFilePath
+      else pure ()
+    flip Exception.onException (printFile logFilePath)
+      $ System.IO.withFile logFilePath System.IO.AppendMode
+      $ \logFile -> do
+        let input = Examples.Roundtrip.Record 42 "Hi there!"
+        compileElmTestApp logFile
+        servedValue <- MVar.newEmptyMVar
+        receivedValue <- MVar.newEmptyMVar
+        let settings = Examples.Roundtrip.Settings servedValue receivedValue
+        Warp.testWithApplication (pure (app settings)) $ \port -> do
+          let location = "http://localhost:" <> show port <> "/index.html"
+          MVar.putMVar servedValue input
+          Process.withProcessTerm (logTo logFile (chromeProc location)) $ \_ -> do
+            res <- System.Timeout.timeout 1000000 $ MVar.takeMVar receivedValue
+            case res of
+              Nothing -> fail "No response from Elm app within aloted time."
+              Just output -> HUnit.assertEqual "" input output
+
+printFile :: FilePath -> IO ()
+printFile path = do
+  contents <- System.IO.readFile path
+  System.IO.putStr contents
 
 chromeProc :: String -> Process.ProcessConfig () () ()
 chromeProc location = do
