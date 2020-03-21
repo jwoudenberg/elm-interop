@@ -11,7 +11,8 @@ getSocks {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderSock
+        , expect =
+            Http.expectJson identity (Json.Decode.lazy (\_ -> decoderSock))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "socks" ] (List.concat [])
         , headers = []
@@ -45,7 +46,7 @@ decoderSock =
             { color = color, pattern = pattern, holes = holes }
         )
         Json.Decode.string
-        decoderPattern
+        (Json.Decode.lazy (\_ -> decoderPattern))
         Json.Decode.int
         |> Json.Decode.index 0
         |> Json.Decode.map Sock

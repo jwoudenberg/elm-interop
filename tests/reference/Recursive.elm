@@ -11,7 +11,8 @@ getTurtles {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderTurtle
+        , expect =
+            Http.expectJson identity (Json.Decode.lazy (\_ -> decoderTurtle))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "turtles" ] (List.concat [])
         , headers = []
@@ -42,6 +43,6 @@ decoderTurtle =
     Json.Decode.map2
         (\name onBackOf -> { name = name, onBackOf = onBackOf })
         Json.Decode.string
-        decoderTurtle
+        (Json.Decode.lazy (\_ -> decoderTurtle))
         |> Json.Decode.index 0
         |> Json.Decode.map Turtle

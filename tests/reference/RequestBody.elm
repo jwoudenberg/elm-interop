@@ -11,7 +11,8 @@ postFish { body } =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderFish
+        , expect =
+            Http.expectJson identity (Json.Decode.lazy (\_ -> decoderFish))
         , body =
             body
                 |> encodeMoney

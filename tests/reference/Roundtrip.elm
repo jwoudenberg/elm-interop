@@ -11,7 +11,8 @@ getRoundtrip {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderValue
+        , expect =
+            Http.expectJson identity (Json.Decode.lazy (\_ -> decoderValue))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "roundtrip" ] (List.concat [])
         , headers = []

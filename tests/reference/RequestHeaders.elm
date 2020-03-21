@@ -13,7 +13,8 @@ getSecret { password, fingerprint, voiceprint } =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderSecret
+        , expect =
+            Http.expectJson identity (Json.Decode.lazy (\_ -> decoderSecret))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "secret" ] (List.concat [])
         , headers =

@@ -11,7 +11,10 @@ getDogs {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity (Json.Decode.list decoderDog)
+        , expect =
+            Http.expectJson
+                identity
+                (Json.Decode.list (Json.Decode.lazy (\_ -> decoderDog)))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "dogs" ] (List.concat [])
         , headers = []
@@ -24,7 +27,8 @@ getToys {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderToy
+        , expect =
+            Http.expectJson identity (Json.Decode.lazy (\_ -> decoderToy))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "toys" ] (List.concat [])
         , headers = []
@@ -54,7 +58,7 @@ decoderDog : Json.Decode.Decoder Dog
 decoderDog =
     Json.Decode.map2
         (\name age -> { name = name, age = age })
-        decoderName
+        (Json.Decode.lazy (\_ -> decoderName))
         Json.Decode.int
         |> Json.Decode.index 0
         |> Json.Decode.map Dog

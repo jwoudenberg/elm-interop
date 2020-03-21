@@ -13,7 +13,10 @@ getStopStartRoute { start, stop } =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderKilometers
+        , expect =
+            Http.expectJson
+                identity
+                (Json.Decode.lazy (\_ -> decoderKilometers))
         , body = Http.emptyBody
         , url =
             Url.Builder.absolute

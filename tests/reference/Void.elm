@@ -11,7 +11,10 @@ getWish {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderEitherVoidUnicorn
+        , expect =
+            Http.expectJson
+                identity
+                (Json.Decode.lazy (\_ -> decoderEitherVoidUnicorn))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "wish" ] (List.concat [])
         , headers = []
@@ -48,7 +51,7 @@ decoderEitherVoidUnicorn =
                                 |> Json.Decode.map Left
 
                         "Right" ->
-                            decoderUnicorn
+                            Json.Decode.lazy (\_ -> decoderUnicorn)
                                 |> Json.Decode.index 0
                                 |> Json.Decode.map Right
 

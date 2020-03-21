@@ -13,7 +13,10 @@ getGroceries { maxPrice, bio, brands } =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity (Json.Decode.list decoderGrocery)
+        , expect =
+            Http.expectJson
+                identity
+                (Json.Decode.list (Json.Decode.lazy (\_ -> decoderGrocery)))
         , body = Http.emptyBody
         , url =
             Url.Builder.absolute

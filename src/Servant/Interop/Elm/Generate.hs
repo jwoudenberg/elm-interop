@@ -242,7 +242,7 @@ elmDecoder =
           anyType $ lambda $ matchVar name $ \x -> recordLambda' rest (addField name x record)
     Lambda _ _ -> error "Cannot decode lambda function from JSON"
     Cmd _ -> error "Cannot decode Cmd"
-    Defined name _ -> v (decoderNameForType name)
+    Defined name _ -> fn1 (var _Json_Decode_lazy) $ lambda $ matchVar "_" (\_ -> v (decoderNameForType name))
 
 decodeMapN :: [ElmValue (Decoder g)] -> ElmValue (Decoder value) -> ElmValue (Decoder value)
 decodeMapN decoders fn =

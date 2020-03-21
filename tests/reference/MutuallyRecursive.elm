@@ -11,7 +11,10 @@ getDuet {} =
     Http.request
         { tracker = Nothing
         , timeout = Nothing
-        , expect = Http.expectJson identity decoderBackAndForthText
+        , expect =
+            Http.expectJson
+                identity
+                (Json.Decode.lazy (\_ -> decoderBackAndForthText))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "duet" ] (List.concat [])
         , headers = []
@@ -37,7 +40,7 @@ decoderForthText =
         (Json.Decode.string
             |> Json.Decode.index 0
         )
-        (decoderBackAndForthText
+        (Json.Decode.lazy (\_ -> decoderBackAndForthText)
             |> Json.Decode.index 1
         )
 
@@ -60,6 +63,6 @@ decoderBackAndForthText =
         (Json.Decode.string
             |> Json.Decode.index 0
         )
-        (decoderForthText
+        (Json.Decode.lazy (\_ -> decoderForthText)
             |> Json.Decode.index 1
         )
