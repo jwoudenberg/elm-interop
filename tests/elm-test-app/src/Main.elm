@@ -3,6 +3,7 @@ module Main exposing (main)
 import Browser
 import Html
 import Http
+import Json.Encode
 import Roundtrip
 
 
@@ -59,6 +60,10 @@ update msg model =
                     Debug.todo (Debug.toString httpError)
 
                 Ok value ->
+                    let
+                        json =
+                            Debug.log "Outgoing JSON" (Json.Encode.encode 2 (Roundtrip.encodeValue value))
+                    in
                     ( model
                     , Roundtrip.postRoundtrip
                         { body = value
