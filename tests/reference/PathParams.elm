@@ -36,14 +36,13 @@ type City
 
 
 encodeCity : City -> Json.Encode.Value
-encodeCity (City param1) =
-    Json.Encode.list identity [ Json.Encode.string param1 ]
+encodeCity (City param) =
+    Json.Encode.string param
 
 
 decoderCity : Json.Decode.Decoder City
 decoderCity =
     Json.Decode.string
-        |> Json.Decode.index 0
         |> Json.Decode.map City
 
 
@@ -52,12 +51,11 @@ type Kilometers
 
 
 encodeKilometers : Kilometers -> Json.Encode.Value
-encodeKilometers (Kilometers param1) =
-    Json.Encode.list identity [ Json.Encode.int param1 ]
+encodeKilometers (Kilometers param) =
+    Json.Encode.int param
 
 
 decoderKilometers : Json.Decode.Decoder Kilometers
 decoderKilometers =
     Json.Decode.int
-        |> Json.Decode.index 0
         |> Json.Decode.map Kilometers

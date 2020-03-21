@@ -41,17 +41,14 @@ type Value
 
 
 encodeValue : Value -> Json.Encode.Value
-encodeValue (Record param1) =
-    Json.Encode.list
-        identity
-        [ (\{ int, text } ->
-            Json.Encode.object
-                [ ( "int", Json.Encode.int int )
-                , ( "text", Json.Encode.string text )
-                ]
-          )
-            param1
-        ]
+encodeValue (Record param) =
+    (\{ int, text } ->
+        Json.Encode.object
+            [ ( "int", Json.Encode.int int )
+            , ( "text", Json.Encode.string text )
+            ]
+    )
+        param
 
 
 decoderValue : Json.Decode.Decoder Value
@@ -60,5 +57,4 @@ decoderValue =
         (\int text -> { int = int, text = text })
         Json.Decode.int
         Json.Decode.string
-        |> Json.Decode.index 0
         |> Json.Decode.map Record

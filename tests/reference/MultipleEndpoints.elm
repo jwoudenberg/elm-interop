@@ -41,15 +41,12 @@ type Dog
 
 
 encodeDog : Dog -> Json.Encode.Value
-encodeDog (Dog param1) =
-    Json.Encode.list
-        identity
-        [ (\{ name, age } ->
-            Json.Encode.object
-                [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
-          )
-            param1
-        ]
+encodeDog (Dog param) =
+    (\{ name, age } ->
+        Json.Encode.object
+            [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
+    )
+        param
 
 
 decoderDog : Json.Decode.Decoder Dog
@@ -58,7 +55,6 @@ decoderDog =
         (\name age -> { name = name, age = age })
         (Json.Decode.lazy (\_ -> decoderName))
         Json.Decode.int
-        |> Json.Decode.index 0
         |> Json.Decode.map Dog
 
 
@@ -67,14 +63,13 @@ type Name
 
 
 encodeName : Name -> Json.Encode.Value
-encodeName (Name param1) =
-    Json.Encode.list identity [ Json.Encode.string param1 ]
+encodeName (Name param) =
+    Json.Encode.string param
 
 
 decoderName : Json.Decode.Decoder Name
 decoderName =
     Json.Decode.string
-        |> Json.Decode.index 0
         |> Json.Decode.map Name
 
 

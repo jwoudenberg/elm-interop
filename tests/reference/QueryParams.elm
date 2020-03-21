@@ -47,14 +47,13 @@ type EuroCents
 
 
 encodeEuroCents : EuroCents -> Json.Encode.Value
-encodeEuroCents (EuroCents param1) =
-    Json.Encode.list identity [ Json.Encode.int param1 ]
+encodeEuroCents (EuroCents param) =
+    Json.Encode.int param
 
 
 decoderEuroCents : Json.Decode.Decoder EuroCents
 decoderEuroCents =
     Json.Decode.int
-        |> Json.Decode.index 0
         |> Json.Decode.map EuroCents
 
 

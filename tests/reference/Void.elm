@@ -30,11 +30,11 @@ type EitherVoidUnicorn
 encodeEitherVoidUnicorn : EitherVoidUnicorn -> Json.Encode.Value
 encodeEitherVoidUnicorn eitherVoidUnicorn =
     case eitherVoidUnicorn of
-        Left param1 ->
-            Json.Encode.list identity [ never param1 ]
+        Left param ->
+            never param
 
-        Right param1 ->
-            Json.Encode.list identity [ encodeUnicorn param1 ]
+        Right param ->
+            encodeUnicorn param
 
 
 decoderEitherVoidUnicorn : Json.Decode.Decoder EitherVoidUnicorn
@@ -47,12 +47,10 @@ decoderEitherVoidUnicorn =
                         "Left" ->
                             Json.Decode.fail
                                 "Cannot decode Never type from JSON"
-                                |> Json.Decode.index 0
                                 |> Json.Decode.map Left
 
                         "Right" ->
                             Json.Decode.lazy (\_ -> decoderUnicorn)
-                                |> Json.Decode.index 0
                                 |> Json.Decode.map Right
 
                         _ ->

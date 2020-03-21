@@ -68,17 +68,14 @@ type Money
 
 
 encodeMoney : Money -> Json.Encode.Value
-encodeMoney (Money param1) =
-    Json.Encode.list
-        identity
-        [ (\{ amount, currency } ->
-            Json.Encode.object
-                [ ( "amount", Json.Encode.int amount )
-                , ( "currency", Json.Encode.string currency )
-                ]
-          )
-            param1
-        ]
+encodeMoney (Money param) =
+    (\{ amount, currency } ->
+        Json.Encode.object
+            [ ( "amount", Json.Encode.int amount )
+            , ( "currency", Json.Encode.string currency )
+            ]
+    )
+        param
 
 
 decoderMoney : Json.Decode.Decoder Money
@@ -87,5 +84,4 @@ decoderMoney =
         (\amount currency -> { amount = amount, currency = currency })
         Json.Decode.int
         Json.Decode.string
-        |> Json.Decode.index 0
         |> Json.Decode.map Money

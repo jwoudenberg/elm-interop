@@ -140,15 +140,22 @@ encoderForType (TypeName typeName) typeDef =
               encodeCtor name params
         encodeCtor :: Wire.ConstructorName -> [ElmType] -> (Pattern p, ElmValue Value)
         encodeCtor name params =
-          matchCtorN
-            (fromVarName $ Wire.unConstructorName name)
-            (fst <$> keyedParams params)
-            ( \param ->
-                case lookup (varName param) (keyedParams params) of
-                  Nothing -> error "Lookup of constructor param failed"
-                  Just elmType -> fn1 (elmEncoder elmType) (var param)
-            )
-            (fn2 (var _Json_Encode_list) (var _identity) . list)
+          case params of
+            [singleParamType] ->
+              matchCtor1
+                (fromVarName $ Wire.unConstructorName name)
+                "param"
+                (\singleParamVal -> fn1 (elmEncoder singleParamType) singleParamVal)
+            _ ->
+              matchCtorN
+                (fromVarName $ Wire.unConstructorName name)
+                (fst <$> keyedParams params)
+                ( \param ->
+                    case lookup (varName param) (keyedParams params) of
+                      Nothing -> error "Lookup of constructor param failed"
+                      Just elmType -> fn1 (elmEncoder elmType) (var param)
+                )
+                (fn2 (var _Json_Encode_list) (var _identity) . list)
         keyedParams :: [ElmType] -> [(T.Text, ElmType)]
         keyedParams params =
           zipWith (\i param -> ("param" <> (T.pack $ show i), param)) [(1 :: Int) ..] params
@@ -294,12 +301,17 @@ decoderForType typeDef =
 
 decodeParams :: (Wire.ConstructorName, [ElmType]) -> ElmValue (Decoder Any)
 decodeParams (Wire.ConstructorName ctorName, params) =
-  decodeMapN
-    (zipWith paramDecoder [0 ..] params)
-    (var (fromVarName ctorName))
-  where
-    paramDecoder :: Int32 -> ElmType -> ElmValue (Decoder Any)
-    paramDecoder n param = elmDecoder param |> fn1 (var _Json_Decode_index) (int n)
+  case params of
+    [singleParamType] ->
+      elmDecoder singleParamType
+        |> fn1 (var _Json_Decode_map) (var (fromVarName ctorName))
+    _ ->
+      decodeMapN
+        (zipWith paramDecoder [0 ..] params)
+        (var (fromVarName ctorName))
+      where
+        paramDecoder :: Int32 -> ElmType -> ElmValue (Decoder Any)
+        paramDecoder n param = elmDecoder param |> fn1 (var _Json_Decode_index) (int n)
 
 generateClient :: Endpoint -> ElmFunction
 generateClient endpoint =

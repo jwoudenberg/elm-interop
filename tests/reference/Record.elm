@@ -25,18 +25,15 @@ type Sock
 
 
 encodeSock : Sock -> Json.Encode.Value
-encodeSock (Sock param1) =
-    Json.Encode.list
-        identity
-        [ (\{ color, pattern, holes } ->
-            Json.Encode.object
-                [ ( "color", Json.Encode.string color )
-                , ( "pattern", encodePattern pattern )
-                , ( "holes", Json.Encode.int holes )
-                ]
-          )
-            param1
-        ]
+encodeSock (Sock param) =
+    (\{ color, pattern, holes } ->
+        Json.Encode.object
+            [ ( "color", Json.Encode.string color )
+            , ( "pattern", encodePattern pattern )
+            , ( "holes", Json.Encode.int holes )
+            ]
+    )
+        param
 
 
 decoderSock : Json.Decode.Decoder Sock
@@ -48,7 +45,6 @@ decoderSock =
         Json.Decode.string
         (Json.Decode.lazy (\_ -> decoderPattern))
         Json.Decode.int
-        |> Json.Decode.index 0
         |> Json.Decode.map Sock
 
 

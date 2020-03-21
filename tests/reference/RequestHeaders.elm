@@ -31,14 +31,13 @@ type Password
 
 
 encodePassword : Password -> Json.Encode.Value
-encodePassword (Password param1) =
-    Json.Encode.list identity [ Json.Encode.string param1 ]
+encodePassword (Password param) =
+    Json.Encode.string param
 
 
 decoderPassword : Json.Decode.Decoder Password
 decoderPassword =
     Json.Decode.string
-        |> Json.Decode.index 0
         |> Json.Decode.map Password
 
 
@@ -47,12 +46,11 @@ type Secret
 
 
 encodeSecret : Secret -> Json.Encode.Value
-encodeSecret (Secret param1) =
-    Json.Encode.list identity [ Json.Encode.string param1 ]
+encodeSecret (Secret param) =
+    Json.Encode.string param
 
 
 decoderSecret : Json.Decode.Decoder Secret
 decoderSecret =
     Json.Decode.string
-        |> Json.Decode.index 0
         |> Json.Decode.map Secret
