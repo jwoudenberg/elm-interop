@@ -469,15 +469,15 @@ printValue' =
         printBranch match body =
           printPattern False match <+> fromString "->" <++> PP.indent elmIndent body
     MkIfThenElse cond if_ else_ ->
-      PP.align $
-        fromString "if"
+      PP.column $ \column ->
+        "if"
           <+> extract cond
-          <+> fromString "then"
+          <+> "then"
             <> PP.hardline
             <> PP.indent elmIndent (extract if_)
             <> PP.hardline
             <> PP.hardline
-            <> fromString "else"
+            <> setIndent column "else"
             <> PP.hardline
             <> PP.indent elmIndent (extract else_)
 

@@ -8,6 +8,7 @@
 
 module Servant.Interop.Elm.Print where
 
+import qualified Data.Text as T
 import Data.Text.Prettyprint.Doc ((<+>))
 import qualified Data.Text.Prettyprint.Doc as PP
 
@@ -43,7 +44,10 @@ encloseSep' left right sp ds =
 
 setIndent :: Int -> Doc -> Doc
 setIndent target doc =
-  PP.column (\current -> PP.indent (target - current) doc)
+  PP.column (\current -> spaces (target - current) <> doc)
+
+spaces :: Int -> Doc
+spaces n = PP.pretty (T.replicate n (" "))
 
 -- |
 -- Switch between hanging formatting or single-line formatting.
@@ -58,7 +62,17 @@ setIndent target doc =
 --
 --     line1 line2 line3
 hangCollapse :: Doc -> Doc
-hangCollapse = PP.nest elmIndent . PP.group
+hangCollapse doc =
+  PP.column
+    ( \column ->
+        PP.nesting
+          ( \nesting ->
+              PP.nest (nextNestingLevel column - nesting) (PP.group doc)
+          )
+    )
+
+nextNestingLevel :: Int -> Int
+nextNestingLevel column = column + (4 - (column `mod` 4))
 
 data TypeAppearance
   = -- | The printed type consists of a single word, like `Int` or `Thing`.

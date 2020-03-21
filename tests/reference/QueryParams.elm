@@ -23,16 +23,16 @@ getGroceries { maxPrice, bio, brands } =
                 [ "groceries" ]
                 (List.concat
                     [ [ (\(EuroCents int) -> Url.Builder.int "max-price" int)
-                          maxPrice
+                            maxPrice
                       ]
                     , [ Url.Builder.string
-                          "bio"
-                          (if bio then
-                               "true"
+                            "bio"
+                            (if bio then
+                                "true"
 
-                           else
-                               "false"
-                          )
+                             else
+                                "false"
+                            )
                       ]
                     , List.map (\x -> Url.Builder.string "brands[]" x) brands
                     ]
