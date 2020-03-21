@@ -3,3 +3,4 @@
 *.cabal
 Setup.hs
 dist-newstyle
+test.log

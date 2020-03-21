@@ -112,25 +112,24 @@ elmFormatTestFor (Example name _) =
 
 roundtripTests :: TestTree
 roundtripTests =
-  HUnit.testCase "roundtrip" $ do
-    liftIO compileElmTestApp
-    servedValue <- liftIO $ MVar.newEmptyMVar
-    receivedValue <- liftIO $ MVar.newEmptyMVar
-    let settings = Examples.Roundtrip.Settings servedValue receivedValue
-    Warp.testWithApplication (pure (app settings)) $ \port -> do
-      let location = "http://localhost:" <> show port <> "/index.html"
-      MVar.putMVar servedValue (Examples.Roundtrip.Value 42)
-      Process.withProcessTerm (chromeProc location) $ \chrome -> do
-        let _stdin = Process.getStdin chrome
-        -- System.IO.hPutStrLn stdin ("location.assign('" <> location <> "');")
-        -- System.IO.hFlush stdin
-        res <- System.Timeout.timeout 1000000 $ MVar.takeMVar receivedValue
-        case res of
-          Nothing -> fail "No response from Elm app within aloted time."
-          Just val -> print val
+  HUnit.testCase "roundtrip"
+    $ System.IO.withFile "test.log" System.IO.AppendMode
+    $ \logFile -> do
+      liftIO $ compileElmTestApp logFile
+      servedValue <- liftIO $ MVar.newEmptyMVar
+      receivedValue <- liftIO $ MVar.newEmptyMVar
+      let settings = Examples.Roundtrip.Settings servedValue receivedValue
+      Warp.testWithApplication (pure (app settings)) $ \port -> do
+        let location = "http://localhost:" <> show port <> "/index.html"
+        MVar.putMVar servedValue (Examples.Roundtrip.Value 42)
+        Process.withProcessTerm (logTo logFile (chromeProc location)) $ \_ -> do
+          res <- System.Timeout.timeout 1000000 $ MVar.takeMVar receivedValue
+          case res of
+            Nothing -> fail "No response from Elm app within aloted time."
+            Just val -> print val
 
-chromeProc :: String -> Process.ProcessConfig System.IO.Handle () ()
-chromeProc location =
+chromeProc :: String -> Process.ProcessConfig () () ()
+chromeProc location = do
   Process.proc
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     [ "--headless",
@@ -148,12 +147,17 @@ chromeProc location =
       "--remote-debugging-port=22233",
       location
     ]
-    & Process.setStdin Process.createPipe
 
-compileElmTestApp :: IO ()
-compileElmTestApp =
+logTo :: System.IO.Handle -> Process.ProcessConfig stdin stdout stderr -> Process.ProcessConfig stdin () ()
+logTo handle process =
+  process
+    & Process.setStdout (Process.useHandleOpen handle)
+    & Process.setStderr (Process.useHandleOpen handle)
+
+compileElmTestApp :: System.IO.Handle -> IO ()
+compileElmTestApp logHandle =
   Directory.withCurrentDirectory "tests/elm-test-app" $ do
-    Process.runProcess_ $
+    Process.runProcess_ $ logTo logHandle $
       Process.proc "elm" ["make", "src/Main.elm", "--output", "index.html"]
 
 app :: Examples.Roundtrip.Settings -> Servant.Server.Application
