@@ -82,6 +82,6 @@ decoderMoney : Json.Decode.Decoder Money
 decoderMoney =
     Json.Decode.map2
         (\amount currency -> { amount = amount, currency = currency })
-        Json.Decode.int
-        Json.Decode.string
+        (Json.Decode.field "amount" Json.Decode.int)
+        (Json.Decode.field "currency" Json.Decode.string)
         |> Json.Decode.map Money

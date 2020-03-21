@@ -39,6 +39,6 @@ decoderTurtle : Json.Decode.Decoder Turtle
 decoderTurtle =
     Json.Decode.map2
         (\name onBackOf -> { name = name, onBackOf = onBackOf })
-        Json.Decode.string
-        (Json.Decode.lazy (\_ -> decoderTurtle))
+        (Json.Decode.field "name" Json.Decode.string)
+        (Json.Decode.field "onBackOf" (Json.Decode.lazy (\_ -> decoderTurtle)))
         |> Json.Decode.map Turtle

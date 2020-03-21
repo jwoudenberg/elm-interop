@@ -239,7 +239,7 @@ elmDecoder =
           lambda $ matchVar "x" $ \x ->
             lambda $ matchVar "y" $ \y ->
               lambda $ matchVar "z" $ \z -> tuple3 x y z
-    Record fields' -> decodeMapN (snd <$> fields) recordLambda
+    Record fields' -> decodeMapN (fieldDecoder <$> fields) recordLambda
       where
         fields = first Wire.unFieldName <$> fields'
         recordLambda = recordLambda' (fst <$> reverse fields) emptyRecord
@@ -247,6 +247,8 @@ elmDecoder =
         recordLambda' [] record = mkRecord record
         recordLambda' (name : rest) record =
           anyType $ lambda $ matchVar name $ \x -> recordLambda' rest (addField name x record)
+        fieldDecoder :: (T.Text, ElmValue (Decoder g)) -> ElmValue (Decoder g)
+        fieldDecoder (name, decoder) = fn2 (var _Json_Decode_field) (string name) decoder
     Lambda _ _ -> error "Cannot decode lambda function from JSON"
     Cmd _ -> error "Cannot decode Cmd"
     Defined name _ -> fn1 (var _Json_Decode_lazy) $ lambda $ matchVar "_" (\_ -> v (decoderNameForType name))

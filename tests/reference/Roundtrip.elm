@@ -55,6 +55,6 @@ decoderValue : Json.Decode.Decoder Value
 decoderValue =
     Json.Decode.map2
         (\int text -> { int = int, text = text })
-        Json.Decode.int
-        Json.Decode.string
+        (Json.Decode.field "int" Json.Decode.int)
+        (Json.Decode.field "text" Json.Decode.string)
         |> Json.Decode.map Record

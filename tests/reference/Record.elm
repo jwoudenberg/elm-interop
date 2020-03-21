@@ -42,9 +42,9 @@ decoderSock =
         (\color pattern holes ->
             { color = color, pattern = pattern, holes = holes }
         )
-        Json.Decode.string
-        (Json.Decode.lazy (\_ -> decoderPattern))
-        Json.Decode.int
+        (Json.Decode.field "color" Json.Decode.string)
+        (Json.Decode.field "pattern" (Json.Decode.lazy (\_ -> decoderPattern)))
+        (Json.Decode.field "holes" Json.Decode.int)
         |> Json.Decode.map Sock
 
 

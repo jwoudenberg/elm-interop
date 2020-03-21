@@ -53,8 +53,8 @@ decoderDog : Json.Decode.Decoder Dog
 decoderDog =
     Json.Decode.map2
         (\name age -> { name = name, age = age })
-        (Json.Decode.lazy (\_ -> decoderName))
-        Json.Decode.int
+        (Json.Decode.field "name" (Json.Decode.lazy (\_ -> decoderName)))
+        (Json.Decode.field "age" Json.Decode.int)
         |> Json.Decode.map Dog
 
 
