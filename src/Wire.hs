@@ -34,7 +34,6 @@ module Wire
   )
 where
 
-import Data.Kind (Type)
 import Control.Applicative ((<|>))
 import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
@@ -47,6 +46,7 @@ import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable)
 import Data.Int (Int32)
+import Data.Kind (Type)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Proxy (Proxy (Proxy))
@@ -188,7 +188,6 @@ wireType = swap . flip runReader mempty . runWriterT . wireType'
 class
   Typeable a =>
   Rep (a :: Type) where
-
   wireType' :: Proxy a -> Builder Type_
 
   toWire :: a -> Value
@@ -232,7 +231,6 @@ newtype ParamNames
   deriving (Semigroup, Monoid)
 
 instance Rep Int where
-
   wireType' _ = pure $ Fix Int
 
   toWire = MkInt . fromIntegral
@@ -241,7 +239,6 @@ instance Rep Int where
   fromWire _ = Nothing
 
 instance Rep Int32 where
-
   wireType' _ = pure $ Fix Int
 
   toWire = MkInt
@@ -250,7 +247,6 @@ instance Rep Int32 where
   fromWire _ = Nothing
 
 instance Rep Double where
-
   wireType' _ = pure $ Fix Float
 
   toWire = MkFloat
@@ -259,7 +255,6 @@ instance Rep Double where
   fromWire _ = Nothing
 
 instance Rep Text where
-
   wireType' _ = pure $ Fix String
 
   toWire = MkString
@@ -268,7 +263,6 @@ instance Rep Text where
   fromWire _ = Nothing
 
 instance Rep Bool where
-
   wireType' _ = pure $ Fix Bool
 
   toWire = MkBool
@@ -277,7 +271,6 @@ instance Rep Bool where
   fromWire _ = Nothing
 
 instance Rep () where
-
   wireType' _ = pure . Fix $ Tuple mempty
 
   toWire () = MkTuple []
@@ -285,7 +278,6 @@ instance Rep () where
   fromWire _ = pure ()
 
 instance Rep Servant.NoContent where
-
   wireType' _ = pure . Fix $ Tuple mempty
 
   toWire Servant.NoContent = MkTuple []
@@ -293,7 +285,6 @@ instance Rep Servant.NoContent where
   fromWire _ = pure Servant.NoContent
 
 instance Rep Void where
-
   wireType' _ = pure . Fix $ Void
 
   toWire = absurd
@@ -301,7 +292,6 @@ instance Rep Void where
   fromWire _ = Nothing
 
 instance Rep a => Rep [a] where
-
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
 
   toWire = MkList . Seq.fromList . fmap toWire
@@ -310,7 +300,6 @@ instance Rep a => Rep [a] where
   fromWire _ = Nothing
 
 instance Rep a => Rep (Seq a) where
-
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
 
   toWire = MkList . fmap toWire
@@ -319,7 +308,6 @@ instance Rep a => Rep (Seq a) where
   fromWire _ = Nothing
 
 instance Rep a => Rep (Vector a) where
-
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
 
   toWire = MkList . fmap toWire . foldableToSeq
@@ -328,7 +316,6 @@ instance Rep a => Rep (Vector a) where
   fromWire _ = Nothing
 
 instance (Ord a, Rep a) => Rep (Set a) where
-
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
 
   toWire = MkList . fmap toWire . foldableToSeq
@@ -338,7 +325,6 @@ instance (Ord a, Rep a) => Rep (Set a) where
   fromWire _ = Nothing
 
 instance (Eq a, Hashable a, Rep a) => Rep (HashSet a) where
-
   wireType' _ = Fix . List <$> wireType' (Proxy @a)
 
   toWire = MkList . fmap toWire . foldableToSeq
@@ -348,7 +334,6 @@ instance (Eq a, Hashable a, Rep a) => Rep (HashSet a) where
   fromWire _ = Nothing
 
 instance (Ord k, Rep k, Rep v) => Rep (Map k v) where
-
   wireType' _ =
     Fix . List <$> tupleType [wireType' (Proxy @k), wireType' (Proxy @v)]
 
@@ -362,7 +347,6 @@ instance (Ord k, Rep k, Rep v) => Rep (Map k v) where
   fromWire _ = Nothing
 
 instance (Eq k, Hashable k, Rep k, Rep v) => Rep (HashMap k v) where
-
   wireType' _ =
     Fix . List <$> tupleType [wireType' (Proxy @k), wireType' (Proxy @v)]
 
@@ -380,7 +364,6 @@ instance (Eq k, Hashable k, Rep k, Rep v) => Rep (HashMap k v) where
 -- The 7-tuple is the largest one that has a Generics instance, so we'll support
 -- up to that number here too.
 instance (Rep a, Rep b) => Rep (a, b) where
-
   wireType' _ = tupleType [wireType' (Proxy @a), wireType' (Proxy @b)]
 
   toWire (a, b) = MkTuple [toWire a, toWire b]
@@ -389,7 +372,6 @@ instance (Rep a, Rep b) => Rep (a, b) where
   fromWire _ = Nothing
 
 instance (Rep a, Rep b, Rep c) => Rep (a, b, c) where
-
   wireType' _ =
     tupleType [wireType' (Proxy @a), wireType' (Proxy @b), wireType' (Proxy @c)]
 
@@ -400,7 +382,6 @@ instance (Rep a, Rep b, Rep c) => Rep (a, b, c) where
   fromWire _ = Nothing
 
 instance (Rep a, Rep b, Rep c, Rep d) => Rep (a, b, c, d) where
-
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a),
@@ -416,7 +397,6 @@ instance (Rep a, Rep b, Rep c, Rep d) => Rep (a, b, c, d) where
   fromWire _ = Nothing
 
 instance (Rep a, Rep b, Rep c, Rep d, Rep e) => Rep (a, b, c, d, e) where
-
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a),
@@ -438,7 +418,6 @@ instance
   (Rep a, Rep b, Rep c, Rep d, Rep e, Rep f) =>
   Rep (a, b, c, d, e, f)
   where
-
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a),
@@ -462,7 +441,6 @@ instance
   (Rep a, Rep b, Rep c, Rep d, Rep e, Rep f, Rep g) =>
   Rep (a, b, c, d, e, f, g)
   where
-
   wireType' _ =
     tupleType
       [ wireType' (Proxy @a),
@@ -496,7 +474,6 @@ instance (Rep a, Rep b) => Rep (Either a b)
 -- Helper class for constructing write types from generic representations of
 -- types.
 class WireG (f :: Type -> Type) where
-
   wireTypeG :: Proxy f -> Builder Type_
 
   toWireG :: f p -> Value
@@ -504,7 +481,6 @@ class WireG (f :: Type -> Type) where
   fromWireG :: Value -> Maybe (f p)
 
 instance (Rep c) => WireG (K1 i c) where
-
   wireTypeG _ = wireType' (Proxy @c)
 
   toWireG = toWire . unK1
@@ -512,7 +488,6 @@ instance (Rep c) => WireG (K1 i c) where
   fromWireG = fmap K1 . fromWire
 
 instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
-
   wireTypeG _ = do
     (unqualifiedName, namesSeen) <- ask
     let name = typeName (Proxy @m) unqualifiedName
@@ -529,7 +504,6 @@ instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
 -- |
 -- Helper class for constructing sums of types.
 class SumsG (f :: Type -> Type) where
-
   sumsG :: Proxy f -> Builder (Seq (ConstructorName, Type_))
 
   toSumsG :: f p -> (ConstructorName, Value)
@@ -537,7 +511,6 @@ class SumsG (f :: Type -> Type) where
   fromSumsG :: ConstructorName -> Value -> Maybe (f p)
 
 instance (SumsG f, SumsG g) => SumsG (f :+: g) where
-
   sumsG _ = (<>) <$> sumsG (Proxy @f) <*> sumsG (Proxy @g)
 
   toSumsG (L1 x) = toSumsG x
@@ -549,7 +522,6 @@ instance
   (KnownSymbol n, ProductG f) =>
   SumsG (M1 C ('MetaCons n fi 'True) f)
   where
-
   sumsG _ = pure . (name,) . Fix . Record <$> productG (Proxy @f)
     where
       name = constructorName (Proxy @n)
@@ -562,14 +534,18 @@ instance
       . unM1
 
   fromSumsG n (MkRecord x)
-    | n == constructorName (Proxy @n) = fmap M1 (fromProductG (mapToSeq x))
+    | n == constructorName (Proxy @n) = do
+      orderedSeq <-
+        traverse
+          (\name -> (name,) <$> Map.lookup name x)
+          (productFieldsG (Proxy @f))
+      fmap M1 (fromProductG orderedSeq)
   fromSumsG _ _ = Nothing -- We picked a constructor that doesn't exist.
 
 instance
   (KnownSymbol n, ProductG f) =>
   SumsG (M1 C ('MetaCons n fi 'False) f)
   where
-
   sumsG _ = pure . (name,) . Fix . Tuple . fmap snd <$> productG (Proxy @f)
     where
       name = constructorName (Proxy @n)
@@ -582,7 +558,6 @@ instance
   fromSumsG _ _ = Nothing -- We picked a constructor that doesn't exist.
 
 instance SumsG V1 where
-
   sumsG _ = pure []
 
   toSumsG = \case
@@ -592,34 +567,31 @@ instance SumsG V1 where
 -- |
 -- Helper class for constructing products.
 class ProductG (f :: Type -> Type) where
-
   productG :: Proxy f -> Builder (Seq (FieldName, Type_))
 
-  productLengthG :: Proxy f -> Int
+  productFieldsG :: Proxy f -> Seq FieldName
 
   toProductG :: f p -> (Seq (FieldName, Value))
 
   fromProductG :: (Seq (FieldName, Value)) -> Maybe (f p)
 
 instance (ProductG f, ProductG g) => ProductG (f :*: g) where
-
   productG _ = (<>) <$> productG (Proxy @f) <*> productG (Proxy @g)
 
-  productLengthG _ = productLengthG (Proxy @f) + productLengthG (Proxy @f)
+  productFieldsG _ = productFieldsG (Proxy @f) <> productFieldsG (Proxy @g)
 
   toProductG (x :*: y) = toProductG x <> toProductG y
 
   fromProductG z = (:*:) <$> fromProductG x <*> fromProductG y
     where
-      (x, y) = Seq.splitAt (productLengthG (Proxy @f)) z
+      (x, y) = Seq.splitAt (length (productFieldsG (Proxy @f))) z
 
 instance (HasFieldName m, WireG f) => ProductG (M1 S m f) where
-
   productG _ = pure . (name,) <$> wireTypeG (Proxy @f)
     where
       name = fieldName (Proxy @m)
 
-  productLengthG _ = 1
+  productFieldsG _ = [fieldName (Proxy @m)]
 
   toProductG = pure . (fieldName (Proxy @m),) . toWireG . unM1
 
@@ -627,10 +599,9 @@ instance (HasFieldName m, WireG f) => ProductG (M1 S m f) where
   fromProductG _ = Nothing -- We got the wrong number of constructors.
 
 instance ProductG U1 where
-
   productG _ = pure []
 
-  productLengthG _ = 0
+  productFieldsG _ = []
 
   toProductG U1 = []
 
