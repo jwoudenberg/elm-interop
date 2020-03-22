@@ -25,7 +25,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
 import qualified Data.Sequence as Seq
-import Data.Sequence (Seq)
+import Data.Sequence (Seq ((:<|)))
 import Data.Sequence.Extra (foldableToSeq, mapFromFoldable)
 import Wire
 
@@ -144,20 +144,29 @@ record fields =
 
 tuple :: Seq Coder -> Coder
 tuple params =
-  Coder
-    { encode = \case
-        MkTuple xs
-          | length xs == length params ->
-            Encoding.list id
-              <$> zipWithM ($) (encode <$> toList params) (toList xs)
-        _ -> Nothing,
-      decode = \case
-        Aeson.Array xs
-          | length xs == length params ->
-            fmap MkTuple . sequenceA $
-              Seq.zipWith ($) (decode <$> params) (foldableToSeq xs)
-        _ -> Nothing
-    }
+  case params of
+    singleParam :<| Seq.Empty ->
+      Coder
+        { encode = \case
+            MkTuple (singleVal :<| Seq.Empty) -> encode singleParam singleVal
+            _ -> Nothing,
+          decode = fmap (MkTuple . pure) . decode singleParam
+        }
+    _ ->
+      Coder
+        { encode = \case
+            MkTuple xs
+              | length xs == length params ->
+                Encoding.list id
+                  <$> zipWithM ($) (encode <$> toList params) (toList xs)
+            _ -> Nothing,
+          decode = \case
+            Aeson.Array xs
+              | length xs == length params ->
+                fmap MkTuple . sequenceA $
+                  Seq.zipWith ($) (decode <$> params) (foldableToSeq xs)
+            _ -> Nothing
+        }
 
 sum' :: Map Wire.ConstructorName Coder -> Coder
 sum' constructors =
