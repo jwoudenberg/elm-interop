@@ -34,7 +34,6 @@ module Wire
   )
 where
 
-import Control.Applicative ((<|>))
 import Control.Monad (unless)
 import Control.Monad.Reader (Reader, ask, local, runReader)
 import Control.Monad.Writer.Strict (WriterT, runWriterT, tell)
@@ -154,9 +153,7 @@ data Value
   | MkBool Bool
   | MkList (Seq Value)
   | MkProduct (Seq Value)
-  | MkSum
-      ConstructorName
-      Value
+  | MkSum Word Value
   deriving (Eq, Generic, Show)
 
 data TypeName
@@ -495,7 +492,7 @@ instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
       tell . UserTypes $ Map.singleton name constructors
     pure . Fix $ User name
 
-  toWireG = uncurry MkSum . toSumsG . unM1
+  toWireG = uncurry MkSum . toSumsG 0 . unM1
 
   fromWireG (MkSum n x) = fmap M1 $ fromSumsG n x
   fromWireG _ = Nothing
@@ -505,17 +502,25 @@ instance (HasTypeName m, SumsG f) => WireG (M1 D m f) where
 class SumsG (f :: Type -> Type) where
   sumsG :: Proxy f -> Builder (Seq (ConstructorName, Type_))
 
-  toSumsG :: f p -> (ConstructorName, Value)
+  sumCtorCountG :: Proxy f -> Word
 
-  fromSumsG :: ConstructorName -> Value -> Maybe (f p)
+  toSumsG :: Word -> f p -> (Word, Value)
+
+  fromSumsG :: Word -> Value -> Maybe (f p)
 
 instance (SumsG f, SumsG g) => SumsG (f :+: g) where
   sumsG _ = (<>) <$> sumsG (Proxy @f) <*> sumsG (Proxy @g)
 
-  toSumsG (L1 x) = toSumsG x
-  toSumsG (R1 x) = toSumsG x
+  sumCtorCountG _ = sumCtorCountG (Proxy @f) + sumCtorCountG (Proxy @g)
 
-  fromSumsG n x = fmap L1 (fromSumsG n x) <|> fmap R1 (fromSumsG n x)
+  toSumsG prefix (L1 x) = toSumsG prefix x
+  toSumsG prefix (R1 x) = toSumsG (prefix + (sumCtorCountG (Proxy @f))) x
+
+  fromSumsG n x =
+    let leftCtors = sumCtorCountG (Proxy @f)
+     in if n < leftCtors
+          then fmap L1 (fromSumsG n x)
+          else fmap R1 (fromSumsG (n - leftCtors) x)
 
 instance
   (KnownSymbol n, ProductG f) =>
@@ -525,11 +530,11 @@ instance
     where
       name = constructorName (Proxy @n)
 
-  toSumsG =
-    (constructorName (Proxy @n),) . MkProduct . fmap snd . toProductG . unM1
+  sumCtorCountG _ = 1
 
-  fromSumsG n (MkProduct xs)
-    | n == constructorName (Proxy @n) = fmap M1 (fromProductG $ ("",) <$> xs)
+  toSumsG prefix = (prefix,) . MkProduct . fmap snd . toProductG . unM1
+
+  fromSumsG 0 (MkProduct xs) = fmap M1 (fromProductG $ ("",) <$> xs)
   fromSumsG _ _ = Nothing -- We picked a constructor that doesn't exist.
 
 instance
@@ -540,17 +545,19 @@ instance
     where
       name = constructorName (Proxy @n)
 
-  toSumsG =
-    (constructorName (Proxy @n),) . MkProduct . fmap snd . toProductG . unM1
+  sumCtorCountG _ = 1
 
-  fromSumsG n (MkProduct xs)
-    | n == constructorName (Proxy @n) = fmap M1 (fromProductG $ ("",) <$> xs)
+  toSumsG prefix = (prefix,) . MkProduct . fmap snd . toProductG . unM1
+
+  fromSumsG 0 (MkProduct xs) = fmap M1 (fromProductG $ ("",) <$> xs)
   fromSumsG _ _ = Nothing -- We picked a constructor that doesn't exist.
 
 instance SumsG V1 where
   sumsG _ = pure []
 
-  toSumsG = \case
+  sumCtorCountG _ = 0
+
+  toSumsG _ = \case
 
   fromSumsG _ _ = Nothing
 

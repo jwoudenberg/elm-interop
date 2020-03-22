@@ -20,13 +20,12 @@ import Data.ByteString.Lazy (ByteString)
 import Data.Foldable (toList)
 import Data.Functor.Foldable (cata)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
 import qualified Data.Sequence as Seq
 import Data.Sequence (Seq ((:<|)))
-import Data.Sequence.Extra (foldableToSeq, mapFromFoldable)
+import Data.Sequence.Extra (foldableToSeq)
 import Wire
 
 data Coder
@@ -55,7 +54,7 @@ coderForType (userTypes, type_) =
       fromMaybe void $ do
         constructors <- Map.lookup name (unUserTypes userTypes)
         pure . sum' $
-          coderForType . (userTypes,) <$> mapFromFoldable constructors
+          coderForType . (userTypes,) . snd <$> constructors
     Void -> void
     List el -> list el
     Int -> int
@@ -147,24 +146,23 @@ product' params =
             _ -> Nothing
         }
 
-sum' :: Map Wire.ConstructorName Coder -> Coder
+sum' :: Seq Coder -> Coder
 sum' constructors =
-  case Map.toList constructors of
-    [(name, single)] ->
+  case constructors of
+    single :<| Seq.Empty ->
       Coder
         { encode = \case
-            MkSum name' x
-              | name == name' -> encode single x
+            MkSum 0 x -> encode single x
             _ -> Nothing,
-          decode = fmap (MkSum name) . decode single
+          decode = fmap (MkSum 0) . decode single
         }
     _ ->
       Coder
         { encode = \case
             MkSum n x -> do
-              constructor <- Map.lookup n constructors
+              constructor <- Seq.lookup (fromIntegral n) constructors
               val <- encode constructor x
-              let ctor = Encoding.text (Wire.unConstructorName n)
+              let ctor = Encoding.word n
               pure . Encoding.pairs $
                 (Encoding.pair "ctor" ctor) <> (Encoding.pair "val" val)
             _ -> Nothing,
@@ -173,10 +171,10 @@ sum' constructors =
               ctorValue <- HashMap.lookup "ctor" object
               ctor <-
                 case ctorValue of
-                  Aeson.String text -> Just (Wire.ConstructorName text)
+                  Aeson.Number n -> Scientific.toBoundedInteger n
                   _ -> Nothing
               val <- HashMap.lookup "val" object
-              constructor <- Map.lookup ctor constructors
+              constructor <- Seq.lookup (fromIntegral ctor) constructors
               params <- decode constructor val
               pure $ MkSum ctor params
             _ -> Nothing
