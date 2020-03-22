@@ -37,15 +37,18 @@ postRoundtrip { body } =
 
 
 type Value
-    = Record { int : Int, text : String }
+    = Record { int : Int, text : String, list : List Bool }
 
 
 encodeValue : Value -> Json.Encode.Value
 encodeValue (Record param) =
-    (\{ int, text } ->
+    (\{ int, text, list } ->
         Json.Encode.object
             [ ( "int", Json.Encode.int int )
             , ( "text", Json.Encode.string text )
+            , ( "list"
+              , (\elems -> Json.Encode.list Json.Encode.bool elems) list
+              )
             ]
     )
         param
@@ -53,8 +56,9 @@ encodeValue (Record param) =
 
 decoderValue : Json.Decode.Decoder Value
 decoderValue =
-    Json.Decode.map2
-        (\int text -> { int = int, text = text })
+    Json.Decode.map3
+        (\int text list -> { int = int, text = text, list = list })
         (Json.Decode.field "int" Json.Decode.int)
         (Json.Decode.field "text" Json.Decode.string)
+        (Json.Decode.field "list" (Json.Decode.list Json.Decode.bool))
         |> Json.Decode.map Record

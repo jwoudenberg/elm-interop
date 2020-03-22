@@ -32,7 +32,8 @@ type ReturnValue =
 data Value
   = Record
       { int :: Int,
-        text :: T.Text
+        text :: T.Text,
+        list :: [Bool]
       }
   deriving (Eq, Generic, Show)
 

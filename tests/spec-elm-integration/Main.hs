@@ -45,7 +45,12 @@ roundtripTests =
     flip Exception.onException (printFile logFilePath)
       $ System.IO.withFile logFilePath System.IO.AppendMode
       $ \logFile -> do
-        let input = Examples.Roundtrip.Record 42 "Hi there!"
+        let input =
+              Examples.Roundtrip.Record
+                { Examples.Roundtrip.int = 42,
+                  Examples.Roundtrip.text = "Hi there!",
+                  Examples.Roundtrip.list = [True, False]
+                }
         compileElmTestApp logFile
         servedValue <- MVar.newEmptyMVar
         receivedValue <- MVar.newEmptyMVar

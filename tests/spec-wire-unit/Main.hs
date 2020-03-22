@@ -8,6 +8,8 @@ module Main
 where
 
 import Data.Proxy (Proxy (Proxy))
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Examples.Roundtrip
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
@@ -47,5 +49,6 @@ jsonDuality =
 roundtripValueGenerator :: Hedgehog.Gen Examples.Roundtrip.Value
 roundtripValueGenerator =
   Examples.Roundtrip.Record
-    <$> Gen.int (Range.linear 0 100)
+    <$> Gen.int (Range.linearFrom 0 (-100) 100)
     <*> Gen.text (Range.linear 0 100) Gen.unicode
+    <*> Gen.list (Range.linear 0 5) Gen.bool
