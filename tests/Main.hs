@@ -24,6 +24,9 @@ import qualified Examples.RequestBody
 import qualified Examples.RequestHeaders
 import qualified Examples.Roundtrip
 import qualified Examples.Void
+import qualified Hedgehog
+import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Range as Range
 import qualified Network.Wai.Handler.Warp as Warp
 import Servant ((:<|>) ((:<|>)))
 import qualified Servant
@@ -38,7 +41,9 @@ import qualified System.Timeout
 import Test.Tasty
 import qualified Test.Tasty.Golden as Golden
 import qualified Test.Tasty.HUnit as HUnit
+import qualified Test.Tasty.Hedgehog
 import qualified Test.Tasty.Program as Program
+import qualified Wire
 
 main :: IO ()
 main = defaultMain tests
@@ -67,6 +72,7 @@ tests =
     [ goldenTests,
       elmMakeTests,
       elmFormatTests,
+      repDualityTests,
       roundtripTests
     ]
 
@@ -81,6 +87,12 @@ elmMakeTests =
 elmFormatTests :: TestTree
 elmFormatTests =
   testGroup "elm-format --validate <file>" $ elmFormatTestFor <$> examples
+
+repDualityTests :: TestTree
+repDualityTests =
+  Test.Tasty.Hedgehog.testProperty "Rep duality" $ Hedgehog.property $ do
+    value <- Hedgehog.forAll roundtripValueGenerator
+    Hedgehog.tripping value Wire.toWire Wire.fromWire
 
 goldenTestFor :: Example -> TestTree
 goldenTestFor (Example name api) =
@@ -130,7 +142,7 @@ roundtripTests =
           let location = "http://localhost:" <> show port <> "/index.html"
           MVar.putMVar servedValue input
           Process.withProcessTerm (logTo logFile (chromeProc location)) $ \_ -> do
-            res <- System.Timeout.timeout 1000000 $ MVar.takeMVar receivedValue
+            res <- System.Timeout.timeout 10000000 $ MVar.takeMVar receivedValue
             case res of
               Nothing -> fail "No response from Elm app within aloted time."
               Just output -> HUnit.assertEqual "" input output
@@ -179,3 +191,9 @@ app settings =
     ( Examples.Roundtrip.server settings
         :<|> StaticFiles.serveDirectoryWebApp "tests/elm-test-app"
     )
+
+roundtripValueGenerator :: Hedgehog.Gen Examples.Roundtrip.Value
+roundtripValueGenerator =
+  Examples.Roundtrip.Record
+    <$> Gen.int (Range.linear 0 100)
+    <*> Gen.text (Range.linear 0 100) Gen.unicode

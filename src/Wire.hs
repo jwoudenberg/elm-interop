@@ -158,7 +158,7 @@ data Value
   | MkSum
       ConstructorName
       Value
-  deriving (Generic)
+  deriving (Eq, Generic, Show)
 
 data TypeName
   = TypeName
@@ -172,13 +172,13 @@ newtype ConstructorName
   = ConstructorName
       { unConstructorName :: Text
       }
-  deriving (Eq, Ord, IsString)
+  deriving (Eq, Ord, IsString, Show)
 
 newtype FieldName
   = FieldName
       { unFieldName :: Text
       }
-  deriving (Eq, Ord, IsString)
+  deriving (Eq, Ord, IsString, Show)
 
 wireType :: Rep a => Proxy a -> (UserTypes, Type_)
 wireType = swap . flip runReader mempty . runWriterT . wireType'
