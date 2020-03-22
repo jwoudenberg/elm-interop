@@ -48,18 +48,13 @@ library:
   source-dirs: src
 
 tests:
-  spec:
+  wire-unit:
     dependencies:
-    - async
     - base
-    - directory
     - elm-interop
     - hedgehog
-    - typed-process
-    - safe-exceptions
     - servant
     - servant-server
-    - warp
     - tasty
     - tasty-golden
     - tasty-hedgehog
@@ -68,4 +63,42 @@ tests:
     - tasty-rerun
     - text
     main: Main.hs
-    source-dirs: tests
+    source-dirs:
+    - tests/spec-wire-unit
+    - tests/example-apis
+  elm-generation:
+    dependencies:
+    - base
+    - elm-interop
+    - hedgehog
+    - servant
+    - servant-server
+    - tasty
+    - tasty-golden
+    - tasty-hedgehog
+    - tasty-hunit
+    - tasty-program
+    - tasty-rerun
+    - text
+    main: Main.hs
+    source-dirs:
+    - tests/spec-elm-generation
+    - tests/example-apis
+  elm-integration:
+    dependencies:
+    - base
+    - directory
+    - elm-interop
+    - typed-process
+    - safe-exceptions
+    - servant
+    - servant-server
+    - warp
+    - tasty
+    - tasty-hunit
+    - tasty-rerun
+    - text
+    main: Main.hs
+    source-dirs:
+    - tests/spec-elm-integration
+    - tests/example-apis

@@ -100,7 +100,7 @@ data TypeF a
     Record (Seq (FieldName, a))
   | -- A tuple or constructor parameter list.
     Tuple (Seq a)
-  | -- A reference to a non-primitive type, for example a user defined types.
+  | -- A elm-generated to a non-primitive type, for example a user defined types.
     User TypeName
   | -- A type without any values. Goes by `Never` in Elm.
     Void

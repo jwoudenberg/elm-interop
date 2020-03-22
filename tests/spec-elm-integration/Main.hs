@@ -11,27 +11,10 @@ import Control.Concurrent.MVar as MVar
 import qualified Control.Exception.Safe as Exception
 import Data.Function ((&))
 import Data.Proxy (Proxy (Proxy))
-import qualified Data.Text as T
-import qualified Data.Text.Lazy
-import qualified Data.Text.Lazy.Encoding
-import qualified Examples.MultipleEndpoints
-import qualified Examples.MutuallyRecursive
-import qualified Examples.PathParams
-import qualified Examples.QueryParams
-import qualified Examples.Record
-import qualified Examples.Recursive
-import qualified Examples.RequestBody
-import qualified Examples.RequestHeaders
 import qualified Examples.Roundtrip
-import qualified Examples.Void
-import qualified Hedgehog
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
 import qualified Network.Wai.Handler.Warp as Warp
 import Servant ((:<|>) ((:<|>)))
 import qualified Servant
-import qualified Servant.Interop
-import qualified Servant.Interop.Elm as Elm
 import qualified Servant.Server
 import qualified Servant.Server.StaticFiles as StaticFiles
 import qualified System.Directory as Directory
@@ -39,88 +22,17 @@ import qualified System.IO
 import qualified System.Process.Typed as Process
 import qualified System.Timeout
 import Test.Tasty
-import qualified Test.Tasty.Golden as Golden
 import qualified Test.Tasty.HUnit as HUnit
-import qualified Test.Tasty.Hedgehog
-import qualified Test.Tasty.Program as Program
-import qualified Wire
 
 main :: IO ()
 main = defaultMain tests
 
-data Example where
-  Example :: Servant.Interop.HasWireFormat api => String -> Proxy api -> Example
-
-examples :: [Example]
-examples =
-  [ Example "Record" (Proxy :: Proxy Examples.Record.API),
-    Example "Recursive" (Proxy :: Proxy Examples.Recursive.API),
-    Example "MutuallyRecursive" (Proxy :: Proxy Examples.MutuallyRecursive.API),
-    Example "RequestBody" (Proxy :: Proxy Examples.RequestBody.API),
-    Example "Void" (Proxy :: Proxy Examples.Void.API),
-    Example "QueryParams" (Proxy :: Proxy Examples.QueryParams.API),
-    Example "RequestHeaders" (Proxy :: Proxy Examples.RequestHeaders.API),
-    Example "PathParams" (Proxy :: Proxy Examples.PathParams.API),
-    Example "MultipleEndpoints" (Proxy :: Proxy Examples.MultipleEndpoints.API),
-    Example "Roundtrip" (Proxy :: Proxy Examples.Roundtrip.API)
-  ]
-
 tests :: TestTree
 tests =
   testGroup
-    "servant-interop"
-    [ goldenTests,
-      elmMakeTests,
-      elmFormatTests,
-      repDualityTests,
-      roundtripTests
+    "Elm integration"
+    [ roundtripTests
     ]
-
-goldenTests :: TestTree
-goldenTests =
-  testGroup "golden" $ goldenTestFor <$> examples
-
-elmMakeTests :: TestTree
-elmMakeTests =
-  testGroup "elm make <file>" $ elmMakeTestFor <$> examples
-
-elmFormatTests :: TestTree
-elmFormatTests =
-  testGroup "elm-format --validate <file>" $ elmFormatTestFor <$> examples
-
-repDualityTests :: TestTree
-repDualityTests =
-  Test.Tasty.Hedgehog.testProperty "Rep duality" $ Hedgehog.property $ do
-    value <- Hedgehog.forAll roundtripValueGenerator
-    Hedgehog.tripping value Wire.toWire Wire.fromWire
-
-goldenTestFor :: Example -> TestTree
-goldenTestFor (Example name api) =
-  Golden.goldenVsString name ("tests/reference/" <> name <> ".elm") go
-  where
-    go =
-      pure . Data.Text.Lazy.Encoding.encodeUtf8 . Data.Text.Lazy.fromStrict $
-        Elm.printModule (Elm.Options (T.pack name)) api
-
-elmMakeTestFor :: Example -> TestTree
-elmMakeTestFor (Example name _) =
-  Program.testProgram
-    file
-    "elm"
-    ["make", file]
-    (Just "tests/elm-test-app")
-  where
-    file = "../reference/" <> name <> ".elm"
-
-elmFormatTestFor :: Example -> TestTree
-elmFormatTestFor (Example name _) =
-  Program.testProgram
-    file
-    "elm-format"
-    ["--validate", file]
-    (Just "tests/elm-test-app")
-  where
-    file = "../reference/" <> name <> ".elm"
 
 roundtripTests :: TestTree
 roundtripTests =
@@ -191,9 +103,3 @@ app settings =
     ( Examples.Roundtrip.server settings
         :<|> StaticFiles.serveDirectoryWebApp "tests/elm-test-app"
     )
-
-roundtripValueGenerator :: Hedgehog.Gen Examples.Roundtrip.Value
-roundtripValueGenerator =
-  Examples.Roundtrip.Record
-    <$> Gen.int (Range.linear 0 100)
-    <*> Gen.text (Range.linear 0 100) Gen.unicode
