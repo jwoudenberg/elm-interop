@@ -46,18 +46,13 @@ type Value
 
 
 encodeValue : Value -> Json.Encode.Value
-encodeValue (Record param) =
-    (\{ int, text, list, either } ->
-        Json.Encode.object
-            [ ( "int", Json.Encode.int int )
-            , ( "text", Json.Encode.string text )
-            , ( "list"
-              , (\elems -> Json.Encode.list Json.Encode.bool elems) list
-              )
-            , ( "either", encodeEitherIntBool either )
-            ]
-    )
-        param
+encodeValue (Record { int, text, list, either }) =
+    Json.Encode.object
+        [ ( "int", Json.Encode.int int )
+        , ( "text", Json.Encode.string text )
+        , ( "list", (\elems -> Json.Encode.list Json.Encode.bool elems) list )
+        , ( "either", encodeEitherIntBool either )
+        ]
 
 
 decoderValue : Json.Decode.Decoder Value
@@ -85,10 +80,16 @@ encodeEitherIntBool : EitherIntBool -> Json.Encode.Value
 encodeEitherIntBool eitherIntBool =
     case eitherIntBool of
         Left param ->
-            Json.Encode.int param
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Left" )
+                , ( "val", Json.Encode.int param )
+                ]
 
         Right param ->
-            Json.Encode.bool param
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Right" )
+                , ( "val", Json.Encode.bool param )
+                ]
 
 
 decoderEitherIntBool : Json.Decode.Decoder EitherIntBool

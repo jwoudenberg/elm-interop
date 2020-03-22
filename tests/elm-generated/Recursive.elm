@@ -25,14 +25,11 @@ type Turtle
 
 
 encodeTurtle : Turtle -> Json.Encode.Value
-encodeTurtle (Turtle param) =
-    (\{ name, onBackOf } ->
-        Json.Encode.object
-            [ ( "name", Json.Encode.string name )
-            , ( "onBackOf", encodeTurtle onBackOf )
-            ]
-    )
-        param
+encodeTurtle (Turtle { name, onBackOf }) =
+    Json.Encode.object
+        [ ( "name", Json.Encode.string name )
+        , ( "onBackOf", encodeTurtle onBackOf )
+        ]
 
 
 decoderTurtle : Json.Decode.Decoder Turtle

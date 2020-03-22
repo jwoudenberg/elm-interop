@@ -31,10 +31,16 @@ encodeEitherVoidUnicorn : EitherVoidUnicorn -> Json.Encode.Value
 encodeEitherVoidUnicorn eitherVoidUnicorn =
     case eitherVoidUnicorn of
         Left param ->
-            never param
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Left" )
+                , ( "val", never param )
+                ]
 
         Right param ->
-            encodeUnicorn param
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Right" )
+                , ( "val", encodeUnicorn param )
+                ]
 
 
 decoderEitherVoidUnicorn : Json.Decode.Decoder EitherVoidUnicorn

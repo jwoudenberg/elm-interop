@@ -116,14 +116,18 @@ encoderForType (TypeName typeName) typeDef =
           lambda $ encodeCtor name params
         _ ->
           lambda $ matchVar lowerCasedTypeName $ \x ->
-            mkCase x $ toList $ matchConstructor <$> constructors
+            mkCase x $ toList $ uncurry encodeCtorTagged <$> constructors
       where
         lowerCasedTypeName =
           case T.uncons typeName of
             Nothing -> mempty
             Just (x, rest) -> T.cons (Char.toLower x) rest
-        matchConstructor :: (Wire.ConstructorName, [ElmType]) -> (Pattern a0, ElmValue Value)
-        matchConstructor (name, params) =
+        encodeCtorTagged :: Wire.ConstructorName -> [ElmType] -> (Pattern p, ElmValue Value)
+        encodeCtorTagged name params =
+          let (pattern, encodedParams) = encodeCtor name params
+           in (pattern, tagWithCtor name encodedParams)
+        encodeCtor :: Wire.ConstructorName -> [ElmType] -> (Pattern p, ElmValue Value)
+        encodeCtor name params =
           case params of
             [Fix (Record fields)] ->
               matchCtorRecord
@@ -136,11 +140,6 @@ encoderForType (TypeName typeName) typeDef =
                         tuple (string (varName field)) (fn1 (elmEncoder elmType) (var field))
                 )
                 (fn1 (var _Json_Encode_object) . list . fmap snd)
-            _ ->
-              encodeCtor name params
-        encodeCtor :: Wire.ConstructorName -> [ElmType] -> (Pattern p, ElmValue Value)
-        encodeCtor name params =
-          case params of
             [singleParamType] ->
               matchCtor1
                 (fromVarName $ Wire.unConstructorName name)
@@ -156,6 +155,15 @@ encoderForType (TypeName typeName) typeDef =
                       Just elmType -> fn1 (elmEncoder elmType) (var param)
                 )
                 (fn2 (var _Json_Encode_list) (var _identity) . list)
+        tagWithCtor :: Wire.ConstructorName -> ElmValue Value -> ElmValue Value
+        tagWithCtor name params =
+          fn1
+            (var _Json_Encode_object)
+            ( list
+                [ tuple (string "ctor") (fn1 (var _Json_Encode_string) (string (Wire.unConstructorName name))),
+                  tuple (string "val") params
+                ]
+            )
         keyedParams :: [ElmType] -> [(T.Text, ElmType)]
         keyedParams params =
           zipWith (\i param -> ("param" <> (T.pack $ show i), param)) [(1 :: Int) ..] params

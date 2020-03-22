@@ -71,16 +71,28 @@ encodeGrocery : Grocery -> Json.Encode.Value
 encodeGrocery grocery =
     case grocery of
         Courgette ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Courgette" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Milk ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Milk" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         PeanutButter ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "PeanutButter" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Chocolate ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Chocolate" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
 
 decoderGrocery : Json.Decode.Decoder Grocery

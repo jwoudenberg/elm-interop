@@ -41,12 +41,9 @@ type Dog
 
 
 encodeDog : Dog -> Json.Encode.Value
-encodeDog (Dog param) =
-    (\{ name, age } ->
-        Json.Encode.object
-            [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
-    )
-        param
+encodeDog (Dog { name, age }) =
+    Json.Encode.object
+        [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
 
 
 decoderDog : Json.Decode.Decoder Dog
@@ -82,10 +79,16 @@ encodeToy : Toy -> Json.Encode.Value
 encodeToy toy =
     case toy of
         Bone ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Bone" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Ball ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Ball" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
 
 decoderToy : Json.Decode.Decoder Toy

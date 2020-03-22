@@ -33,13 +33,22 @@ encodeFish : Fish -> Json.Encode.Value
 encodeFish fish =
     case fish of
         Herring ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Herring" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Carp ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Carp" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Salmon ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Salmon" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
 
 decoderFish : Json.Decode.Decoder Fish
@@ -68,14 +77,11 @@ type Money
 
 
 encodeMoney : Money -> Json.Encode.Value
-encodeMoney (Money param) =
-    (\{ amount, currency } ->
-        Json.Encode.object
-            [ ( "amount", Json.Encode.int amount )
-            , ( "currency", Json.Encode.string currency )
-            ]
-    )
-        param
+encodeMoney (Money { amount, currency }) =
+    Json.Encode.object
+        [ ( "amount", Json.Encode.int amount )
+        , ( "currency", Json.Encode.string currency )
+        ]
 
 
 decoderMoney : Json.Decode.Decoder Money

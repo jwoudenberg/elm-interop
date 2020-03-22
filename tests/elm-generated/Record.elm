@@ -25,15 +25,12 @@ type Sock
 
 
 encodeSock : Sock -> Json.Encode.Value
-encodeSock (Sock param) =
-    (\{ color, pattern, holes } ->
-        Json.Encode.object
-            [ ( "color", Json.Encode.string color )
-            , ( "pattern", encodePattern pattern )
-            , ( "holes", Json.Encode.int holes )
-            ]
-    )
-        param
+encodeSock (Sock { color, pattern, holes }) =
+    Json.Encode.object
+        [ ( "color", Json.Encode.string color )
+        , ( "pattern", encodePattern pattern )
+        , ( "holes", Json.Encode.int holes )
+        ]
 
 
 decoderSock : Json.Decode.Decoder Sock
@@ -59,16 +56,28 @@ encodePattern : Pattern -> Json.Encode.Value
 encodePattern pattern =
     case pattern of
         None ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "None" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Stripes ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Stripes" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Dots ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Dots" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
         Other ->
-            Json.Encode.list identity []
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.string "Other" )
+                , ( "val", Json.Encode.list identity [] )
+                ]
 
 
 decoderPattern : Json.Decode.Decoder Pattern
