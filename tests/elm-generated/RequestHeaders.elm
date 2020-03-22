@@ -34,14 +34,32 @@ type Password
 
 
 encodePassword : Password -> Json.Encode.Value
-encodePassword (Password param) =
-    Json.Encode.string param
+encodePassword password =
+    case password of
+        Password param1 ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list identity [ Json.Encode.string param1 ]
+                  )
+                ]
 
 
 decoderPassword : Json.Decode.Decoder Password
 decoderPassword =
-    Json.Decode.string
-        |> Json.Decode.map Password
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.string
+                                |> Json.Decode.index 0
+                                |> Json.Decode.map Password
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Secret
@@ -49,11 +67,29 @@ type Secret
 
 
 encodeSecret : Secret -> Json.Encode.Value
-encodeSecret (Secret param) =
-    Json.Encode.string param
+encodeSecret secret =
+    case secret of
+        Secret param1 ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list identity [ Json.Encode.string param1 ]
+                  )
+                ]
 
 
 decoderSecret : Json.Decode.Decoder Secret
 decoderSecret =
-    Json.Decode.string
-        |> Json.Decode.map Secret
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.string
+                                |> Json.Decode.index 0
+                                |> Json.Decode.map Secret
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

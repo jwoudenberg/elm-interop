@@ -39,10 +39,11 @@ module Servant.Interop.Elm.Values
     mkCase,
     matchVar,
     matchString,
+    matchInt,
     matchTuple2,
     matchTuple3,
     matchRecordN,
-    matchCtorRecord,
+    matchCtor1Pattern,
     matchCtor0,
     matchCtor1,
     matchCtorN,
@@ -197,6 +198,7 @@ instance IsString (ElmValue String) where
 data PatternF p
   = VarPat Text
   | StringPat Text
+  | IntPat Int32
   | ConstructorPat Text [p]
   | Tuple2Pat p p
   | Tuple3Pat p p p
@@ -261,6 +263,9 @@ matchVar name withMatch = (Fix (VarPat name), withMatch (v name))
 matchString :: Text -> Pattern String
 matchString = Fix . StringPat
 
+matchInt :: Int32 -> Pattern Int32
+matchInt = Fix . IntPat
+
 matchTuple2 :: Text -> Text -> (ElmValue a -> ElmValue b -> ElmValue c) -> (Pattern (a, b), ElmValue c)
 matchTuple2 name1 name2 withMatch =
   ( Fix (Tuple2Pat (Fix (VarPat name1)) (Fix (VarPat name2))),
@@ -288,16 +293,12 @@ matchRecordN fields perField combine =
     combine . zip fields $ perField . Variable <$> fields
   )
 
-matchCtorRecord ::
+matchCtor1Pattern ::
   Variable (y -> x) ->
-  [Text] ->
-  (Variable a -> ElmValue b) ->
-  ([(Text, ElmValue b)] -> ElmValue c) ->
-  (Pattern x, ElmValue c)
-matchCtorRecord (Variable ctor) fields perField combine =
-  (Fix (ConstructorPat ctor [recPattern]), body)
-  where
-    (recPattern, body) = matchRecordN fields perField combine
+  (Pattern x, ElmValue c) ->
+  (Pattern y, ElmValue c)
+matchCtor1Pattern (Variable ctor) (innerPattern, body) =
+  (Fix (ConstructorPat ctor [innerPattern]), body)
 
 newtype Variable t = Variable Text deriving (IsString)
 
@@ -509,6 +510,7 @@ printPattern needsConstructorParens =
   cata $ \case
     VarPat name -> PP.pretty name
     StringPat str -> PP.dquotes (PP.pretty str)
+    IntPat n -> (PP.pretty n)
     ConstructorPat ctor vars ->
       case vars of
         [] -> PP.pretty ctor

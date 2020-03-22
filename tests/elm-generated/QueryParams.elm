@@ -50,14 +50,32 @@ type EuroCents
 
 
 encodeEuroCents : EuroCents -> Json.Encode.Value
-encodeEuroCents (EuroCents param) =
-    Json.Encode.int param
+encodeEuroCents euroCents =
+    case euroCents of
+        EuroCents param1 ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list identity [ Json.Encode.int param1 ]
+                  )
+                ]
 
 
 decoderEuroCents : Json.Decode.Decoder EuroCents
 decoderEuroCents =
-    Json.Decode.int
-        |> Json.Decode.map EuroCents
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.int
+                                |> Json.Decode.index 0
+                                |> Json.Decode.map EuroCents
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Grocery
@@ -72,46 +90,46 @@ encodeGrocery grocery =
     case grocery of
         Courgette ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Courgette" )
+                [ ( "ctor", Json.Encode.int 0 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Milk ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Milk" )
+                [ ( "ctor", Json.Encode.int 1 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         PeanutButter ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "PeanutButter" )
+                [ ( "ctor", Json.Encode.int 2 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Chocolate ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Chocolate" )
+                [ ( "ctor", Json.Encode.int 3 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
 
 decoderGrocery : Json.Decode.Decoder Grocery
 decoderGrocery =
-    Json.Decode.field "ctor" Json.Decode.string
+    Json.Decode.field "ctor" Json.Decode.int
         |> Json.Decode.andThen
             (\ctor ->
                 Json.Decode.field "val" <|
                     case ctor of
-                        "Courgette" ->
+                        0 ->
                             Json.Decode.succeed Courgette
 
-                        "Milk" ->
+                        1 ->
                             Json.Decode.succeed Milk
 
-                        "PeanutButter" ->
+                        2 ->
                             Json.Decode.succeed PeanutButter
 
-                        "Chocolate" ->
+                        3 ->
                             Json.Decode.succeed Chocolate
 
                         _ ->

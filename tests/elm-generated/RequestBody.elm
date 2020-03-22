@@ -34,37 +34,37 @@ encodeFish fish =
     case fish of
         Herring ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Herring" )
+                [ ( "ctor", Json.Encode.int 0 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Carp ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Carp" )
+                [ ( "ctor", Json.Encode.int 1 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Salmon ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Salmon" )
+                [ ( "ctor", Json.Encode.int 2 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
 
 decoderFish : Json.Decode.Decoder Fish
 decoderFish =
-    Json.Decode.field "ctor" Json.Decode.string
+    Json.Decode.field "ctor" Json.Decode.int
         |> Json.Decode.andThen
             (\ctor ->
                 Json.Decode.field "val" <|
                     case ctor of
-                        "Herring" ->
+                        0 ->
                             Json.Decode.succeed Herring
 
-                        "Carp" ->
+                        1 ->
                             Json.Decode.succeed Carp
 
-                        "Salmon" ->
+                        2 ->
                             Json.Decode.succeed Salmon
 
                         _ ->
@@ -77,17 +77,35 @@ type Money
 
 
 encodeMoney : Money -> Json.Encode.Value
-encodeMoney (Money { amount, currency }) =
-    Json.Encode.object
-        [ ( "amount", Json.Encode.int amount )
-        , ( "currency", Json.Encode.string currency )
-        ]
+encodeMoney money =
+    case money of
+        Money { amount, currency } ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list
+                        identity
+                        [ Json.Encode.int amount, Json.Encode.string currency ]
+                  )
+                ]
 
 
 decoderMoney : Json.Decode.Decoder Money
 decoderMoney =
-    Json.Decode.map2
-        (\amount currency -> { amount = amount, currency = currency })
-        (Json.Decode.field "amount" Json.Decode.int)
-        (Json.Decode.field "currency" Json.Decode.string)
-        |> Json.Decode.map Money
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.map2
+                                (\amount currency ->
+                                    { amount = amount, currency = currency }
+                                )
+                                (Json.Decode.field "0" Json.Decode.int)
+                                (Json.Decode.field "1" Json.Decode.string)
+                                |> Json.Decode.map Money
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

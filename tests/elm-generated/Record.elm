@@ -25,24 +25,48 @@ type Sock
 
 
 encodeSock : Sock -> Json.Encode.Value
-encodeSock (Sock { color, pattern, holes }) =
-    Json.Encode.object
-        [ ( "color", Json.Encode.string color )
-        , ( "pattern", encodePattern pattern )
-        , ( "holes", Json.Encode.int holes )
-        ]
+encodeSock sock =
+    case sock of
+        Sock { color, pattern, holes } ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list
+                        identity
+                        [ Json.Encode.string color
+                        , encodePattern pattern
+                        , Json.Encode.int holes
+                        ]
+                  )
+                ]
 
 
 decoderSock : Json.Decode.Decoder Sock
 decoderSock =
-    Json.Decode.map3
-        (\color pattern holes ->
-            { color = color, pattern = pattern, holes = holes }
-        )
-        (Json.Decode.field "color" Json.Decode.string)
-        (Json.Decode.field "pattern" (Json.Decode.lazy (\_ -> decoderPattern)))
-        (Json.Decode.field "holes" Json.Decode.int)
-        |> Json.Decode.map Sock
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.map3
+                                (\color pattern holes ->
+                                    { color = color
+                                    , pattern = pattern
+                                    , holes = holes
+                                    }
+                                )
+                                (Json.Decode.field "0" Json.Decode.string)
+                                (Json.Decode.field
+                                    "1"
+                                    (Json.Decode.lazy (\_ -> decoderPattern))
+                                )
+                                (Json.Decode.field "2" Json.Decode.int)
+                                |> Json.Decode.map Sock
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Pattern
@@ -57,46 +81,46 @@ encodePattern pattern =
     case pattern of
         None ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "None" )
+                [ ( "ctor", Json.Encode.int 0 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Stripes ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Stripes" )
+                [ ( "ctor", Json.Encode.int 1 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Dots ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Dots" )
+                [ ( "ctor", Json.Encode.int 2 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Other ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Other" )
+                [ ( "ctor", Json.Encode.int 3 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
 
 decoderPattern : Json.Decode.Decoder Pattern
 decoderPattern =
-    Json.Decode.field "ctor" Json.Decode.string
+    Json.Decode.field "ctor" Json.Decode.int
         |> Json.Decode.andThen
             (\ctor ->
                 Json.Decode.field "val" <|
                     case ctor of
-                        "None" ->
+                        0 ->
                             Json.Decode.succeed None
 
-                        "Stripes" ->
+                        1 ->
                             Json.Decode.succeed Stripes
 
-                        "Dots" ->
+                        2 ->
                             Json.Decode.succeed Dots
 
-                        "Other" ->
+                        3 ->
                             Json.Decode.succeed Other
 
                         _ ->

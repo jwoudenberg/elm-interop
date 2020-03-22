@@ -30,33 +30,35 @@ type EitherVoidUnicorn
 encodeEitherVoidUnicorn : EitherVoidUnicorn -> Json.Encode.Value
 encodeEitherVoidUnicorn eitherVoidUnicorn =
     case eitherVoidUnicorn of
-        Left param ->
+        Left param1 ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Left" )
-                , ( "val", never param )
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val", Json.Encode.list identity [ never param1 ] )
                 ]
 
-        Right param ->
+        Right param1 ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Right" )
-                , ( "val", encodeUnicorn param )
+                [ ( "ctor", Json.Encode.int 1 )
+                , ( "val", Json.Encode.list identity [ encodeUnicorn param1 ] )
                 ]
 
 
 decoderEitherVoidUnicorn : Json.Decode.Decoder EitherVoidUnicorn
 decoderEitherVoidUnicorn =
-    Json.Decode.field "ctor" Json.Decode.string
+    Json.Decode.field "ctor" Json.Decode.int
         |> Json.Decode.andThen
             (\ctor ->
                 Json.Decode.field "val" <|
                     case ctor of
-                        "Left" ->
+                        0 ->
                             Json.Decode.fail
                                 "Cannot decode Never type from JSON"
+                                |> Json.Decode.index 0
                                 |> Json.Decode.map Left
 
-                        "Right" ->
+                        1 ->
                             Json.Decode.lazy (\_ -> decoderUnicorn)
+                                |> Json.Decode.index 0
                                 |> Json.Decode.map Right
 
                         _ ->

@@ -16,7 +16,6 @@ import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.Functor.Foldable (Fix (Fix), cata)
 import Data.Int (Int32)
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -40,15 +39,15 @@ elmEncoder =
       lambda $ matchVar "x" $ \x ->
         mkCase
           x
-          [ matchCtor0 _Nothing (ctor0Encoder _Nothing),
-            matchCtor1 _Just "x" (\y -> ctor1Encoder _Just (fn1 f y))
+          [ matchCtor0 _Nothing (ctor0Encoder 0),
+            matchCtor1 _Just "x" (\y -> ctor1Encoder 1 (fn1 f y))
           ]
     Result f g ->
       lambda $ matchVar "x" $ \x ->
         mkCase
           x
-          [ matchCtor1 _Err "err" (\err -> ctor1Encoder _Err (fn1 f err)),
-            matchCtor1 _Just "ok" (\ok -> ctor1Encoder _Just (fn1 g ok))
+          [ matchCtor1 _Err "err" (\err -> ctor1Encoder 0 (fn1 f err)),
+            matchCtor1 _Just "ok" (\ok -> ctor1Encoder 1 (fn1 g ok))
           ]
     Tuple2 f g ->
       lambda $ matchTuple2 "x" "y" $ \x y ->
@@ -66,19 +65,22 @@ elmEncoder =
               fn1 h z
             ]
     Record fields ->
-      lambda $
-        matchRecordN
-          (Wire.unFieldName . fst <$> fields)
-          ( \field ->
-              case lookup (Wire.FieldName (varName field)) fields of
-                Nothing -> error "Lookup of record field failed"
-                Just encoder ->
-                  tuple (string (varName field)) (fn1 encoder (var field))
-          )
-          (fn1 (var _Json_Encode_object) . list . fmap snd)
+      lambda $ matchEncodeRecord fields
     Cmd _ -> error "Cannot encode Cmd"
     Lambda _ _ -> error "Cannot encode lambda function"
     Defined name _ -> v (encoderNameForType name)
+
+matchEncodeRecord :: [(Wire.FieldName, ElmValue (a -> Value))] -> (Pattern x, ElmValue Value)
+matchEncodeRecord fields =
+  matchRecordN
+    (Wire.unFieldName . fst <$> fields)
+    ( \field ->
+        case lookup (Wire.FieldName (varName field)) fields of
+          Nothing -> error "Lookup of record field failed"
+          Just encoder ->
+            fn1 encoder (var field)
+    )
+    (fn2 (var _Json_Encode_list) (var _identity) . list . fmap snd)
 
 encoderNameForType :: TypeName -> T.Text
 encoderNameForType (TypeName name) =
@@ -111,40 +113,24 @@ encoderForType (TypeName typeName) typeDef =
   case typeDef of
     Alias elmType -> elmEncoder elmType
     Custom constructors ->
-      case constructors of
-        (name, params) :| [] ->
-          lambda $ encodeCtor name params
-        _ ->
-          lambda $ matchVar lowerCasedTypeName $ \x ->
-            mkCase x $ toList $ uncurry encodeCtorTagged <$> constructors
+      lambda $ matchVar lowerCasedTypeName $ \x ->
+        mkCase x $ uncurry encodeCtorTagged <$> zip [0 ..] (toList constructors)
       where
         lowerCasedTypeName =
           case T.uncons typeName of
             Nothing -> mempty
             Just (x, rest) -> T.cons (Char.toLower x) rest
-        encodeCtorTagged :: Wire.ConstructorName -> [ElmType] -> (Pattern p, ElmValue Value)
-        encodeCtorTagged name params =
+        encodeCtorTagged :: Word -> (Wire.ConstructorName, [ElmType]) -> (Pattern p, ElmValue Value)
+        encodeCtorTagged index (name, params) =
           let (pattern, encodedParams) = encodeCtor name params
-           in (pattern, tagWithCtor name encodedParams)
+           in (pattern, tagWithCtor index encodedParams)
         encodeCtor :: Wire.ConstructorName -> [ElmType] -> (Pattern p, ElmValue Value)
         encodeCtor name params =
           case params of
             [Fix (Record fields)] ->
-              matchCtorRecord
+              matchCtor1Pattern
                 (fromVarName $ Wire.unConstructorName name)
-                (Wire.unFieldName . fst <$> fields)
-                ( \field ->
-                    case lookup (Wire.FieldName (varName field)) fields of
-                      Nothing -> error "Lookup of record field failed"
-                      Just elmType ->
-                        tuple (string (varName field)) (fn1 (elmEncoder elmType) (var field))
-                )
-                (fn1 (var _Json_Encode_object) . list . fmap snd)
-            [singleParamType] ->
-              matchCtor1
-                (fromVarName $ Wire.unConstructorName name)
-                "param"
-                (\singleParamVal -> fn1 (elmEncoder singleParamType) singleParamVal)
+                (matchEncodeRecord (fmap elmEncoder <$> fields))
             _ ->
               matchCtorN
                 (fromVarName $ Wire.unConstructorName name)
@@ -155,12 +141,12 @@ encoderForType (TypeName typeName) typeDef =
                       Just elmType -> fn1 (elmEncoder elmType) (var param)
                 )
                 (fn2 (var _Json_Encode_list) (var _identity) . list)
-        tagWithCtor :: Wire.ConstructorName -> ElmValue Value -> ElmValue Value
-        tagWithCtor name params =
+        tagWithCtor :: Word -> ElmValue Value -> ElmValue Value
+        tagWithCtor ctor params =
           fn1
             (var _Json_Encode_object)
             ( list
-                [ tuple (string "ctor") (fn1 (var _Json_Encode_string) (string (Wire.unConstructorName name))),
+                [ tuple (string "ctor") (fn1 (var _Json_Encode_int) (int (fromIntegral ctor))),
                   tuple (string "val") params
                 ]
             )
@@ -173,22 +159,22 @@ data Any
 anyEncoder :: ElmValue (a -> Value) -> ElmValue (Any -> Value)
 anyEncoder = anyType
 
-ctor0Encoder :: Variable a -> ElmValue Value
+ctor0Encoder :: Word -> ElmValue Value
 ctor0Encoder ctor =
   fn1
     (var _Json_Encode_object)
     ( list
-        [ tuple ("ctor") (fn1 (var _Json_Encode_string) (string (varName ctor))),
+        [ tuple ("ctor") (fn1 (var _Json_Encode_int) (int (fromIntegral ctor))),
           tuple ("val") (fn2 (var _Json_Encode_list) (var _identity) (list []))
         ]
     )
 
-ctor1Encoder :: Variable (a -> b) -> ElmValue Value -> ElmValue Value
+ctor1Encoder :: Word -> ElmValue Value -> ElmValue Value
 ctor1Encoder ctor param =
   fn1
     (var _Json_Encode_object)
     ( list
-        [ tuple ("ctor") (fn1 (var _Json_Encode_string) (string (varName ctor))),
+        [ tuple ("ctor") (fn1 (var _Json_Encode_int) (int (fromIntegral ctor))),
           tuple ("val") (fn2 (var _Json_Encode_list) (var _identity) (list [param]))
         ]
     )
@@ -205,14 +191,14 @@ elmDecoder =
     List a -> anyDecoder $ fn1 (var _Json_Decode_list) a
     Maybe f ->
       anyDecoder $
-        fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_string)
+        fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_int)
           |> fn1
             (var _Json_Decode_andThen)
             ( lambda $ matchVar "ctor" $ \ctor ->
                 mkCase
                   ctor
-                  [ (matchString "Nothing", fn1 (var _Json_Decode_succeed) (var _Nothing)),
-                    ( matchString "Just",
+                  [ (matchInt 0, fn1 (var _Json_Decode_succeed) (var _Nothing)),
+                    ( matchInt 1,
                       fn2 (var _Json_Decode_at) (list ["val", "0"]) f
                         |> fn1 (var _Json_Decode_map) (var _Just)
                     ),
@@ -227,11 +213,11 @@ elmDecoder =
             ( lambda $ matchVar "x" $ \x ->
                 mkCase
                   x
-                  [ ( matchString "Err",
+                  [ ( matchInt 0,
                       fn2 (var _Json_Decode_at) (list ["val", "0"]) f
                         |> fn1 (var _Json_Decode_map) (var _Err)
                     ),
-                    ( matchString "Ok",
+                    ( matchInt 1,
                       fn2 (var _Json_Decode_at) (list ["val", "0"]) g
                         |> fn1 (var _Json_Decode_map) (var _Ok)
                     ),
@@ -247,7 +233,7 @@ elmDecoder =
           lambda $ matchVar "x" $ \x ->
             lambda $ matchVar "y" $ \y ->
               lambda $ matchVar "z" $ \z -> tuple3 x y z
-    Record fields' -> decodeMapN (fieldDecoder <$> fields) recordLambda
+    Record fields' -> decodeMapN (fieldDecoder <$> zip [0 ..] (snd <$> fields')) recordLambda
       where
         fields = first Wire.unFieldName <$> fields'
         recordLambda = recordLambda' (fst <$> reverse fields) emptyRecord
@@ -255,8 +241,8 @@ elmDecoder =
         recordLambda' [] record = mkRecord record
         recordLambda' (name : rest) record =
           anyType $ lambda $ matchVar name $ \x -> recordLambda' rest (addField name x record)
-        fieldDecoder :: (T.Text, ElmValue (Decoder g)) -> ElmValue (Decoder g)
-        fieldDecoder (name, decoder) = fn2 (var _Json_Decode_field) (string name) decoder
+        fieldDecoder :: (Int32, ElmValue (Decoder g)) -> ElmValue (Decoder g)
+        fieldDecoder (index, decoder) = fn2 (var _Json_Decode_field) (string (T.pack (show index))) decoder
     Lambda _ _ -> error "Cannot decode lambda function from JSON"
     Cmd _ -> error "Cannot decode Cmd"
     Defined name _ -> fn1 (var _Json_Decode_lazy) $ lambda $ matchVar "_" (\_ -> v (decoderNameForType name))
@@ -288,40 +274,36 @@ decoderForType typeDef =
   case typeDef of
     Alias elmType -> elmDecoder elmType
     Custom constructors ->
-      case constructors of
-        single :| [] ->
-          decodeParams single
-        _ ->
-          fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_string)
-            |> fn1
-              (var _Json_Decode_andThen)
-              ( lambda $ matchVar "ctor" $ \ctor ->
-                  fn1 (var _Json_Decode_field) "val"
-                    <| ( mkCase ctor $
-                           (toList $ decodeConstructor <$> constructors) <> [catchAll]
-                       )
-              )
-          where
-            catchAll = matchVar "_" $ \_ -> fn1 (var _Json_Decode_fail) "Unexpected constructor"
-            decodeConstructor :: (Wire.ConstructorName, [ElmType]) -> (Pattern a, ElmValue (Decoder Any))
-            decodeConstructor c@(Wire.ConstructorName ctorName, _) =
-              ( matchString ctorName,
-                decodeParams c
-              )
+      fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_int)
+        |> fn1
+          (var _Json_Decode_andThen)
+          ( lambda $ matchVar "ctor" $ \ctor ->
+              fn1 (var _Json_Decode_field) "val"
+                <| ( mkCase ctor $
+                       (uncurry decodeConstructor <$> zip [0 ..] (toList constructors)) <> [catchAll]
+                   )
+          )
+      where
+        catchAll = matchVar "_" $ \_ -> fn1 (var _Json_Decode_fail) "Unexpected constructor"
+        decodeConstructor :: Int32 -> (Wire.ConstructorName, [ElmType]) -> (Pattern a, ElmValue (Decoder Any))
+        decodeConstructor index c =
+          ( matchInt index,
+            decodeParams c
+          )
 
 decodeParams :: (Wire.ConstructorName, [ElmType]) -> ElmValue (Decoder Any)
 decodeParams (Wire.ConstructorName ctorName, params) =
   case params of
-    [singleParamType] ->
-      elmDecoder singleParamType
+    [rec@(Fix (Record _))] ->
+      elmDecoder rec
         |> fn1 (var _Json_Decode_map) (var (fromVarName ctorName))
     _ ->
       decodeMapN
         (zipWith paramDecoder [0 ..] params)
         (var (fromVarName ctorName))
-      where
-        paramDecoder :: Int32 -> ElmType -> ElmValue (Decoder Any)
-        paramDecoder n param = elmDecoder param |> fn1 (var _Json_Decode_index) (int n)
+  where
+    paramDecoder :: Int32 -> ElmType -> ElmValue (Decoder Any)
+    paramDecoder n param = elmDecoder param |> fn1 (var _Json_Decode_index) (int n)
 
 generateClient :: Endpoint -> ElmFunction
 generateClient endpoint =

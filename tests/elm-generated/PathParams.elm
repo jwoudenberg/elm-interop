@@ -38,14 +38,32 @@ type City
 
 
 encodeCity : City -> Json.Encode.Value
-encodeCity (City param) =
-    Json.Encode.string param
+encodeCity city =
+    case city of
+        City param1 ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list identity [ Json.Encode.string param1 ]
+                  )
+                ]
 
 
 decoderCity : Json.Decode.Decoder City
 decoderCity =
-    Json.Decode.string
-        |> Json.Decode.map City
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.string
+                                |> Json.Decode.index 0
+                                |> Json.Decode.map City
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Kilometers
@@ -53,11 +71,29 @@ type Kilometers
 
 
 encodeKilometers : Kilometers -> Json.Encode.Value
-encodeKilometers (Kilometers param) =
-    Json.Encode.int param
+encodeKilometers kilometers =
+    case kilometers of
+        Kilometers param1 ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list identity [ Json.Encode.int param1 ]
+                  )
+                ]
 
 
 decoderKilometers : Json.Decode.Decoder Kilometers
 decoderKilometers =
-    Json.Decode.int
-        |> Json.Decode.map Kilometers
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.int
+                                |> Json.Decode.index 0
+                                |> Json.Decode.map Kilometers
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

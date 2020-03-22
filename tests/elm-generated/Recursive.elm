@@ -25,17 +25,38 @@ type Turtle
 
 
 encodeTurtle : Turtle -> Json.Encode.Value
-encodeTurtle (Turtle { name, onBackOf }) =
-    Json.Encode.object
-        [ ( "name", Json.Encode.string name )
-        , ( "onBackOf", encodeTurtle onBackOf )
-        ]
+encodeTurtle turtle =
+    case turtle of
+        Turtle { name, onBackOf } ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list
+                        identity
+                        [ Json.Encode.string name, encodeTurtle onBackOf ]
+                  )
+                ]
 
 
 decoderTurtle : Json.Decode.Decoder Turtle
 decoderTurtle =
-    Json.Decode.map2
-        (\name onBackOf -> { name = name, onBackOf = onBackOf })
-        (Json.Decode.field "name" Json.Decode.string)
-        (Json.Decode.field "onBackOf" (Json.Decode.lazy (\_ -> decoderTurtle)))
-        |> Json.Decode.map Turtle
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.map2
+                                (\name onBackOf ->
+                                    { name = name, onBackOf = onBackOf }
+                                )
+                                (Json.Decode.field "0" Json.Decode.string)
+                                (Json.Decode.field
+                                    "1"
+                                    (Json.Decode.lazy (\_ -> decoderTurtle))
+                                )
+                                |> Json.Decode.map Turtle
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )

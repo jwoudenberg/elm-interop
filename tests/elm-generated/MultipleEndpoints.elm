@@ -41,18 +41,39 @@ type Dog
 
 
 encodeDog : Dog -> Json.Encode.Value
-encodeDog (Dog { name, age }) =
-    Json.Encode.object
-        [ ( "name", encodeName name ), ( "age", Json.Encode.int age ) ]
+encodeDog dog =
+    case dog of
+        Dog { name, age } ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list
+                        identity
+                        [ encodeName name, Json.Encode.int age ]
+                  )
+                ]
 
 
 decoderDog : Json.Decode.Decoder Dog
 decoderDog =
-    Json.Decode.map2
-        (\name age -> { name = name, age = age })
-        (Json.Decode.field "name" (Json.Decode.lazy (\_ -> decoderName)))
-        (Json.Decode.field "age" Json.Decode.int)
-        |> Json.Decode.map Dog
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.map2
+                                (\name age -> { name = name, age = age })
+                                (Json.Decode.field
+                                    "0"
+                                    (Json.Decode.lazy (\_ -> decoderName))
+                                )
+                                (Json.Decode.field "1" Json.Decode.int)
+                                |> Json.Decode.map Dog
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Name
@@ -60,14 +81,32 @@ type Name
 
 
 encodeName : Name -> Json.Encode.Value
-encodeName (Name param) =
-    Json.Encode.string param
+encodeName name =
+    case name of
+        Name param1 ->
+            Json.Encode.object
+                [ ( "ctor", Json.Encode.int 0 )
+                , ( "val"
+                  , Json.Encode.list identity [ Json.Encode.string param1 ]
+                  )
+                ]
 
 
 decoderName : Json.Decode.Decoder Name
 decoderName =
-    Json.Decode.string
-        |> Json.Decode.map Name
+    Json.Decode.field "ctor" Json.Decode.int
+        |> Json.Decode.andThen
+            (\ctor ->
+                Json.Decode.field "val" <|
+                    case ctor of
+                        0 ->
+                            Json.Decode.string
+                                |> Json.Decode.index 0
+                                |> Json.Decode.map Name
+
+                        _ ->
+                            Json.Decode.fail "Unexpected constructor"
+            )
 
 
 type Toy
@@ -80,28 +119,28 @@ encodeToy toy =
     case toy of
         Bone ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Bone" )
+                [ ( "ctor", Json.Encode.int 0 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
         Ball ->
             Json.Encode.object
-                [ ( "ctor", Json.Encode.string "Ball" )
+                [ ( "ctor", Json.Encode.int 1 )
                 , ( "val", Json.Encode.list identity [] )
                 ]
 
 
 decoderToy : Json.Decode.Decoder Toy
 decoderToy =
-    Json.Decode.field "ctor" Json.Decode.string
+    Json.Decode.field "ctor" Json.Decode.int
         |> Json.Decode.andThen
             (\ctor ->
                 Json.Decode.field "val" <|
                     case ctor of
-                        "Bone" ->
+                        0 ->
                             Json.Decode.succeed Bone
 
-                        "Ball" ->
+                        1 ->
                             Json.Decode.succeed Ball
 
                         _ ->
