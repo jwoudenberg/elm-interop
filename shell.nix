@@ -14,4 +14,6 @@ pkgs.haskellPackages.shellFor {
     pkgs.stack
     pkgs.zlib
   ];
+
+  HEDGEHOG_COLOR = 1;
 }

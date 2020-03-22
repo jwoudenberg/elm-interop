@@ -57,7 +57,6 @@ tests:
     - servant-server
     - tasty
     - tasty-golden
-    - tasty-hedgehog
     - tasty-hunit
     - tasty-program
     - tasty-rerun

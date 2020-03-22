@@ -11,36 +11,36 @@ import Data.Proxy (Proxy (Proxy))
 import qualified Examples.Roundtrip
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Main
 import qualified Hedgehog.Range as Range
-import Test.Tasty
-import qualified Test.Tasty.Hedgehog
 import qualified Wire
 import qualified Wire.Json
 
 main :: IO ()
-main = defaultMain tests
+main = Hedgehog.Main.defaultMain [tests]
 
-tests :: TestTree
+tests :: IO Bool
 tests =
-  testGroup
-    "Wire unit"
-    [ repDualityTests,
-      jsonDualityTests
-    ]
+  Hedgehog.checkParallel $
+    Hedgehog.Group
+      "Wire unit"
+      [ ("Wire.toWire / Wire.fromWire duality", repDuality),
+        ("Wire.Json.encodeJson / Wire.Json.decodeJson duality", jsonDuality)
+      ]
 
-repDualityTests :: TestTree
-repDualityTests =
-  Test.Tasty.Hedgehog.testProperty "Rep duality" $ Hedgehog.property $ do
+repDuality :: Hedgehog.Property
+repDuality =
+  Hedgehog.property $ do
     value <- Hedgehog.forAll roundtripValueGenerator
     Hedgehog.tripping value Wire.toWire Wire.fromWire
 
-jsonDualityTests :: TestTree
-jsonDualityTests =
-  Test.Tasty.Hedgehog.testProperty "Rep duality" $ Hedgehog.property $ do
+jsonDuality :: Hedgehog.Property
+jsonDuality =
+  Hedgehog.property $ do
     let coder = Wire.Json.coderForType (Wire.wireType (Proxy :: Proxy Examples.Roundtrip.Value))
     input <- Hedgehog.forAll (Wire.toWire <$> roundtripValueGenerator)
     encoded <- maybe Hedgehog.failure pure (Wire.Json.encodeJson coder input)
-    Hedgehog.annotateShow encoded
+    Hedgehog.annotate (TL.unpack (TLE.decodeUtf8 encoded))
     output <- maybe Hedgehog.failure pure (Wire.Json.decodeJson coder encoded)
     (Hedgehog.===) input output
 
