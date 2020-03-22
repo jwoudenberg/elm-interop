@@ -189,6 +189,7 @@ sum' constructors =
                   _ -> Nothing
               val <- HashMap.lookup "val" object
               constructor <- Map.lookup ctor constructors
-              decode constructor val
+              params <- decode constructor val
+              pure $ MkSum ctor params
             _ -> Nothing
         }
