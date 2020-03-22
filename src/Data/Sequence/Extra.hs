@@ -36,4 +36,4 @@ hashMapToSeq :: HashMap k v -> Seq (k, v)
 hashMapToSeq = HashMap.foldlWithKey' (\s k v -> (k, v) :<| s) mempty
 
 foldableToSeq :: Foldable f => f a -> Seq a
-foldableToSeq = foldl' (flip (:<|)) mempty
+foldableToSeq = foldr (:<|) mempty
