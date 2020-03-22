@@ -31,14 +31,17 @@ elmIndent = 4
 -- Used for printing lists and records in a fashion compatible with elm-format.
 encloseSep' :: Doc -> Doc -> Doc -> [Doc] -> Doc
 encloseSep' left right sp ds =
+  PP.group $ encloseSepUngrouped left right sp ds
+
+encloseSepUngrouped :: Doc -> Doc -> Doc -> [Doc] -> Doc
+encloseSepUngrouped left right sp ds =
   case ds of
     [] -> left <> right
     _ ->
-      PP.group $
-        PP.column
-          ( \start ->
-              PP.vcat (setIndent start <$> entries) <++> setIndent start right
-          )
+      PP.column
+        ( \start ->
+            PP.vcat (setIndent start <$> entries) <++> setIndent start right
+        )
       where
         entries = zipWith (<+>) (left : repeat sp) ds
 

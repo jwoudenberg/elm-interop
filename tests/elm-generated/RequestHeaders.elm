@@ -7,7 +7,10 @@ import Url.Builder
 
 
 getSecret :
-    { password : Password, fingerprint : Int, voiceprint : Int }
+    { password : Password
+    , fingerprint : Int
+    , voiceprint : Int
+    }
     -> Cmd (Result Http.Error Secret)
 getSecret { password, fingerprint, voiceprint } =
     Http.request

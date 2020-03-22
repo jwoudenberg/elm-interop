@@ -7,7 +7,10 @@ import Url.Builder
 
 
 getGroceries :
-    { maxPrice : EuroCents, bio : Bool, brands : List String }
+    { maxPrice : EuroCents
+    , bio : Bool
+    , brands : List String
+    }
     -> Cmd (Result Http.Error (List Grocery))
 getGroceries { maxPrice, bio, brands } =
     Http.request

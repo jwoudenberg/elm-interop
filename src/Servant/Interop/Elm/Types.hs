@@ -120,7 +120,7 @@ printType =
     Tuple3 (_, i) (_, j) (_, k) ->
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
-      encloseSep' PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
+      encloseSepUngrouped PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
     Defined (TypeName name) params ->
       hangCollapse $ PP.vsep (PP.pretty name : (uncurry parens <$> params))
     Cmd (a, i) -> "Cmd" <+> parens a i

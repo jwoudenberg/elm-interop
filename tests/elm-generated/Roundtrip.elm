@@ -38,7 +38,11 @@ postRoundtrip { body } =
 
 type Value
     = Record
-        { int : Int, text : String, list : List Bool, either : EitherIntBool }
+        { int : Int
+        , text : String
+        , list : List Bool
+        , either : EitherIntBool
+        }
 
 
 encodeValue : Value -> Json.Encode.Value
