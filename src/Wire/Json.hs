@@ -24,7 +24,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Scientific
 import qualified Data.Sequence as Seq
-import Data.Sequence (Seq ((:<|)))
+import Data.Sequence (Seq)
 import Data.Sequence.Extra (foldableToSeq)
 import Wire
 
@@ -122,60 +122,42 @@ list el =
 
 product' :: Seq Coder -> Coder
 product' params =
-  case params of
-    singleParam :<| Seq.Empty ->
-      Coder
-        { encode = \case
-            MkProduct (singleVal :<| Seq.Empty) -> encode singleParam singleVal
-            _ -> Nothing,
-          decode = fmap (MkProduct . pure) . decode singleParam
-        }
-    _ ->
-      Coder
-        { encode = \case
-            MkProduct xs
-              | length xs == length params ->
-                Encoding.list id
-                  <$> zipWithM ($) (encode <$> toList params) (toList xs)
-            _ -> Nothing,
-          decode = \case
-            Aeson.Array xs
-              | length xs == length params ->
-                fmap MkProduct . sequenceA $
-                  Seq.zipWith ($) (decode <$> params) (foldableToSeq xs)
-            _ -> Nothing
-        }
+  Coder
+    { encode = \case
+        MkProduct xs
+          | length xs == length params ->
+            Encoding.list id
+              <$> zipWithM ($) (encode <$> toList params) (toList xs)
+        _ -> Nothing,
+      decode = \case
+        Aeson.Array xs
+          | length xs == length params ->
+            fmap MkProduct . sequenceA $
+              Seq.zipWith ($) (decode <$> params) (foldableToSeq xs)
+        _ -> Nothing
+    }
 
 sum' :: Seq Coder -> Coder
 sum' constructors =
-  case constructors of
-    single :<| Seq.Empty ->
-      Coder
-        { encode = \case
-            MkSum 0 x -> encode single x
-            _ -> Nothing,
-          decode = fmap (MkSum 0) . decode single
-        }
-    _ ->
-      Coder
-        { encode = \case
-            MkSum n x -> do
-              constructor <- Seq.lookup (fromIntegral n) constructors
-              val <- encode constructor x
-              let ctor = Encoding.word n
-              pure . Encoding.pairs $
-                (Encoding.pair "ctor" ctor) <> (Encoding.pair "val" val)
-            _ -> Nothing,
-          decode = \case
-            Aeson.Object object -> do
-              ctorValue <- HashMap.lookup "ctor" object
-              ctor <-
-                case ctorValue of
-                  Aeson.Number n -> Scientific.toBoundedInteger n
-                  _ -> Nothing
-              val <- HashMap.lookup "val" object
-              constructor <- Seq.lookup (fromIntegral ctor) constructors
-              params <- decode constructor val
-              pure $ MkSum ctor params
-            _ -> Nothing
-        }
+  Coder
+    { encode = \case
+        MkSum n x -> do
+          constructor <- Seq.lookup (fromIntegral n) constructors
+          val <- encode constructor x
+          let ctor = Encoding.word n
+          pure . Encoding.pairs $
+            (Encoding.pair "ctor" ctor) <> (Encoding.pair "val" val)
+        _ -> Nothing,
+      decode = \case
+        Aeson.Object object -> do
+          ctorValue <- HashMap.lookup "ctor" object
+          ctor <-
+            case ctorValue of
+              Aeson.Number n -> Scientific.toBoundedInteger n
+              _ -> Nothing
+          val <- HashMap.lookup "val" object
+          constructor <- Seq.lookup (fromIntegral ctor) constructors
+          params <- decode constructor val
+          pure $ MkSum ctor params
+        _ -> Nothing
+    }
