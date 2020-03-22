@@ -49,8 +49,8 @@ decodeJson coder =
 coderForType :: (UserTypes, Wire.Type_) -> Coder
 coderForType (userTypes, type_) =
   flip cata type_ $ \case
-    Tuple xs -> tuple xs
-    Record xs -> record $ mapFromFoldable xs
+    Tuple xs -> product' xs
+    Record xs -> product' (snd <$> xs)
     User name ->
       fromMaybe void $ do
         constructors <- Map.lookup name (unUserTypes userTypes)
@@ -121,41 +121,20 @@ list el =
         _ -> Nothing
     }
 
-record :: Map FieldName Coder -> Coder
-record fields =
-  Coder
-    { encode = \case
-        MkRecord xs ->
-          let encodeField :: FieldName -> Wire.Value -> Maybe Aeson.Series
-              encodeField name value = do
-                field <- Map.lookup name fields
-                Encoding.pair (Wire.unFieldName name) <$> encode field value
-           in Encoding.pairs <$> Map.foldMapWithKey encodeField xs
-        _ -> Nothing,
-      decode = \case
-        Aeson.Object xs ->
-          let decodeField :: FieldName -> Coder -> Maybe (Map FieldName Value)
-              decodeField name coder = do
-                value <- HashMap.lookup (Wire.unFieldName name) xs
-                Map.singleton name <$> decode coder value
-           in MkRecord <$> Map.foldMapWithKey decodeField fields
-        _ -> Nothing
-    }
-
-tuple :: Seq Coder -> Coder
-tuple params =
+product' :: Seq Coder -> Coder
+product' params =
   case params of
     singleParam :<| Seq.Empty ->
       Coder
         { encode = \case
-            MkTuple (singleVal :<| Seq.Empty) -> encode singleParam singleVal
+            MkProduct (singleVal :<| Seq.Empty) -> encode singleParam singleVal
             _ -> Nothing,
-          decode = fmap (MkTuple . pure) . decode singleParam
+          decode = fmap (MkProduct . pure) . decode singleParam
         }
     _ ->
       Coder
         { encode = \case
-            MkTuple xs
+            MkProduct xs
               | length xs == length params ->
                 Encoding.list id
                   <$> zipWithM ($) (encode <$> toList params) (toList xs)
@@ -163,7 +142,7 @@ tuple params =
           decode = \case
             Aeson.Array xs
               | length xs == length params ->
-                fmap MkTuple . sequenceA $
+                fmap MkProduct . sequenceA $
                   Seq.zipWith ($) (decode <$> params) (foldableToSeq xs)
             _ -> Nothing
         }

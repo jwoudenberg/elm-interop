@@ -153,8 +153,7 @@ data Value
   | MkString Text
   | MkBool Bool
   | MkList (Seq Value)
-  | MkRecord (Map FieldName Value)
-  | MkTuple (Seq Value)
+  | MkProduct (Seq Value)
   | MkSum
       ConstructorName
       Value
@@ -273,14 +272,14 @@ instance Rep Bool where
 instance Rep () where
   wireType' _ = pure . Fix $ Tuple mempty
 
-  toWire () = MkTuple []
+  toWire () = MkProduct []
 
   fromWire _ = pure ()
 
 instance Rep Servant.NoContent where
   wireType' _ = pure . Fix $ Tuple mempty
 
-  toWire Servant.NoContent = MkTuple []
+  toWire Servant.NoContent = MkProduct []
 
   fromWire _ = pure Servant.NoContent
 
@@ -337,12 +336,12 @@ instance (Ord k, Rep k, Rep v) => Rep (Map k v) where
   wireType' _ =
     Fix . List <$> tupleType [wireType' (Proxy @k), wireType' (Proxy @v)]
 
-  toWire = MkList . fmap (\(k, v) -> MkTuple [toWire k, toWire v]) . mapToSeq
+  toWire = MkList . fmap (\(k, v) -> MkProduct [toWire k, toWire v]) . mapToSeq
 
   fromWire (MkList xs) = mapFromFoldable <$> traverse toTuple xs
     where
       toTuple :: Value -> Maybe (k, v)
-      toTuple (MkTuple [k, v]) = (,) <$> fromWire k <*> fromWire v
+      toTuple (MkProduct [k, v]) = (,) <$> fromWire k <*> fromWire v
       toTuple _ = Nothing
   fromWire _ = Nothing
 
@@ -351,12 +350,12 @@ instance (Eq k, Hashable k, Rep k, Rep v) => Rep (HashMap k v) where
     Fix . List <$> tupleType [wireType' (Proxy @k), wireType' (Proxy @v)]
 
   toWire =
-    MkList . fmap (\(k, v) -> MkTuple [toWire k, toWire v]) . hashMapToSeq
+    MkList . fmap (\(k, v) -> MkProduct [toWire k, toWire v]) . hashMapToSeq
 
   fromWire (MkList xs) = hashMapFromFoldable <$> traverse toTuple xs
     where
       toTuple :: Value -> Maybe (k, v)
-      toTuple (MkTuple [k, v]) = (,) <$> fromWire k <*> fromWire v
+      toTuple (MkProduct [k, v]) = (,) <$> fromWire k <*> fromWire v
       toTuple _ = Nothing
   fromWire _ = Nothing
 
@@ -366,18 +365,18 @@ instance (Eq k, Hashable k, Rep k, Rep v) => Rep (HashMap k v) where
 instance (Rep a, Rep b) => Rep (a, b) where
   wireType' _ = tupleType [wireType' (Proxy @a), wireType' (Proxy @b)]
 
-  toWire (a, b) = MkTuple [toWire a, toWire b]
+  toWire (a, b) = MkProduct [toWire a, toWire b]
 
-  fromWire (MkTuple [a, b]) = (,) <$> fromWire a <*> fromWire b
+  fromWire (MkProduct [a, b]) = (,) <$> fromWire a <*> fromWire b
   fromWire _ = Nothing
 
 instance (Rep a, Rep b, Rep c) => Rep (a, b, c) where
   wireType' _ =
     tupleType [wireType' (Proxy @a), wireType' (Proxy @b), wireType' (Proxy @c)]
 
-  toWire (a, b, c) = MkTuple [toWire a, toWire b, toWire c]
+  toWire (a, b, c) = MkProduct [toWire a, toWire b, toWire c]
 
-  fromWire (MkTuple [a, b, c]) =
+  fromWire (MkProduct [a, b, c]) =
     (,,) <$> fromWire a <*> fromWire b <*> fromWire c
   fromWire _ = Nothing
 
@@ -390,9 +389,9 @@ instance (Rep a, Rep b, Rep c, Rep d) => Rep (a, b, c, d) where
         wireType' (Proxy @d)
       ]
 
-  toWire (a, b, c, d) = MkTuple [toWire a, toWire b, toWire c, toWire d]
+  toWire (a, b, c, d) = MkProduct [toWire a, toWire b, toWire c, toWire d]
 
-  fromWire (MkTuple [a, b, c, d]) =
+  fromWire (MkProduct [a, b, c, d]) =
     (,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
   fromWire _ = Nothing
 
@@ -407,9 +406,9 @@ instance (Rep a, Rep b, Rep c, Rep d, Rep e) => Rep (a, b, c, d, e) where
       ]
 
   toWire (a, b, c, d, e) =
-    MkTuple [toWire a, toWire b, toWire c, toWire d, toWire e]
+    MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e]
 
-  fromWire (MkTuple [a, b, c, d, e]) =
+  fromWire (MkProduct [a, b, c, d, e]) =
     (,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
       <*> fromWire e
   fromWire _ = Nothing
@@ -429,9 +428,9 @@ instance
       ]
 
   toWire (a, b, c, d, e, f) =
-    MkTuple [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
+    MkProduct [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f]
 
-  fromWire (MkTuple [a, b, c, d, e, f]) =
+  fromWire (MkProduct [a, b, c, d, e, f]) =
     (,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
       <*> fromWire e
       <*> fromWire f
@@ -453,10 +452,10 @@ instance
       ]
 
   toWire (a, b, c, d, e, f, g) =
-    MkTuple
+    MkProduct
       [toWire a, toWire b, toWire c, toWire d, toWire e, toWire f, toWire g]
 
-  fromWire (MkTuple [a, b, c, d, e, f, g]) =
+  fromWire (MkProduct [a, b, c, d, e, f, g]) =
     (,,,,,,) <$> fromWire a <*> fromWire b <*> fromWire c <*> fromWire d
       <*> fromWire e
       <*> fromWire f
@@ -527,19 +526,10 @@ instance
       name = constructorName (Proxy @n)
 
   toSumsG =
-    (constructorName (Proxy @n),)
-      . MkRecord
-      . mapFromFoldable
-      . toProductG
-      . unM1
+    (constructorName (Proxy @n),) . MkProduct . fmap snd . toProductG . unM1
 
-  fromSumsG n (MkRecord x)
-    | n == constructorName (Proxy @n) = do
-      orderedSeq <-
-        traverse
-          (\name -> (name,) <$> Map.lookup name x)
-          (productFieldsG (Proxy @f))
-      fmap M1 (fromProductG orderedSeq)
+  fromSumsG n (MkProduct xs)
+    | n == constructorName (Proxy @n) = fmap M1 (fromProductG $ ("",) <$> xs)
   fromSumsG _ _ = Nothing -- We picked a constructor that doesn't exist.
 
 instance
@@ -551,9 +541,9 @@ instance
       name = constructorName (Proxy @n)
 
   toSumsG =
-    (constructorName (Proxy @n),) . MkTuple . fmap snd . toProductG . unM1
+    (constructorName (Proxy @n),) . MkProduct . fmap snd . toProductG . unM1
 
-  fromSumsG n (MkTuple xs)
+  fromSumsG n (MkProduct xs)
     | n == constructorName (Proxy @n) = fmap M1 (fromProductG $ ("",) <$> xs)
   fromSumsG _ _ = Nothing -- We picked a constructor that doesn't exist.
 
