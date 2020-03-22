@@ -49,7 +49,8 @@ roundtripTests =
               Examples.Roundtrip.Record
                 { Examples.Roundtrip.int = 42,
                   Examples.Roundtrip.text = "Hi there!",
-                  Examples.Roundtrip.list = [True, False]
+                  Examples.Roundtrip.list = [True, False],
+                  Examples.Roundtrip.either = Left 4
                 }
         compileElmTestApp logFile
         servedValue <- MVar.newEmptyMVar

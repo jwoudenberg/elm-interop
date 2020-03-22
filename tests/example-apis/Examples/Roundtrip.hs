@@ -33,7 +33,8 @@ data Value
   = Record
       { int :: Int,
         text :: T.Text,
-        list :: [Bool]
+        list :: [Bool],
+        either :: Either Int Bool
       }
   deriving (Eq, Generic, Show)
 

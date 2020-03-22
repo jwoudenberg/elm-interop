@@ -52,3 +52,7 @@ roundtripValueGenerator =
     <$> Gen.int (Range.linearFrom 0 (-100) 100)
     <*> Gen.text (Range.linear 0 100) Gen.unicode
     <*> Gen.list (Range.linear 0 5) Gen.bool
+    <*> Gen.choice
+      [ Left <$> Gen.int (Range.linearFrom 0 (-100) 100),
+        Right <$> Gen.bool
+      ]
