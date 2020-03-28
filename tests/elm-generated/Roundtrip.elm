@@ -41,7 +41,7 @@ type Value
         { int : Int
         , text : String
         , list : List Bool
-        , either : EitherIntBool
+        , either : Result Int Bool
         }
 
 
@@ -58,7 +58,29 @@ encodeValue value =
                         , Json.Encode.string text
                         , (\elems -> Json.Encode.list Json.Encode.bool elems)
                             list
-                        , encodeEitherIntBool either
+                        , (\x ->
+                            case x of
+                                Err err ->
+                                    Json.Encode.object
+                                        [ ( "ctor", Json.Encode.int 0 )
+                                        , ( "val"
+                                          , Json.Encode.list
+                                                identity
+                                                [ Json.Encode.int err ]
+                                          )
+                                        ]
+
+                                Ok ok ->
+                                    Json.Encode.object
+                                        [ ( "ctor", Json.Encode.int 1 )
+                                        , ( "val"
+                                          , Json.Encode.list
+                                                identity
+                                                [ Json.Encode.bool ok ]
+                                          )
+                                        ]
+                          )
+                            either
                         ]
                   )
                 ]
@@ -88,58 +110,31 @@ decoderValue =
                                 )
                                 (Json.Decode.field
                                     "3"
-                                    (Json.Decode.lazy
-                                        (\_ -> decoderEitherIntBool)
+                                    (Json.Decode.field "ctor" Json.Decode.int
+                                        |> Json.Decode.andThen
+                                            (\x ->
+                                                case x of
+                                                    0 ->
+                                                        Json.Decode.at
+                                                            [ "val", "0" ]
+                                                            Json.Decode.int
+                                                            |> Json.Decode.map
+                                                                Err
+
+                                                    1 ->
+                                                        Json.Decode.at
+                                                            [ "val", "0" ]
+                                                            Json.Decode.bool
+                                                            |> Json.Decode.map
+                                                                Ok
+
+                                                    _ ->
+                                                        Json.Decode.fail
+                                                            "Unexpected constructor"
+                                            )
                                     )
                                 )
                                 |> Json.Decode.map Record
-
-                        _ ->
-                            Json.Decode.fail "Unexpected constructor"
-            )
-
-
-type EitherIntBool
-    = Left Int
-    | Right Bool
-
-
-encodeEitherIntBool : EitherIntBool -> Json.Encode.Value
-encodeEitherIntBool eitherIntBool =
-    case eitherIntBool of
-        Left param1 ->
-            Json.Encode.object
-                [ ( "ctor", Json.Encode.int 0 )
-                , ( "val"
-                  , Json.Encode.list identity [ Json.Encode.int param1 ]
-                  )
-                ]
-
-        Right param1 ->
-            Json.Encode.object
-                [ ( "ctor", Json.Encode.int 1 )
-                , ( "val"
-                  , Json.Encode.list identity [ Json.Encode.bool param1 ]
-                  )
-                ]
-
-
-decoderEitherIntBool : Json.Decode.Decoder EitherIntBool
-decoderEitherIntBool =
-    Json.Decode.field "ctor" Json.Decode.int
-        |> Json.Decode.andThen
-            (\ctor ->
-                Json.Decode.field "val" <|
-                    case ctor of
-                        0 ->
-                            Json.Decode.int
-                                |> Json.Decode.index 0
-                                |> Json.Decode.map Left
-
-                        1 ->
-                            Json.Decode.bool
-                                |> Json.Decode.index 0
-                                |> Json.Decode.map Right
 
                         _ ->
                             Json.Decode.fail "Unexpected constructor"

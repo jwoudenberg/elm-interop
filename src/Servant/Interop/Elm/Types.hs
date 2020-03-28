@@ -3,6 +3,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -10,14 +12,14 @@
 module Servant.Interop.Elm.Types
   ( ElmTypeF (..),
     ElmType,
-    TypeName (..),
+    TypeName,
     ElmTypeDefinition (..),
+    toElmTypes,
     sortUserTypes,
-    fromWireUserTypes,
     printTypeDefinition,
     printType,
-    fromWireType,
-    toElmTypeName,
+    toUniqueName,
+    printName,
   )
 where
 
@@ -25,10 +27,10 @@ import Data.Foldable (toList)
 import Data.Functor.Foldable (Fix (Fix), cata, unfix, zygo)
 import qualified Data.Graph as Graph
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import Data.String (IsString)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -121,8 +123,8 @@ printType =
       encloseSep' PP.lparen PP.rparen PP.comma [i, j, k]
     Record xs ->
       encloseSepUngrouped PP.lbrace PP.rbrace PP.comma (printRecordField <$> xs)
-    Defined (TypeName name) params ->
-      hangCollapse $ PP.vsep (PP.pretty name : (uncurry parens <$> params))
+    Defined name params ->
+      hangCollapse $ PP.vsep (PP.pretty (printName name) : (uncurry parens <$> params))
     Cmd (a, i) -> "Cmd" <+> parens a i
     Lambda (ai, i) (_, o) -> idoc <++> "->" <+> o
       where
@@ -134,18 +136,24 @@ printType =
             MultipleWord -> i
             MultipleWordLambda -> PP.parens i
 
+printName :: TypeName -> Text
+printName (TypeName name) =
+  case Text.splitOn "|" name of
+    [] -> name
+    x : _ -> x
+
 printTypeDefinition :: TypeName -> ElmTypeDefinition -> Doc
-printTypeDefinition (TypeName name) =
+printTypeDefinition name =
   \case
     Custom constructors ->
-      "type" <+> PP.pretty name <++> printedConstructors
+      "type" <+> PP.pretty (printName name) <++> printedConstructors
       where
         printedConstructors =
           PP.indent elmIndent . PP.vcat . zipWith (<+>) ("=" : repeat "|") $
             printConstructor <$> toList constructors
     Alias base ->
       "type alias"
-        <+> PP.pretty name
+        <+> PP.pretty (printName name)
         <+> "=" <++> PP.indent elmIndent (printType base)
 
 printConstructor :: (Wire.ConstructorName, [ElmType]) -> Doc
@@ -182,59 +190,81 @@ printRecordField :: (Wire.FieldName, (a, Doc)) -> Doc
 printRecordField (k, (_, v)) =
   hangCollapse $ PP.pretty (Wire.unFieldName k) <+> ":" <++> v
 
--- |
--- The wire format is intentionally very limited and does not include many types
--- types that are in `elm-core`, such as `Maybe a` and `Result err ok`. When the
--- user generates Elm code for a Haskell `Maybe a` we'd still like that to be
--- mapped onto the Elm equivalent. This code ensures it does.
-useElmCoreTypes :: UserTypes -> (UserTypes, ElmType -> ElmType)
-useElmCoreTypes userTypes =
-  ( UserTypes . fmap replaceInTypeDefinition $
-      Map.withoutKeys (unUserTypes userTypes) (Map.keysSet replacements),
-    replace
+toElmTypes :: Wire.UserTypes -> (UserTypes, Wire.Type_ -> ElmType)
+toElmTypes wireTypes =
+  ( userTypes,
+    fromWireType
   )
   where
-    replacements :: Map TypeName ElmType
-    replacements = elmCoreTypeReplacements userTypes
-    replaceInTypeDefinition :: ElmTypeDefinition -> ElmTypeDefinition
-    replaceInTypeDefinition (Alias x) = Alias (replace x)
-    replaceInTypeDefinition (Custom ctors) =
-      Custom ((fmap . fmap . fmap) replace ctors)
-    replace :: ElmType -> ElmType
-    replace =
+    (userTypes, elmTypes) =
+      traverse (uncurry (toElmType fromWireType))
+        $ Map.toList
+        $ Wire.unUserTypes wireTypes
+    customTypes :: Map Wire.TypeName ElmType
+    customTypes =
+      Map.fromList $ zip (Map.keys (Wire.unUserTypes wireTypes)) elmTypes
+    fromWireType :: Wire.Type_ -> ElmType
+    fromWireType =
       cata $ \case
-        x@(Defined name _) -> fromMaybe (Fix x) $ Map.lookup name replacements
-        x -> Fix x
+        Wire.Tuple xs -> mkElmTuple $ toList xs
+        Wire.Record xs -> Fix . Record $ toList xs
+        Wire.User name ->
+          case Map.lookup name customTypes of
+            Nothing -> error ("Could not find custom type: " <> (show name))
+            Just x -> x
+        Wire.Void -> Fix Never
+        Wire.Int -> Fix Int
+        Wire.Float -> Fix Float
+        Wire.String -> Fix String
+        Wire.Bool -> Fix Bool
+        Wire.List x -> Fix $ List x
 
-fromWireUserTypes :: Wire.UserTypes -> (UserTypes, ElmType -> ElmType)
-fromWireUserTypes =
-  useElmCoreTypes
-    . UserTypes
-    . Map.mapKeys toElmTypeName
-    . fmap (fromWireUserType . toList)
-    . Wire.unUserTypes
+toElmType ::
+  (Wire.Type_ -> ElmType) ->
+  Wire.TypeName ->
+  Seq (Wire.ConstructorName, Wire.Type_) ->
+  (UserTypes, ElmType)
+toElmType fromWireType typeName ctors =
+  case (Wire.typeConstructor typeName, Seq.sortOn fst ctors) of
+    -- We're duck-typing Maybe's. We could restrict this code to only replace
+    -- the official `Maybe` type in Haskell's Prelude with an Elm `Maybe`, but
+    -- why not give potentially custom `Maybe` definitions the same treatment?
+    ("Maybe", [("Just", Fix (Wire.Tuple [a])), ("Nothing", Fix (Wire.Tuple []))]) ->
+      ( mempty,
+        Fix (Maybe (fromWireType a))
+      )
+    ("Either", [("Left", Fix (Wire.Tuple [a])), ("Right", Fix (Wire.Tuple [b]))]) ->
+      ( mempty,
+        Fix (Result (fromWireType a) (fromWireType b))
+      )
+    ("Result", [("Err", Fix (Wire.Tuple [a])), ("Ok", Fix (Wire.Tuple [b]))]) ->
+      ( mempty,
+        Fix (Result (fromWireType a) (fromWireType b))
+      )
+    _ ->
+      ( UserTypes $
+          Map.singleton
+            (toUniqueName typeName)
+            (fromWireUserType (toList ctors) fromWireType),
+        Fix (Defined (toUniqueName typeName) [])
+      )
 
-elmCoreTypeReplacements :: UserTypes -> Map TypeName ElmType
-elmCoreTypeReplacements =
-  Map.mapMaybeWithKey replaceWithElmCoreType . unUserTypes
+toUniqueName :: Wire.TypeName -> TypeName
+toUniqueName Wire.TypeName {Wire.typeConstructor, Wire.fromModule, Wire.parameters} =
+  TypeName $
+    Text.intercalate
+      "|"
+      [ typeConstructor,
+        mconcat (typeConstructor : parameters),
+        mconcat (fromModule : typeConstructor : parameters)
+      ]
 
-replaceWithElmCoreType :: TypeName -> ElmTypeDefinition -> Maybe ElmType
-replaceWithElmCoreType _ (Alias _) = Nothing
-replaceWithElmCoreType typeName (Custom typeDef) =
-  case (typeName, orderedConstructors) of
-    ("Maybe", [("Just", [a]), ("Nothing", [])]) -> Just (Fix $ Maybe a)
-    ("Either", [("Left", [a]), ("Right", [b])]) -> Just (Fix $ Result a b)
-    -- There's not a `Result` type in the Haskell standard library, but if you
-    -- would create one, you'd expect it to map to the Elm `Result` type.
-    ("Result", [("Err", [a]), ("Ok", [b])]) -> Just (Fix $ Result a b)
-    _ -> Nothing
-  where
-    orderedConstructors :: [(Wire.ConstructorName, [ElmType])]
-    orderedConstructors = toList $ NonEmpty.sortWith fst typeDef
-
-fromWireUserType :: [(Wire.ConstructorName, Wire.Type_)] -> ElmTypeDefinition
-fromWireUserType [] = Alias (Fix Never)
-fromWireUserType (c : cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
+fromWireUserType ::
+  [(Wire.ConstructorName, Wire.Type_)] ->
+  (Wire.Type_ -> ElmType) ->
+  ElmTypeDefinition
+fromWireUserType [] _ = Alias (Fix Never)
+fromWireUserType (c : cs) fromWireType = Custom . (fmap . fmap) mkConstructors $ c :| cs
   where
     mkConstructors :: Wire.Type_ -> [ElmType]
     mkConstructors =
@@ -245,19 +275,6 @@ fromWireUserType (c : cs) = Custom . (fmap . fmap) mkConstructors $ c :| cs
         Fix (Wire.Record fields) ->
           pure . Fix . Record . (fmap . fmap) fromWireType $ toList fields
         param -> [fromWireType param]
-
-fromWireType :: Wire.Type_ -> ElmType
-fromWireType =
-  cata $ \case
-    Wire.Tuple xs -> mkElmTuple $ toList xs
-    Wire.Record xs -> Fix . Record $ toList xs
-    Wire.User name -> Fix $ Defined (toElmTypeName name) []
-    Wire.Void -> Fix Never
-    Wire.Int -> Fix Int
-    Wire.Float -> Fix Float
-    Wire.String -> Fix String
-    Wire.Bool -> Fix Bool
-    Wire.List x -> Fix $ List x
 
 -- |
 -- Build an Elm type representing a 'tuple' of different types.
@@ -291,22 +308,3 @@ sortUserTypes =
       (TypeName, ElmTypeDefinition) ->
       ((TypeName, ElmTypeDefinition), TypeName, [TypeName])
     toNode (name, t) = ((name, t), name, namesInTypeDefinition t)
-
-toElmTypeName :: Wire.TypeName -> TypeName
-toElmTypeName name =
-  TypeName $
-    if Wire.fromModule name `elem` knownModules
-      then qualifiedName name
-      else unqualifiedName name
-  where
-    unqualifiedName :: Wire.TypeName -> Text
-    unqualifiedName name' = Wire.typeConstructor name' <> mconcat (Wire.parameters name')
-    qualifiedName :: Wire.TypeName -> Text
-    qualifiedName name' =
-      Wire.fromModule name' <> "." <> unqualifiedName name'
-    knownModules :: [Text]
-    knownModules =
-      [ "Http",
-        "Json.Decode",
-        "Json.Encode"
-      ]

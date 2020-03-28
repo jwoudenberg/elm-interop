@@ -6,7 +6,7 @@ import Json.Encode
 import Url.Builder
 
 
-getDuet : {} -> Cmd (Result Http.Error BackAndForthText)
+getDuet : {} -> Cmd (Result Http.Error BackAndForth)
 getDuet {} =
     Http.request
         { tracker = Nothing
@@ -14,7 +14,7 @@ getDuet {} =
         , expect =
             Http.expectJson
                 identity
-                (Json.Decode.lazy (\_ -> decoderBackAndForthText))
+                (Json.Decode.lazy (\_ -> decoderBackAndForth))
         , body = Http.emptyBody
         , url = Url.Builder.absolute [ "duet" ] (List.concat [])
         , headers = []
@@ -22,28 +22,26 @@ getDuet {} =
         }
 
 
-type ForthText
-    = Forth String BackAndForthText
+type Forth
+    = Forth String BackAndForth
 
 
-encodeForthText : ForthText -> Json.Encode.Value
-encodeForthText forthText =
-    case forthText of
+encodeForth : Forth -> Json.Encode.Value
+encodeForth forth =
+    case forth of
         Forth param1 param2 ->
             Json.Encode.object
                 [ ( "ctor", Json.Encode.int 0 )
                 , ( "val"
                   , Json.Encode.list
                         identity
-                        [ Json.Encode.string param1
-                        , encodeBackAndForthText param2
-                        ]
+                        [ Json.Encode.string param1, encodeBackAndForth param2 ]
                   )
                 ]
 
 
-decoderForthText : Json.Decode.Decoder ForthText
-decoderForthText =
+decoderForth : Json.Decode.Decoder Forth
+decoderForth =
     Json.Decode.field "ctor" Json.Decode.int
         |> Json.Decode.andThen
             (\ctor ->
@@ -55,8 +53,7 @@ decoderForthText =
                                 (Json.Decode.string
                                     |> Json.Decode.index 0
                                 )
-                                (Json.Decode.lazy
-                                    (\_ -> decoderBackAndForthText)
+                                (Json.Decode.lazy (\_ -> decoderBackAndForth)
                                     |> Json.Decode.index 1
                                 )
 
@@ -65,26 +62,26 @@ decoderForthText =
             )
 
 
-type BackAndForthText
-    = Back String ForthText
+type BackAndForth
+    = Back String Forth
 
 
-encodeBackAndForthText : BackAndForthText -> Json.Encode.Value
-encodeBackAndForthText backAndForthText =
-    case backAndForthText of
+encodeBackAndForth : BackAndForth -> Json.Encode.Value
+encodeBackAndForth backAndForth =
+    case backAndForth of
         Back param1 param2 ->
             Json.Encode.object
                 [ ( "ctor", Json.Encode.int 0 )
                 , ( "val"
                   , Json.Encode.list
                         identity
-                        [ Json.Encode.string param1, encodeForthText param2 ]
+                        [ Json.Encode.string param1, encodeForth param2 ]
                   )
                 ]
 
 
-decoderBackAndForthText : Json.Decode.Decoder BackAndForthText
-decoderBackAndForthText =
+decoderBackAndForth : Json.Decode.Decoder BackAndForth
+decoderBackAndForth =
     Json.Decode.field "ctor" Json.Decode.int
         |> Json.Decode.andThen
             (\ctor ->
@@ -96,7 +93,7 @@ decoderBackAndForthText =
                                 (Json.Decode.string
                                     |> Json.Decode.index 0
                                 )
-                                (Json.Decode.lazy (\_ -> decoderForthText)
+                                (Json.Decode.lazy (\_ -> decoderForth)
                                     |> Json.Decode.index 1
                                 )
 

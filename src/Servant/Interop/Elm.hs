@@ -41,14 +41,10 @@ printModule :: Servant.Interop.HasWireFormat a => Options -> Proxy a -> T.Text
 printModule options api =
   removeTrailingWhitespace . printDoc . printModule' . Module (moduleName options) $ clients <> helpers
   where
-    (userTypes, endpoints) = Servant.Interop.wireFormat api
-    clients = FunctionDefinition . Generate.generateClient <$> endpoints
-    helpers =
-      foldMap (uncurry definitionsForType)
-        . sortUserTypes
-        . fst
-        . fromWireUserTypes
-        $ userTypes
+    (wireTypes, endpoints) = Servant.Interop.wireFormat api
+    (elmTypes, toElmType) = toElmTypes wireTypes
+    clients = FunctionDefinition . Generate.generateClient toElmType <$> endpoints
+    helpers = foldMap (uncurry definitionsForType) (sortUserTypes elmTypes)
 
 removeTrailingWhitespace :: T.Text -> T.Text
 removeTrailingWhitespace = T.unlines . fmap T.stripEnd . T.lines

@@ -20,7 +20,7 @@ import Data.Maybe (maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Servant.Interop (Endpoint (..), Path (..), QueryVal (..))
-import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF (..), TypeName (..), fromWireType, toElmTypeName)
+import Servant.Interop.Elm.Types (ElmTypeDefinition (..), ElmTypeF (..), TypeName, printName, toUniqueName)
 import Servant.Interop.Elm.Values
 import qualified Wire
 import qualified Wire.Parameter as Parameter
@@ -47,7 +47,7 @@ elmEncoder =
         mkCase
           x
           [ matchCtor1 _Err "err" (\err -> ctor1Encoder 0 (fn1 f err)),
-            matchCtor1 _Just "ok" (\ok -> ctor1Encoder 1 (fn1 g ok))
+            matchCtor1 _Ok "ok" (\ok -> ctor1Encoder 1 (fn1 g ok))
           ]
     Tuple2 f g ->
       lambda $ matchTuple2 "x" "y" $ \x y ->
@@ -83,8 +83,8 @@ matchEncodeRecord fields =
     (fn2 (var _Json_Encode_list) (var _identity) . list . fmap snd)
 
 encoderNameForType :: TypeName -> T.Text
-encoderNameForType (TypeName name) =
-  "encode" <> name
+encoderNameForType name =
+  "encode" <> printName name
 
 generateEncoder :: TypeName -> ElmTypeDefinition -> ElmFunction
 generateEncoder name typeDef =
@@ -109,7 +109,7 @@ _Json_Decode_Decoder :: TypeName
 _Json_Decode_Decoder = "Json.Decode.Decoder"
 
 encoderForType :: TypeName -> ElmTypeDefinition -> ElmValue (Any -> Value)
-encoderForType (TypeName typeName) typeDef =
+encoderForType typeName typeDef =
   case typeDef of
     Alias elmType -> elmEncoder elmType
     Custom constructors ->
@@ -117,7 +117,7 @@ encoderForType (TypeName typeName) typeDef =
         mkCase x $ uncurry encodeCtorTagged <$> zip [0 ..] (toList constructors)
       where
         lowerCasedTypeName =
-          case T.uncons typeName of
+          case T.uncons (printName typeName) of
             Nothing -> mempty
             Just (x, rest) -> T.cons (Char.toLower x) rest
         encodeCtorTagged :: Word -> (Wire.ConstructorName, [ElmType]) -> (Pattern p, ElmValue Value)
@@ -207,7 +207,7 @@ elmDecoder =
             )
     Result f g ->
       anyDecoder $
-        fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_string)
+        fn2 (var _Json_Decode_field) "ctor" (var _Json_Decode_int)
           |> fn1
             (var _Json_Decode_andThen)
             ( lambda $ matchVar "x" $ \x ->
@@ -266,8 +266,8 @@ anyDecoder :: ElmValue (Decoder a) -> ElmValue (Decoder Any)
 anyDecoder = anyType
 
 decoderNameForType :: TypeName -> T.Text
-decoderNameForType (TypeName name) =
-  "decoder" <> name
+decoderNameForType name =
+  "decoder" <> printName name
 
 decoderForType :: ElmTypeDefinition -> ElmValue (Decoder Any)
 decoderForType typeDef =
@@ -305,8 +305,8 @@ decodeParams (Wire.ConstructorName ctorName, params) =
     paramDecoder :: Int32 -> ElmType -> ElmValue (Decoder Any)
     paramDecoder n param = elmDecoder param |> fn1 (var _Json_Decode_index) (int n)
 
-generateClient :: Endpoint -> ElmFunction
-generateClient endpoint =
+generateClient :: (Wire.Type_ -> ElmType) -> Endpoint -> ElmFunction
+generateClient fromWireType endpoint =
   ElmFunction
     { fnName = endpointFunctionName endpoint,
       fnType = Fix $ Lambda inputRec $ Fix $ Cmd $ Fix $ Result (Fix _Http_Error) $ fromWireType $ responseBody endpoint,
@@ -451,7 +451,7 @@ toCamelCase name =
 elmTypeForParameter :: Parameter.Parameter -> ElmType
 elmTypeForParameter param =
   case Parameter.wrapper param of
-    Just (name, _) -> Fix (Defined (toElmTypeName name) [])
+    Just (name, _) -> Fix (Defined (toUniqueName name) [])
     Nothing ->
       case Parameter.type_ param of
         Parameter.Int -> Fix Int
